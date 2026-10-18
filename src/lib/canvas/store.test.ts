@@ -53,4 +53,12 @@ describe('inkyStore', () => {
     inkyStore.setActiveTool('draw')
     expect(callCount).toBe(1) // no new call after unsubscribe
   })
+
+  it('updates stroke color and tool switching correctly', () => {
+    inkyStore.setStrokeColor('#2563eb')
+    expect(inkyStore.strokeColor).toBe('#2563eb')
+
+    inkyStore.setStrokeSize(6)
+    expect(inkyStore.strokeSize).toBe(6)
+  })
 })

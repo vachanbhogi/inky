@@ -3,6 +3,16 @@ import type { BoundingBox } from './spatial-index'
 
 export type ToolType = 'draw' | 'pan' | 'eraser' | 'select'
 
+export const PALETTE_COLORS = [
+  '#111111', // Ink Charcoal
+  '#2563eb', // Cobalt Blue
+  '#dc2626', // Signal Crimson
+  '#16a34a', // Forest Green
+  '#9333ea', // Royal Violet
+] as const
+
+export type StrokeColor = (typeof PALETTE_COLORS)[number] | string
+
 export interface Stroke {
   id: string
   points: Point[]
