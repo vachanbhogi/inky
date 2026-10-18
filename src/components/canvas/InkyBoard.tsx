@@ -9,6 +9,7 @@ import {
 } from '../../lib/canvas/spatial-index'
 import { inkyStore } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
+import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-gesture'
 import type { Stroke } from '../../lib/canvas/types'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
@@ -25,6 +26,8 @@ export function InkyBoard() {
   const isDraggingSelectionRef = useRef(false)
   const previousToolRef = useRef<typeof inkyStore.activeTool | null>(null)
   const isSpaceDownRef = useRef(false)
+  const activePointersRef = useRef<Map<number, TouchPoint>>(new Map())
+  const isPinchingRef = useRef(false)
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [camera, setCamera] = useState(inkyStore.camera)
@@ -134,6 +137,20 @@ export function InkyBoard() {
     const rect = container.getBoundingClientRect()
     const screenX = e.clientX - rect.left
     const screenY = e.clientY - rect.top
+
+    // Register touch pointer for multi-touch gesture detection
+    if (e.pointerType === 'touch') {
+      activePointersRef.current.set(e.pointerId, { id: e.pointerId, x: screenX, y: screenY })
+      if (activePointersRef.current.size >= 2) {
+        // Cancel active stroke if second finger lands
+        isPinchingRef.current = true
+        if (currentStrokeRef.current) {
+          inkyStore.setCurrentStroke(null)
+          currentStrokeRef.current = null
+        }
+        return
+      }
+    }
 
     if (e.button === 1 || activeTool === 'pan') {
       lastPanPointRef.current = { x: e.clientX, y: e.clientY }
@@ -268,6 +285,23 @@ export function InkyBoard() {
     const screenX = e.clientX - rect.left
     const screenY = e.clientY - rect.top
 
+    // Multi-touch pinch-to-zoom & pan handling
+    if (e.pointerType === 'touch' && activePointersRef.current.has(e.pointerId)) {
+      const prevTouches = Array.from(activePointersRef.current.values())
+      activePointersRef.current.set(e.pointerId, { id: e.pointerId, x: screenX, y: screenY })
+      const nextTouches = Array.from(activePointersRef.current.values())
+
+      if (activePointersRef.current.size >= 2) {
+        const gestureResult = computeTouchGesture(prevTouches, nextTouches, inkyStore.camera)
+        if (gestureResult) {
+          inkyStore.setCamera(gestureResult.camera)
+        }
+        return
+      }
+    }
+
+    if (isPinchingRef.current) return
+
     // When in eraser mode, update hovered stroke for visual bounding box feedback
     if (activeTool === 'eraser') {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
@@ -344,6 +378,13 @@ export function InkyBoard() {
   }
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') {
+      activePointersRef.current.delete(e.pointerId)
+      if (activePointersRef.current.size < 2) {
+        isPinchingRef.current = false
+      }
+    }
+
     if (!isPointerDownRef.current) return
     isPointerDownRef.current = false
     lastPanPointRef.current = null
