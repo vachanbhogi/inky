@@ -137,7 +137,6 @@ export function InkyBoard() {
       }
     }
 
-
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === ' ') {
         isSpaceDownRef.current = false
@@ -188,6 +187,14 @@ export function InkyBoard() {
 
     if (e.button === 1 || activeTool === 'pan') {
       lastPanPointRef.current = { x: e.clientX, y: e.clientY }
+      return
+    }
+
+    const isStylusEraser = e.pointerType === 'pen' && (e.buttons === 32 || e.button === 5)
+    const isEraserAction = activeTool === 'eraser' || isStylusEraser
+
+    if (isEraserAction) {
+      eraseAtScreenPoint(screenX, screenY, e.pointerType === 'touch')
       return
     }
 
@@ -336,21 +343,34 @@ export function InkyBoard() {
 
     if (isPinchingRef.current) return
 
-    // When in eraser mode, update hovered stroke for visual bounding box feedback
-    if (activeTool === 'eraser') {
+    const isStylusEraser = e.pointerType === 'pen' && (e.buttons === 32 || e.button === 5)
+    const isEraserMode = activeTool === 'eraser' || isStylusEraser
+
+    // When in eraser mode or stylus eraser button held, update dynamic reticle and hovered stroke
+    if (isEraserMode) {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      const eraserRadius = (e.pointerType === 'touch' ? 28 : 16) / inkyStore.camera.z
+      inkyStore.setEraserPoint({ x: worldX, y: worldY, radius: eraserRadius })
+
       let hitId: string | null = null
       for (let i = inkyStore.strokes.length - 1; i >= 0; i--) {
         const s = inkyStore.strokes[i]
-        if (isPointOnStroke(worldX, worldY, s, 20 / inkyStore.camera.z)) {
+        if (isPointOnStroke(worldX, worldY, s, eraserRadius)) {
           hitId = s.id
           break
         }
       }
       inkyStore.setHoveredStrokeId(hitId)
+    } else if (inkyStore.eraserPoint) {
+      inkyStore.setEraserPoint(null)
     }
 
     if (!isPointerDownRef.current) return
+
+    if (isEraserMode) {
+      eraseAtScreenPoint(screenX, screenY, e.pointerType === 'touch')
+      return
+    }
 
     if (lastPanPointRef.current) {
       const dx = e.clientX - lastPanPointRef.current.x
@@ -419,6 +439,11 @@ export function InkyBoard() {
       }
     }
 
+    // Reset eraser point when pointer releases
+    if (activeTool !== 'eraser') {
+      inkyStore.setEraserPoint(null)
+    }
+
     if (!isPointerDownRef.current) return
     isPointerDownRef.current = false
     lastPanPointRef.current = null
@@ -465,9 +490,10 @@ export function InkyBoard() {
     }
   }
 
-  const eraseAtScreenPoint = (screenX: number, screenY: number) => {
+  const eraseAtScreenPoint = (screenX: number, screenY: number, isTouch = false) => {
     const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
-    const eraserRadius = 16 / inkyStore.camera.z
+    const baseRadius = isTouch ? 28 : 16
+    const eraserRadius = baseRadius / inkyStore.camera.z
 
     const toDeleteId =
       inkyStore.hoveredStrokeId ||
