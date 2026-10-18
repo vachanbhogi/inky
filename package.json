@@ -11,6 +11,7 @@
     "check": "biome check ."
   },
   "dependencies": {
+    "@use-gesture/react": "^10.3.1",
     "katex": "^0.16.21",
     "lucide-react": "^1.16.0",
     "mathjs": "^14.3.1",

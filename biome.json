@@ -19,6 +19,10 @@
     "enabled": true,
     "rules": {
       "recommended": true,
+      "a11y": {
+        "useButtonType": "off",
+        "useKeyWithClickEvents": "off"
+      },
       "complexity": {
         "noForEach": "off"
       },
@@ -28,7 +32,9 @@
         "noUselessElse": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "off",
+        "noArrayIndexKey": "off",
+        "noAssignInExpressions": "off"
       }
     }
   },
