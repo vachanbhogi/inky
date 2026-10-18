@@ -13,8 +13,17 @@ export function CanvasLayer() {
     if (!ctx) return
 
     let animationFrameId: number
+    let marchOffset = 0
+    let lastTime = performance.now()
 
-    const render = () => {
+    const render = (now: number) => {
+      const dt = now - lastTime
+      lastTime = now
+
+      // Animate marching ants
+      marchOffset -= dt * 0.02
+      if (marchOffset < -20) marchOffset += 20
+
       const dpr = window.devicePixelRatio || 1
       const rect = canvas.getBoundingClientRect()
 
@@ -63,6 +72,19 @@ export function CanvasLayer() {
             ctx.strokeRect(minX - 2, minY - 2, maxX - minX + 4, maxY - minY + 4)
           }
 
+          // Eraser target stroke hover highlight bounding box
+          if (state.activeTool === 'eraser' && state.hoveredStrokeId === stroke.id) {
+            const { minX, minY, maxX, maxY } = stroke.boundingBox
+            const pad = 4
+            ctx.strokeStyle = '#ef4444'
+            ctx.lineWidth = 1.5 / z
+            ctx.setLineDash([4 / z, 4 / z])
+            ctx.lineDashOffset = marchOffset / z
+            ctx.strokeRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2)
+            ctx.setLineDash([])
+            ctx.lineDashOffset = 0
+          }
+
           ctx.restore()
         }
       }
@@ -102,12 +124,14 @@ export function CanvasLayer() {
           const bw = maxX - minX + pad * 2
           const bh = maxY - minY + pad * 2
 
-          // Draw main bounding box frame
+          // Draw main bounding box frame with lively marching ants
           ctx.strokeStyle = '#2563eb'
           ctx.lineWidth = 1.5 / z
-          ctx.setLineDash([5 / z, 4 / z])
+          ctx.setLineDash([6 / z, 4 / z])
+          ctx.lineDashOffset = marchOffset / z
           ctx.strokeRect(bx, by, bw, bh)
           ctx.setLineDash([])
+          ctx.lineDashOffset = 0
 
           // Draw 4 corner resize handles (Apple-grade white fill with 1.5px blue stroke)
           const handleSize = 8 / z
