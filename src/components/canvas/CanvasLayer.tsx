@@ -15,6 +15,18 @@ export function CanvasLayer() {
     let animationFrameId: number
     let marchOffset = 0
     let lastTime = performance.now()
+    let isLoopRunning = false
+
+    const scheduleFrame = () => {
+      if (!isLoopRunning) {
+        isLoopRunning = true
+        animationFrameId = requestAnimationFrame(render)
+      }
+    }
+
+    const unsub = inkyStore.subscribe(() => {
+      scheduleFrame()
+    })
 
     const render = (now: number) => {
       const dt = now - lastTime
@@ -197,12 +209,23 @@ export function CanvasLayer() {
       }
 
       ctx.restore()
-      animationFrameId = requestAnimationFrame(render)
+      const needsContinuousAnimation =
+        (state.activeTool === 'select' && state.selectedStrokeIds.length > 0) ||
+        (state.activeTool === 'eraser' &&
+          (state.hoveredStrokeId !== null || state.eraserPoint !== null)) ||
+        state.currentStroke !== null
+
+      if (needsContinuousAnimation) {
+        animationFrameId = requestAnimationFrame(render)
+      } else {
+        isLoopRunning = false
+      }
     }
 
-    animationFrameId = requestAnimationFrame(render)
+    scheduleFrame()
 
     return () => {
+      unsub()
       cancelAnimationFrame(animationFrameId)
     }
   }, [])

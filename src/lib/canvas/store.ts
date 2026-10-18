@@ -19,6 +19,7 @@ export class InkyStore {
   marquee: Marquee | null = null
   activeHandle: HandleType | null = null
   eraserPoint: { x: number; y: number; radius: number } | null = null
+  showShortcuts = false
   transformInitialState: {
     strokes: {
       id: string
@@ -44,6 +45,13 @@ export class InkyStore {
   notify() {
     for (const listener of this.listeners) {
       listener()
+    }
+  }
+
+  setShowShortcuts(show: boolean) {
+    if (this.showShortcuts !== show) {
+      this.showShortcuts = show
+      this.notify()
     }
   }
 
@@ -74,7 +82,6 @@ export class InkyStore {
     this.eraserPoint = point
     this.notify()
   }
-
 
   setStrokeColor(color: string) {
     this.strokeColor = color
@@ -162,7 +169,6 @@ export class InkyStore {
   }
 
   clearSelection() {
-
     if (this.selectedStrokeIds.length === 0 && !this.marquee) return
     this.selectedStrokeIds = []
     this.marquee = null

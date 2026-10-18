@@ -292,4 +292,3 @@ describe('inkyStore', () => {
     expect(inkyStore.eraserPoint).toBeNull()
   })
 })
-

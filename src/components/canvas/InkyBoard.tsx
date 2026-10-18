@@ -13,6 +13,7 @@ import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-ges
 import type { Stroke } from '../../lib/canvas/types'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
+import { ShortcutsModal } from './ShortcutsModal'
 import { Toolbar } from './Toolbar'
 
 export function InkyBoard() {
@@ -30,11 +31,13 @@ export function InkyBoard() {
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [camera, setCamera] = useState(inkyStore.camera)
+  const [strokeCount, setStrokeCount] = useState(inkyStore.strokes.length)
 
   useEffect(() => {
     const unsub = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
       setCamera({ ...inkyStore.camera })
+      setStrokeCount(inkyStore.strokes.length)
     })
 
     const worker = new PerfectFreehandWorker()
@@ -95,8 +98,18 @@ export function InkyBoard() {
         return
       }
 
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault()
+        inkyStore.setShowShortcuts(!inkyStore.showShortcuts)
+        return
+      }
+
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (inkyStore.showShortcuts) {
+          inkyStore.setShowShortcuts(false)
+          return
+        }
         inkyStore.clearSelection()
         return
       }
@@ -426,8 +439,6 @@ export function InkyBoard() {
           endY: worldY,
         })
       }
-    } else if (activeTool === 'eraser') {
-      eraseAtScreenPoint(screenX, screenY)
     }
   }
 
@@ -570,6 +581,28 @@ export function InkyBoard() {
     >
       <CanvasLayer />
       <Toolbar />
+      <ShortcutsModal />
+
+      {/* Subtle Starter Onboarding Watermark (Dissolves upon first ink stroke) */}
+      {strokeCount === 0 && !inkyStore.currentStroke && (
+        <div
+          className="pointer-events-none fixed inset-0 flex flex-col items-center justify-center text-center p-6 select-none"
+          style={{
+            animation: 'fadeIn 300ms ease both',
+          }}
+        >
+          <div className="max-w-md bg-white/75 backdrop-blur-md px-6 py-4 rounded-2xl border border-black/5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] space-y-1.5">
+            <h1 className="text-sm font-semibold tracking-tight text-[#111111]/85">
+              Infinite Math & Sketch Canvas
+            </h1>
+            <p className="text-xs text-[#787774] leading-relaxed">
+              Draw with pen or stylus • Hold spacebar to pan • Press{' '}
+              <kbd className="px-1 py-0.5 bg-black/5 rounded text-[11px] font-mono">?</kbd> for
+              shortcuts
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
