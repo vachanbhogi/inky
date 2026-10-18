@@ -64,6 +64,14 @@ export function InkyBoard() {
         return
       }
 
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (inkyStore.selectedStrokeIds.length > 0) {
+          e.preventDefault()
+          inkyStore.deleteSelected()
+          return
+        }
+      }
+
       switch (e.key) {
         case '1':
           inkyStore.setActiveTool('pan')

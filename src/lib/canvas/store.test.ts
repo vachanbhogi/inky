@@ -217,4 +217,37 @@ describe('inkyStore', () => {
     inkyStore.rotateSelected(250, 150)
     expect(inkyStore.strokes[0].angle).toBeCloseTo(Math.PI / 2, 4)
   })
+
+  it('deletes selected strokes and restores them on undo', () => {
+    inkyStore.strokes = [
+      {
+        id: 's1',
+        points: [[0, 0]],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      },
+      {
+        id: 's2',
+        points: [[10, 10]],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 10, minY: 10, maxX: 10, maxY: 10 },
+      },
+    ]
+
+    inkyStore.selectStroke('s1')
+    expect(inkyStore.selectedStrokeIds).toEqual(['s1'])
+
+    inkyStore.deleteSelected()
+    expect(inkyStore.strokes.length).toBe(1)
+    expect(inkyStore.strokes[0].id).toBe('s2')
+    expect(inkyStore.selectedStrokeIds).toEqual([])
+    expect(inkyStore.canUndo).toBe(true)
+
+    // Undo restores the deleted stroke
+    inkyStore.undo()
+    expect(inkyStore.strokes.length).toBe(2)
+    expect(inkyStore.strokes.map((s) => s.id)).toEqual(['s1', 's2'])
+  })
 })
