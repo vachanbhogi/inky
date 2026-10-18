@@ -95,10 +95,10 @@ export function Toolbar() {
         </div>
 
         {/* Always-Visible Style Dock (Zero layout shift, instant color pick & draw) */}
-        <div className="w-[1px] h-6 bg-black/8 mx-1" />
+        <div className="w-[1px] h-5 bg-black/10 mx-1" />
 
         {/* Curated Color Swatches */}
-        <div className="flex items-center gap-1 px-0.5">
+        <div className="flex items-center gap-0.5 px-0.5">
           {PALETTE_COLORS.map((color) => {
             const isSelected = strokeColor === color
             return (
@@ -124,7 +124,7 @@ export function Toolbar() {
                 <span
                   className={`block w-4 h-4 rounded-full transition-all duration-150 ${
                     isSelected
-                      ? 'scale-110 shadow-sm ring-2 ring-black/20 ring-offset-1'
+                      ? 'scale-110 shadow-sm ring-2 ring-black/25 ring-offset-2'
                       : 'opacity-85 hover:opacity-100 hover:scale-105'
                   }`}
                   style={{ backgroundColor: color }}
@@ -134,15 +134,15 @@ export function Toolbar() {
           })}
         </div>
 
-        <div className="w-[1px] h-4 bg-black/8 mx-0.5" />
+        <div className="w-[1px] h-5 bg-black/10 mx-1" />
 
         {/* Stroke Thickness Selector */}
-        <div className="flex items-center gap-1 px-0.5">
+        <div className="flex items-center gap-0.5 px-0.5">
           {[
-            { size: 2, label: 'Fine' },
-            { size: 4, label: 'Medium' },
-            { size: 8, label: 'Bold' },
-          ].map(({ size, label }) => {
+            { size: 2, label: 'Fine', dotSize: 4 },
+            { size: 4, label: 'Medium', dotSize: 6 },
+            { size: 8, label: 'Bold', dotSize: 9 },
+          ].map(({ size, label, dotSize }) => {
             const isSelected = strokeSize === size
             return (
               <button
@@ -155,15 +155,15 @@ export function Toolbar() {
                     inkyStore.setActiveTool('draw')
                   }
                 }}
-                className={`min-w-[36px] min-h-[36px] p-1 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
+                className={`min-w-[36px] min-h-[36px] p-1.5 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
                   isSelected ? 'bg-black/8 text-[#111111]' : 'text-[#787774] hover:bg-black/5'
                 }`}
               >
                 <span
                   className="block rounded-full bg-current transition-all"
                   style={{
-                    width: `${Math.max(4, size + 1)}px`,
-                    height: `${Math.max(4, size + 1)}px`,
+                    width: `${dotSize}px`,
+                    height: `${dotSize}px`,
                   }}
                 />
               </button>
