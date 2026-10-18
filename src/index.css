@@ -29,10 +29,23 @@ body {
 @keyframes toolbarSlideDown {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-12px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.inky-ui button {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inky-ui,
+  .inky-ui * {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
   }
 }
