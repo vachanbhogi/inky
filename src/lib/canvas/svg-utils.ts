@@ -7,7 +7,7 @@ export function getSvgPathFromStroke(stroke: number[][]): string {
       acc.push(x0.toFixed(2), y0.toFixed(2), ((x0 + x1) / 2).toFixed(2), ((y0 + y1) / 2).toFixed(2))
       return acc
     },
-    ['M', ...stroke[0].map((num) => num.toFixed(2)), 'Q']
+    ['M', ...stroke[0].map((num) => num.toFixed(2)), 'Q'],
   )
 
   d.push('Z')

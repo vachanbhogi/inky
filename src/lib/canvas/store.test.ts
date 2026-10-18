@@ -18,7 +18,10 @@ describe('inkyStore', () => {
     inkyStore.strokes = []
     const stroke = {
       id: 'stroke-1',
-      points: [[0, 0], [10, 10]] as [number, number][],
+      points: [
+        [0, 0],
+        [10, 10],
+      ] as [number, number][],
       color: '#111111',
       size: 4,
       boundingBox: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
