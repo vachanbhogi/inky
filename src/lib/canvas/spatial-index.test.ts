@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { checkBoundingBoxOverlap, getBoundingBox, getViewportBoundingBox } from './spatial-index'
+import {
+  checkBoundingBoxOverlap,
+  distToSegment,
+  getBoundingBox,
+  getViewportBoundingBox,
+  isPointOnStroke,
+} from './spatial-index'
 
 describe('spatial-index', () => {
   it('computes correct bounding box for vector points', () => {
@@ -54,5 +60,35 @@ describe('spatial-index', () => {
 
     expect(checkBoundingBoxOverlap(boxA, boxB)).toBe(true)
     expect(checkBoundingBoxOverlap(boxA, boxC)).toBe(false)
+  })
+
+  it('calculates point to segment distance correctly', () => {
+    // Distance from (5, 5) to segment (0, 0)-(10, 0) is 5
+    expect(distToSegment(5, 5, 0, 0, 10, 0)).toBe(5)
+    // Distance from (15, 0) to segment (0, 0)-(10, 0) is 5 (past endpoint)
+    expect(distToSegment(15, 0, 0, 0, 10, 0)).toBe(5)
+    // Distance from (-5, 0) to segment (0, 0)-(10, 0) is 5 (before startpoint)
+    expect(distToSegment(-5, 0, 0, 0, 10, 0)).toBe(5)
+  })
+
+  it('detects if point is on freehand stroke within threshold', () => {
+    const stroke = {
+      id: 's1',
+      points: [
+        [0, 0],
+        [100, 0],
+      ] as [number, number][],
+      color: '#111111',
+      size: 4,
+      boundingBox: { minX: 0, minY: 0, maxX: 100, maxY: 0 },
+    }
+    // Point directly on line
+    expect(isPointOnStroke(50, 0, stroke, 10)).toBe(true)
+    // Point within 8px
+    expect(isPointOnStroke(50, 8, stroke, 10)).toBe(true)
+    // Point far away
+    expect(isPointOnStroke(50, 25, stroke, 10)).toBe(false)
+    // Point far outside bounding box
+    expect(isPointOnStroke(300, 300, stroke, 10)).toBe(false)
   })
 })
