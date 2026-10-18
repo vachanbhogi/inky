@@ -61,4 +61,38 @@ describe('inkyStore', () => {
     inkyStore.setStrokeSize(6)
     expect(inkyStore.strokeSize).toBe(6)
   })
+
+  it('manages stroke selection and marquee state', () => {
+    inkyStore.strokes = [
+      {
+        id: 's1',
+        points: [[0, 0]],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      },
+      {
+        id: 's2',
+        points: [[50, 50]],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 50, minY: 50, maxX: 50, maxY: 50 },
+      },
+    ]
+
+    inkyStore.selectStroke('s1')
+    expect(inkyStore.selectedStrokeIds).toEqual(['s1'])
+
+    // Multi-select toggle
+    inkyStore.selectStroke('s2', true)
+    expect(inkyStore.selectedStrokeIds).toEqual(['s1', 's2'])
+
+    // Clear selection
+    inkyStore.clearSelection()
+    expect(inkyStore.selectedStrokeIds).toEqual([])
+
+    // Set Marquee
+    inkyStore.setMarquee({ startX: 0, startY: 0, endX: 100, endY: 100 })
+    expect(inkyStore.marquee).toEqual({ startX: 0, startY: 0, endX: 100, endY: 100 })
+  })
 })

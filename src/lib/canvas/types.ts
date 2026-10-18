@@ -13,6 +13,13 @@ export const PALETTE_COLORS = [
 
 export type StrokeColor = (typeof PALETTE_COLORS)[number] | string
 
+export interface Marquee {
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+}
+
 export interface Stroke {
   id: string
   points: Point[]
@@ -20,6 +27,7 @@ export interface Stroke {
   size: number
   pathData?: string
   boundingBox: BoundingBox
+  angle?: number
 }
 
 export interface CanvasState {
