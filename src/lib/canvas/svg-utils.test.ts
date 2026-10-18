@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getSvgPathFromStroke } from './svg-utils'
+import { generateStrokePath, getSvgPathFromStroke } from './svg-utils'
 
 describe('svg-utils', () => {
   it('generates an SVG path data string from polygon stroke points', () => {
@@ -16,5 +16,18 @@ describe('svg-utils', () => {
 
   it('handles empty stroke points without crashing', () => {
     expect(getSvgPathFromStroke([])).toBe('')
+    expect(generateStrokePath([])).toBe('')
+  })
+
+  it('generates smooth stroke path immediately from raw input points', () => {
+    const rawPoints: [number, number][] = [
+      [10, 10],
+      [20, 20],
+      [30, 30],
+    ]
+    const path = generateStrokePath(rawPoints, 4)
+    expect(path.length).toBeGreaterThan(0)
+    expect(path.startsWith('M')).toBe(true)
+    expect(path.endsWith('Z')).toBe(true)
   })
 })

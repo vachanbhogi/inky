@@ -1,3 +1,5 @@
+import { getStroke } from 'perfect-freehand'
+
 export function getSvgPathFromStroke(stroke: number[][]): string {
   if (!stroke.length) return ''
 
@@ -12,4 +14,16 @@ export function getSvgPathFromStroke(stroke: number[][]): string {
 
   d.push('Z')
   return d.join(' ')
+}
+
+export function generateStrokePath(points: [number, number][], size = 4): string {
+  if (points.length === 0) return ''
+  const outline = getStroke(points, {
+    size,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+    easing: (t: number) => t,
+  })
+  return getSvgPathFromStroke(outline)
 }
