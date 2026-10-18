@@ -63,5 +63,12 @@ export function CanvasLayer() {
     }
   }, [])
 
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+  return (
+    <canvas
+      ref={canvasRef}
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      className="absolute inset-0 w-full h-full pointer-events-none select-none"
+    />
+  )
 }

@@ -3,6 +3,7 @@ import type { Point } from '../../lib/canvas/coordinates'
 import { toWorld } from '../../lib/canvas/coordinates'
 import { getBoundingBox } from '../../lib/canvas/spatial-index'
 import { inkyStore } from '../../lib/canvas/store'
+import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import type { Stroke } from '../../lib/canvas/types'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
@@ -150,14 +151,19 @@ export function InkyBoard() {
       currentStrokeRef.current.points.push(worldPoint)
       const points = currentStrokeRef.current.points
 
+      // Compute immediate path synchronously for 60fps responsiveness
+      const immediatePath = generateStrokePath(points, inkyStore.strokeSize)
+
       if (inkyStore.currentStroke) {
         inkyStore.setCurrentStroke({
           ...inkyStore.currentStroke,
           points,
+          pathData: immediatePath,
           boundingBox: getBoundingBox(points),
         })
       }
 
+      // Delegate final polygon optimization to web worker asynchronously
       workerRef.current?.postMessage({
         id: currentStrokeRef.current.id,
         points,
@@ -233,12 +239,16 @@ export function InkyBoard() {
   return (
     <div
       ref={containerRef}
+      role="application"
+      aria-label="Inky Math Canvas"
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
-      className={`relative w-full h-full touch-none select-none overflow-hidden ${
+      className={`inky-canvas-root relative w-full h-full touch-none select-none overflow-hidden ${
         activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
       }`}
     >

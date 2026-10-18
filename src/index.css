@@ -19,6 +19,13 @@ body {
   overflow: hidden;
 }
 
+.inky-canvas-root {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
 @keyframes toolbarSlideDown {
   from {
     opacity: 0;
