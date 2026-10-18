@@ -96,3 +96,60 @@ export function isPointOnStroke(
 
   return false
 }
+
+export function getUnifiedBoundingBox(boxes: BoundingBox[]): BoundingBox | null {
+  if (boxes.length === 0) return null
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
+  for (const box of boxes) {
+    if (box.minX < minX) minX = box.minX
+    if (box.minY < minY) minY = box.minY
+    if (box.maxX > maxX) maxX = box.maxX
+    if (box.maxY > maxY) maxY = box.maxY
+  }
+
+  return { minX, minY, maxX, maxY }
+}
+
+export type HandleType = 'nw' | 'ne' | 'sw' | 'se' | 'rotate'
+
+export function detectHandle(
+  worldX: number,
+  worldY: number,
+  selection: { box: BoundingBox; angle?: number },
+  zoom = 1,
+): HandleType | null {
+  const { box, angle = 0 } = selection
+  const { minX, minY, maxX, maxY } = box
+  const cx = minX + (maxX - minX) / 2
+  const cy = minY + (maxY - minY) / 2
+
+  // Unrotate point around center to test in axis-aligned space
+  const cosA = Math.cos(-angle)
+  const sinA = Math.sin(-angle)
+  const ux = cx + (worldX - cx) * cosA - (worldY - cy) * sinA
+  const uy = cy + (worldX - cx) * sinA + (worldY - cy) * cosA
+
+  const pad = 4
+  const bx = minX - pad
+  const by = minY - pad
+  const bw = maxX - minX + pad * 2
+  const bh = maxY - minY + pad * 2
+
+  const threshold = 16 / zoom
+  const dist = (x1: number, y1: number, x2: number, y2: number) => Math.hypot(x1 - x2, y1 - y2)
+
+  if (dist(ux, uy, bx, by) < threshold) return 'nw'
+  if (dist(ux, uy, bx + bw, by) < threshold) return 'ne'
+  if (dist(ux, uy, bx, by + bh) < threshold) return 'sw'
+  if (dist(ux, uy, bx + bw, by + bh) < threshold) return 'se'
+
+  const rotateStickLen = 24 / zoom
+  if (dist(ux, uy, bx + bw / 2, by - rotateStickLen) < threshold) return 'rotate'
+
+  return null
+}

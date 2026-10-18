@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   checkBoundingBoxOverlap,
+  detectHandle,
   distToSegment,
   getBoundingBox,
+  getUnifiedBoundingBox,
   getViewportBoundingBox,
   isPointOnStroke,
 } from './spatial-index'
@@ -90,5 +92,40 @@ describe('spatial-index', () => {
     expect(isPointOnStroke(50, 25, stroke, 10)).toBe(false)
     // Point far outside bounding box
     expect(isPointOnStroke(300, 300, stroke, 10)).toBe(false)
+  })
+
+  it('computes unified bounding box for multiple strokes', () => {
+    const box1 = { minX: 10, minY: 10, maxX: 50, maxY: 50 }
+    const box2 = { minX: 40, minY: 30, maxX: 120, maxY: 90 }
+
+    const unified = getUnifiedBoundingBox([box1, box2])
+    expect(unified).toEqual({
+      minX: 10,
+      minY: 10,
+      maxX: 120,
+      maxY: 90,
+    })
+    expect(getUnifiedBoundingBox([])).toBeNull()
+  })
+
+  it('detects corner and rotate handles accurately', () => {
+    const selection = {
+      box: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+      angle: 0,
+    }
+    const zoom = 1
+
+    // NW handle (top-left) near (96, 96) with pad=4
+    expect(detectHandle(96, 96, selection, zoom)).toBe('nw')
+    // NE handle (top-right) near (204, 96)
+    expect(detectHandle(204, 96, selection, zoom)).toBe('ne')
+    // SW handle (bottom-left) near (96, 204)
+    expect(detectHandle(96, 204, selection, zoom)).toBe('sw')
+    // SE handle (bottom-right) near (204, 204)
+    expect(detectHandle(204, 204, selection, zoom)).toBe('se')
+    // Rotate handle: center X (150), Y = 96 - 24 = 72
+    expect(detectHandle(150, 72, selection, zoom)).toBe('rotate')
+    // Center point should not hit any handle
+    expect(detectHandle(150, 150, selection, zoom)).toBeNull()
   })
 })
