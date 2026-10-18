@@ -1,0 +1,249 @@
+import { useEffect, useRef, useState } from 'react'
+import type { Point } from '../../lib/canvas/coordinates'
+import { toWorld } from '../../lib/canvas/coordinates'
+import { getBoundingBox } from '../../lib/canvas/spatial-index'
+import { inkyStore } from '../../lib/canvas/store'
+import type { Stroke } from '../../lib/canvas/types'
+import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
+import { CanvasLayer } from './CanvasLayer'
+import { Toolbar } from './Toolbar'
+
+export function InkyBoard() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const workerRef = useRef<Worker | null>(null)
+  const currentStrokeRef = useRef<{ id: string; points: Point[] } | null>(null)
+  const isPointerDownRef = useRef(false)
+  const lastPanPointRef = useRef<{ x: number; y: number } | null>(null)
+
+  const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
+
+  useEffect(() => {
+    const unsub = inkyStore.subscribe(() => {
+      setActiveTool(inkyStore.activeTool)
+    })
+
+    const worker = new PerfectFreehandWorker()
+    workerRef.current = worker
+
+    worker.onmessage = (event: MessageEvent) => {
+      const { id, pathData, status } = event.data
+      if (status !== 'success') return
+
+      if (currentStrokeRef.current && currentStrokeRef.current.id === id) {
+        if (inkyStore.currentStroke) {
+          inkyStore.setCurrentStroke({
+            ...inkyStore.currentStroke,
+            pathData,
+          })
+        }
+      } else {
+        const idx = inkyStore.strokes.findIndex((s) => s.id === id)
+        if (idx !== -1) {
+          inkyStore.strokes[idx].pathData = pathData
+          inkyStore.notify()
+        }
+      }
+    }
+
+    // Keyboard shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) inkyStore.redo()
+        else inkyStore.undo()
+        return
+      }
+
+      switch (e.key) {
+        case '1':
+          inkyStore.setActiveTool('pan')
+          break
+        case '2':
+          inkyStore.setActiveTool('select')
+          break
+        case '3':
+          inkyStore.setActiveTool('draw')
+          break
+        case '0':
+          inkyStore.setActiveTool('eraser')
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      unsub()
+      worker.terminate()
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  // Pointer event handlers
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('.inky-ui')) return
+    const container = containerRef.current
+    if (!container) return
+
+    container.setPointerCapture(e.pointerId)
+    isPointerDownRef.current = true
+
+    const rect = container.getBoundingClientRect()
+    const screenX = e.clientX - rect.left
+    const screenY = e.clientY - rect.top
+
+    if (e.button === 1 || activeTool === 'pan') {
+      lastPanPointRef.current = { x: e.clientX, y: e.clientY }
+      return
+    }
+
+    if (activeTool === 'draw') {
+      const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
+      const strokeId = `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const points = [worldPoint]
+
+      currentStrokeRef.current = { id: strokeId, points }
+
+      const newStroke: Stroke = {
+        id: strokeId,
+        points,
+        color: inkyStore.strokeColor,
+        size: inkyStore.strokeSize,
+        boundingBox: getBoundingBox(points),
+      }
+
+      inkyStore.setCurrentStroke(newStroke)
+      workerRef.current?.postMessage({
+        id: strokeId,
+        points,
+        options: { size: inkyStore.strokeSize },
+      })
+    } else if (activeTool === 'eraser') {
+      eraseAtScreenPoint(screenX, screenY)
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current) return
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const screenX = e.clientX - rect.left
+    const screenY = e.clientY - rect.top
+
+    if (lastPanPointRef.current) {
+      const dx = e.clientX - lastPanPointRef.current.x
+      const dy = e.clientY - lastPanPointRef.current.y
+      lastPanPointRef.current = { x: e.clientX, y: e.clientY }
+      inkyStore.setCamera({
+        x: inkyStore.camera.x + dx,
+        y: inkyStore.camera.y + dy,
+      })
+      return
+    }
+
+    if (activeTool === 'draw' && currentStrokeRef.current) {
+      const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
+      currentStrokeRef.current.points.push(worldPoint)
+      const points = currentStrokeRef.current.points
+
+      if (inkyStore.currentStroke) {
+        inkyStore.setCurrentStroke({
+          ...inkyStore.currentStroke,
+          points,
+          boundingBox: getBoundingBox(points),
+        })
+      }
+
+      workerRef.current?.postMessage({
+        id: currentStrokeRef.current.id,
+        points,
+        options: { size: inkyStore.strokeSize },
+      })
+    } else if (activeTool === 'eraser') {
+      eraseAtScreenPoint(screenX, screenY)
+    }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current) return
+    isPointerDownRef.current = false
+    lastPanPointRef.current = null
+
+    if (containerRef.current?.hasPointerCapture(e.pointerId)) {
+      containerRef.current.releasePointerCapture(e.pointerId)
+    }
+
+    if (activeTool === 'draw' && inkyStore.currentStroke) {
+      const finalStroke = inkyStore.currentStroke
+      inkyStore.setCurrentStroke(null)
+      currentStrokeRef.current = null
+      inkyStore.addStroke(finalStroke)
+    }
+  }
+
+  const eraseAtScreenPoint = (screenX: number, screenY: number) => {
+    const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
+    const eraserRadius = 16 / inkyStore.camera.z
+
+    const remainingStrokes = inkyStore.strokes.filter((stroke) => {
+      // Check if any point in stroke is within eraser radius
+      return !stroke.points.some(([px, py]) => {
+        const dist = Math.hypot(px - worldPoint[0], py - worldPoint[1])
+        return dist <= eraserRadius
+      })
+    })
+
+    if (remainingStrokes.length !== inkyStore.strokes.length) {
+      inkyStore.strokes = remainingStrokes
+      inkyStore.notify()
+    }
+  }
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('.inky-ui')) return
+    e.preventDefault()
+
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const screenX = e.clientX - rect.left
+    const screenY = e.clientY - rect.top
+
+    if (e.ctrlKey || e.metaKey) {
+      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95
+      const newZ = Math.min(Math.max(inkyStore.camera.z * zoomFactor, 0.1), 5)
+
+      inkyStore.setCamera({
+        x: screenX - worldX * newZ,
+        y: screenY - worldY * newZ,
+        z: newZ,
+      })
+    } else {
+      inkyStore.setCamera({
+        x: inkyStore.camera.x - e.deltaX,
+        y: inkyStore.camera.y - e.deltaY,
+      })
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onWheel={handleWheel}
+      className={`relative w-full h-full touch-none select-none overflow-hidden ${
+        activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
+      }`}
+    >
+      <CanvasLayer />
+      <Toolbar />
+    </div>
+  )
+}
