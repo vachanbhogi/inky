@@ -22,6 +22,8 @@ export function InkyBoard() {
   const lastPanPointRef = useRef<{ x: number; y: number } | null>(null)
   const dragStartWorldRef = useRef<{ x: number; y: number } | null>(null)
   const isDraggingSelectionRef = useRef(false)
+  const previousToolRef = useRef<typeof inkyStore.activeTool | null>(null)
+  const isSpaceDownRef = useRef(false)
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [camera, setCamera] = useState(inkyStore.camera)
@@ -74,6 +76,14 @@ export function InkyBoard() {
         }
       }
 
+      if (e.key === ' ' && !isSpaceDownRef.current) {
+        isSpaceDownRef.current = true
+        previousToolRef.current = inkyStore.activeTool
+        inkyStore.setActiveTool('pan')
+        e.preventDefault()
+        return
+      }
+
       switch (e.key) {
         case '1':
           inkyStore.setActiveTool('pan')
@@ -90,12 +100,24 @@ export function InkyBoard() {
       }
     }
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        isSpaceDownRef.current = false
+        if (previousToolRef.current) {
+          inkyStore.setActiveTool(previousToolRef.current)
+          previousToolRef.current = null
+        }
+      }
+    }
+
     window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
 
     return () => {
       unsub()
       worker.terminate()
       window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
     }
   }, [])
 
