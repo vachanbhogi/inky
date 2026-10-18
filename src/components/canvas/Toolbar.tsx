@@ -1,12 +1,10 @@
 import { Eraser, Hand, Minus, MousePointer, Pen, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
-import { PALETTE_COLORS, type ToolType } from '../../lib/canvas/types'
+import type { ToolType } from '../../lib/canvas/types'
 
 export function Toolbar() {
   const [activeTool, setActiveTool] = useState<ToolType>(inkyStore.activeTool)
-  const [strokeColor, setStrokeColor] = useState(inkyStore.strokeColor)
-  const [strokeSize, setStrokeSize] = useState(inkyStore.strokeSize)
   const [camera, setCamera] = useState(inkyStore.camera)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
@@ -14,8 +12,6 @@ export function Toolbar() {
   useEffect(() => {
     const unsub = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
-      setStrokeColor(inkyStore.strokeColor)
-      setStrokeSize(inkyStore.strokeSize)
       setCamera({ ...inkyStore.camera })
       setCanUndo(inkyStore.canUndo)
       setCanRedo(inkyStore.canRedo)
@@ -28,20 +24,20 @@ export function Toolbar() {
   const zoomReset = () => inkyStore.setCamera({ z: 1 })
 
   return (
-    <nav
-      aria-label="Canvas Toolbar"
-      className="inky-ui fixed top-4 inset-x-0 mx-auto w-fit z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 bg-white/90 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
-      style={{
-        animation: 'toolbarSlideDown 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
-      }}
-    >
-      {/* Tool Selection */}
-      <div className="flex items-center gap-1">
+    <>
+      {/* Top Centered Primary Tool Strip */}
+      <nav
+        aria-label="Primary Tools"
+        className="inky-ui fixed top-4 inset-x-0 mx-auto w-fit z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 bg-white/90 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
+        style={{
+          animation: 'toolbarSlideDown 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        }}
+      >
         <button
           type="button"
           title="Select (2)"
           onClick={() => inkyStore.setActiveTool('select')}
-          className={`p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'select'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
@@ -54,7 +50,7 @@ export function Toolbar() {
           type="button"
           title="Pen (3)"
           onClick={() => inkyStore.setActiveTool('draw')}
-          className={`p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'draw'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
@@ -67,7 +63,7 @@ export function Toolbar() {
           type="button"
           title="Eraser (0)"
           onClick={() => inkyStore.setActiveTool('eraser')}
-          className={`p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'eraser'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
@@ -80,7 +76,7 @@ export function Toolbar() {
           type="button"
           title="Pan (1)"
           onClick={() => inkyStore.setActiveTool('pan')}
-          className={`p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'pan'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
@@ -88,154 +84,84 @@ export function Toolbar() {
         >
           <Hand size={16} />
         </button>
-      </div>
+      </nav>
 
-      {/* Divider */}
-      <div className="w-[1px] h-5 bg-black/8 mx-0.5" />
+      {/* Bottom-Left Navigation & History Cluster */}
+      <aside
+        aria-label="Navigation Controls"
+        className="inky-ui fixed bottom-4 left-4 z-30 pointer-events-auto flex items-center gap-1.5 p-1 bg-white/90 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
+      >
+        {/* Zoom controls */}
+        <div className="flex items-center gap-0.5 text-xs font-mono text-[#111111]">
+          <button
+            type="button"
+            title="Zoom out"
+            onClick={zoomOut}
+            className="p-1.5 rounded-lg hover:bg-black/5 active:scale-95 text-[#787774] hover:text-[#111111] cursor-pointer"
+          >
+            <Minus size={13} />
+          </button>
+          <button
+            type="button"
+            title="Reset zoom to 100%"
+            onClick={zoomReset}
+            className="px-1.5 py-1 rounded-lg hover:bg-black/5 text-[11px] font-medium tracking-tight cursor-pointer"
+          >
+            {Math.round(camera.z * 100)}%
+          </button>
+          <button
+            type="button"
+            title="Zoom in"
+            onClick={zoomIn}
+            className="p-1.5 rounded-lg hover:bg-black/5 active:scale-95 text-[#787774] hover:text-[#111111] cursor-pointer"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
 
-      {/* Stroke Size Selector */}
-      <div className="flex items-center gap-1 px-1">
-        {[
-          { size: 2, label: 'Fine' },
-          { size: 4, label: 'Medium' },
-          { size: 8, label: 'Bold' },
-        ].map(({ size, label }) => {
-          const isSelected = strokeSize === size
-          return (
-            <button
-              key={size}
-              type="button"
-              title={`Size: ${label} (${size}px)`}
-              onClick={() => {
-                inkyStore.setStrokeSize(size)
-                inkyStore.setActiveTool('draw')
-              }}
-              className={`p-1.5 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
-                isSelected ? 'bg-black/8 text-[#111111]' : 'text-[#787774] hover:bg-black/5'
-              }`}
-            >
-              <span
-                className="block rounded-full bg-current transition-all"
-                style={{
-                  width: `${Math.max(4, size + 1)}px`,
-                  height: `${Math.max(4, size + 1)}px`,
-                }}
-              />
-            </button>
-          )
-        })}
-      </div>
+        {/* Divider */}
+        <div className="w-[1px] h-5 bg-black/8 mx-0.5" />
 
-      {/* Divider */}
-      <div className="w-[1px] h-5 bg-black/8 mx-0.5" />
+        {/* Undo / Redo & Trash */}
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            title="Undo (Cmd+Z)"
+            disabled={!canUndo}
+            onClick={() => inkyStore.undo()}
+            className={`p-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
+              canUndo
+                ? 'text-[#111111] hover:bg-black/5 cursor-pointer'
+                : 'text-[#787774]/35 cursor-not-allowed'
+            }`}
+          >
+            <Undo2 size={15} />
+          </button>
 
-      {/* Curated Color Swatches */}
-      <div className="flex items-center gap-1 px-1">
-        {PALETTE_COLORS.map((color) => {
-          const isSelected = activeTool === 'draw' && strokeColor === color
-          return (
-            <button
-              key={color}
-              type="button"
-              title={`Color: ${color}`}
-              onClick={() => {
-                inkyStore.setStrokeColor(color)
-                inkyStore.setActiveTool('draw')
-              }}
-              className="relative p-1 rounded-full cursor-pointer transition-transform duration-150 active:scale-90 flex items-center justify-center"
-            >
-              <span
-                className={`block w-4 h-4 rounded-full transition-all duration-150 ${
-                  isSelected
-                    ? 'scale-110 shadow-sm'
-                    : 'opacity-85 hover:opacity-100 hover:scale-105'
-                }`}
-                style={{ backgroundColor: color }}
-              />
-              {isSelected && (
-                <span
-                  className="absolute inset-0 rounded-full border border-black/25 pointer-events-none"
-                  style={{ margin: '-1px' }}
-                />
-              )}
-            </button>
-          )
-        })}
-      </div>
+          <button
+            type="button"
+            title="Redo (Cmd+Shift+Z)"
+            disabled={!canRedo}
+            onClick={() => inkyStore.redo()}
+            className={`p-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
+              canRedo
+                ? 'text-[#111111] hover:bg-black/5 cursor-pointer'
+                : 'text-[#787774]/35 cursor-not-allowed'
+            }`}
+          >
+            <Redo2 size={15} />
+          </button>
 
-      {/* Divider */}
-      <div className="w-[1px] h-5 bg-black/8 mx-0.5" />
-
-      {/* Zoom controls */}
-      <div className="flex items-center gap-0.5 text-xs font-mono text-[#111111]">
-        <button
-          type="button"
-          title="Zoom out"
-          onClick={zoomOut}
-          className="p-1.5 rounded-lg hover:bg-black/5 active:scale-95 text-[#787774] hover:text-[#111111] cursor-pointer"
-        >
-          <Minus size={13} />
-        </button>
-        <button
-          type="button"
-          title="Reset zoom"
-          onClick={zoomReset}
-          className="px-1.5 py-1 rounded-lg hover:bg-black/5 text-[11px] font-medium tracking-tight cursor-pointer"
-        >
-          {Math.round(camera.z * 100)}%
-        </button>
-        <button
-          type="button"
-          title="Zoom in"
-          onClick={zoomIn}
-          className="p-1.5 rounded-lg hover:bg-black/5 active:scale-95 text-[#787774] hover:text-[#111111] cursor-pointer"
-        >
-          <Plus size={13} />
-        </button>
-      </div>
-
-      {/* Divider */}
-      <div className="w-[1px] h-5 bg-black/8 mx-0.5" />
-
-      {/* Undo / Redo & Trash */}
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          title="Undo (Cmd+Z)"
-          disabled={!canUndo}
-          onClick={() => inkyStore.undo()}
-          className={`p-2 rounded-xl transition-all duration-150 active:scale-95 ${
-            canUndo
-              ? 'text-[#111111] hover:bg-black/5 cursor-pointer'
-              : 'text-[#787774]/35 cursor-not-allowed'
-          }`}
-        >
-          <Undo2 size={16} />
-        </button>
-
-        <button
-          type="button"
-          title="Redo (Cmd+Shift+Z)"
-          disabled={!canRedo}
-          onClick={() => inkyStore.redo()}
-          className={`p-2 rounded-xl transition-all duration-150 active:scale-95 ${
-            canRedo
-              ? 'text-[#111111] hover:bg-black/5 cursor-pointer'
-              : 'text-[#787774]/35 cursor-not-allowed'
-          }`}
-        >
-          <Redo2 size={16} />
-        </button>
-
-        <button
-          type="button"
-          title="Clear canvas"
-          onClick={() => inkyStore.clear()}
-          className="p-2 rounded-xl text-[#787774] hover:text-[#dc2626] hover:bg-rose-50/70 transition-all duration-150 active:scale-95 cursor-pointer"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-    </nav>
+          <button
+            type="button"
+            title="Clear canvas"
+            onClick={() => inkyStore.clear()}
+            className="p-1.5 rounded-lg text-[#787774] hover:text-[#dc2626] hover:bg-rose-50/70 transition-all duration-150 active:scale-95 cursor-pointer"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </aside>
+    </>
   )
 }

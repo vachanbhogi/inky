@@ -12,6 +12,7 @@ import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import type { Stroke } from '../../lib/canvas/types'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
+import { StylePanel } from './StylePanel'
 import { Toolbar } from './Toolbar'
 
 export function InkyBoard() {
@@ -460,6 +461,7 @@ export function InkyBoard() {
     >
       <CanvasLayer />
       <Toolbar />
+      <StylePanel />
     </div>
   )
 }
