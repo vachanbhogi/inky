@@ -29,8 +29,6 @@ export function Toolbar() {
   const zoomOut = () => inkyStore.setCamera({ z: inkyStore.camera.z - 0.1 })
   const zoomReset = () => inkyStore.setCamera({ z: 1 })
 
-  const showStylePalette = activeTool === 'draw' || (activeTool === 'select' && hasSelection)
-
   return (
     <>
       {/* Top Centered Unified Command Island */}
@@ -96,80 +94,82 @@ export function Toolbar() {
           </button>
         </div>
 
-        {/* Contextual Style Dock (Color swatches & stroke thickness) */}
-        {showStylePalette && (
-          <>
-            <div className="w-[1px] h-6 bg-black/8 mx-1" />
+        {/* Always-Visible Style Dock (Zero layout shift, instant color pick & draw) */}
+        <div className="w-[1px] h-6 bg-black/8 mx-1" />
 
-            {/* Curated Color Swatches */}
-            <div className="flex items-center gap-1 px-0.5">
-              {PALETTE_COLORS.map((color) => {
-                const isSelected = strokeColor === color
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    title={`Color: ${color}`}
-                    onClick={() => {
-                      inkyStore.setStrokeColor(color)
-                      if (hasSelection) {
-                        for (const id of inkyStore.selectedStrokeIds) {
-                          const stroke = inkyStore.strokes.find((s) => s.id === id)
-                          if (stroke) stroke.color = color
-                        }
-                        inkyStore.notify()
-                      }
-                    }}
-                    className="relative min-w-[36px] min-h-[36px] p-1 rounded-full cursor-pointer transition-transform duration-150 active:scale-90 flex items-center justify-center"
-                  >
-                    <span
-                      className={`block w-4 h-4 rounded-full transition-all duration-150 ${
-                        isSelected
-                          ? 'scale-110 shadow-sm ring-2 ring-black/20 ring-offset-1'
-                          : 'opacity-85 hover:opacity-100 hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  </button>
-                )
-              })}
-            </div>
+        {/* Curated Color Swatches */}
+        <div className="flex items-center gap-1 px-0.5">
+          {PALETTE_COLORS.map((color) => {
+            const isSelected = strokeColor === color
+            return (
+              <button
+                key={color}
+                type="button"
+                title={`Color: ${color}`}
+                onClick={() => {
+                  inkyStore.setStrokeColor(color)
+                  if (activeTool !== 'draw' && activeTool !== 'select') {
+                    inkyStore.setActiveTool('draw')
+                  }
+                  if (hasSelection) {
+                    for (const id of inkyStore.selectedStrokeIds) {
+                      const stroke = inkyStore.strokes.find((s) => s.id === id)
+                      if (stroke) stroke.color = color
+                    }
+                    inkyStore.notify()
+                  }
+                }}
+                className="relative min-w-[36px] min-h-[36px] p-1 rounded-full cursor-pointer transition-transform duration-150 active:scale-90 flex items-center justify-center"
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full transition-all duration-150 ${
+                    isSelected
+                      ? 'scale-110 shadow-sm ring-2 ring-black/20 ring-offset-1'
+                      : 'opacity-85 hover:opacity-100 hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              </button>
+            )
+          })}
+        </div>
 
-            <div className="w-[1px] h-4 bg-black/8 mx-0.5" />
+        <div className="w-[1px] h-4 bg-black/8 mx-0.5" />
 
-            {/* Stroke Thickness Selector */}
-            <div className="flex items-center gap-1 px-0.5">
-              {[
-                { size: 2, label: 'Fine' },
-                { size: 4, label: 'Medium' },
-                { size: 8, label: 'Bold' },
-              ].map(({ size, label }) => {
-                const isSelected = strokeSize === size
-                return (
-                  <button
-                    key={size}
-                    type="button"
-                    title={`Size: ${label} (${size}px)`}
-                    onClick={() => {
-                      inkyStore.setStrokeSize(size)
-                    }}
-                    className={`min-w-[36px] min-h-[36px] p-1 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
-                      isSelected ? 'bg-black/8 text-[#111111]' : 'text-[#787774] hover:bg-black/5'
-                    }`}
-                  >
-                    <span
-                      className="block rounded-full bg-current transition-all"
-                      style={{
-                        width: `${Math.max(4, size + 1)}px`,
-                        height: `${Math.max(4, size + 1)}px`,
-                      }}
-                    />
-                  </button>
-                )
-              })}
-            </div>
-          </>
-        )}
+        {/* Stroke Thickness Selector */}
+        <div className="flex items-center gap-1 px-0.5">
+          {[
+            { size: 2, label: 'Fine' },
+            { size: 4, label: 'Medium' },
+            { size: 8, label: 'Bold' },
+          ].map(({ size, label }) => {
+            const isSelected = strokeSize === size
+            return (
+              <button
+                key={size}
+                type="button"
+                title={`Size: ${label} (${size}px)`}
+                onClick={() => {
+                  inkyStore.setStrokeSize(size)
+                  if (activeTool !== 'draw' && activeTool !== 'select') {
+                    inkyStore.setActiveTool('draw')
+                  }
+                }}
+                className={`min-w-[36px] min-h-[36px] p-1 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
+                  isSelected ? 'bg-black/8 text-[#111111]' : 'text-[#787774] hover:bg-black/5'
+                }`}
+              >
+                <span
+                  className="block rounded-full bg-current transition-all"
+                  style={{
+                    width: `${Math.max(4, size + 1)}px`,
+                    height: `${Math.max(4, size + 1)}px`,
+                  }}
+                />
+              </button>
+            )
+          })}
+        </div>
       </nav>
 
       {/* Bottom-Left Navigation & History Cluster */}
