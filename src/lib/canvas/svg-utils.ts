@@ -1,4 +1,5 @@
 import { getStroke } from 'perfect-freehand'
+import type { Point } from './coordinates'
 
 export function getSvgPathFromStroke(stroke: number[][]): string {
   if (!stroke.length) return ''
@@ -16,7 +17,7 @@ export function getSvgPathFromStroke(stroke: number[][]): string {
   return d.join(' ')
 }
 
-export function generateStrokePath(points: [number, number][], size = 4): string {
+export function generateStrokePath(points: Point[], size = 4): string {
   if (points.length === 0) return ''
   const outline = getStroke(points, {
     size,

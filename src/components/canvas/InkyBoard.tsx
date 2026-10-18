@@ -141,7 +141,8 @@ export function InkyBoard() {
     }
 
     if (activeTool === 'draw') {
-      const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
+      const pressure = e.pointerType === 'pen' ? e.pressure : undefined
+      const worldPoint = toWorld(screenX, screenY, inkyStore.camera, pressure)
       const strokeId = `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       const points = [worldPoint]
 
@@ -289,7 +290,8 @@ export function InkyBoard() {
     }
 
     if (activeTool === 'draw' && currentStrokeRef.current) {
-      const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
+      const pressure = e.pointerType === 'pen' ? e.pressure : undefined
+      const worldPoint = toWorld(screenX, screenY, inkyStore.camera, pressure)
       currentStrokeRef.current.points.push(worldPoint)
       const points = currentStrokeRef.current.points
 

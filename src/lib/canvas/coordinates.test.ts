@@ -27,4 +27,12 @@ describe('coordinates', () => {
     expect(sx).toBe(50)
     expect(sy).toBe(0)
   })
+
+  it('preserves pressure in toWorld when provided', () => {
+    const camera = { x: 50, y: 50, z: 2 }
+    const [wx, wy, pressure] = toWorld(150, 250, camera, 0.75)
+    expect(wx).toBe(50)
+    expect(wy).toBe(100)
+    expect(pressure).toBe(0.75)
+  })
 })

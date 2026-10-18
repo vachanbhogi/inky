@@ -1,4 +1,4 @@
-export type Point = [number, number]
+export type Point = [number, number] | [number, number, number]
 
 export interface Camera {
   x: number
@@ -6,8 +6,15 @@ export interface Camera {
   z: number
 }
 
-export function toWorld(screenX: number, screenY: number, camera: Camera): Point {
-  return [(screenX - camera.x) / camera.z, (screenY - camera.y) / camera.z]
+export function toWorld(
+  screenX: number,
+  screenY: number,
+  camera: Camera,
+  pressure?: number,
+): Point {
+  const wx = (screenX - camera.x) / camera.z
+  const wy = (screenY - camera.y) / camera.z
+  return pressure !== undefined ? [wx, wy, pressure] : [wx, wy]
 }
 
 export function toScreen(worldX: number, worldY: number, camera: Camera): Point {
