@@ -258,4 +258,38 @@ describe('inkyStore', () => {
     inkyStore.setActiveTool('draw')
     expect(inkyStore.hoveredStrokeId).toBeNull()
   })
+
+  it('selects all strokes and switches active tool to select', () => {
+    inkyStore.strokes = [
+      {
+        id: 's1',
+        points: [[0, 0]],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      },
+      {
+        id: 's2',
+        points: [[10, 10]],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 10, minY: 10, maxX: 10, maxY: 10 },
+      },
+    ]
+    inkyStore.selectedStrokeIds = []
+    inkyStore.setActiveTool('draw')
+
+    inkyStore.selectAll()
+    expect(inkyStore.selectedStrokeIds).toEqual(['s1', 's2'])
+    expect(inkyStore.activeTool).toBe('select')
+  })
+
+  it('tracks dynamic eraserPoint contact position and radius', () => {
+    inkyStore.setEraserPoint({ x: 50, y: 75, radius: 28 })
+    expect(inkyStore.eraserPoint).toEqual({ x: 50, y: 75, radius: 28 })
+
+    inkyStore.setEraserPoint(null)
+    expect(inkyStore.eraserPoint).toBeNull()
+  })
 })
+

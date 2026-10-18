@@ -18,6 +18,7 @@ export class InkyStore {
   hoveredStrokeId: string | null = null
   marquee: Marquee | null = null
   activeHandle: HandleType | null = null
+  eraserPoint: { x: number; y: number; radius: number } | null = null
   transformInitialState: {
     strokes: {
       id: string
@@ -58,6 +59,7 @@ export class InkyStore {
   setActiveTool(tool: ToolType) {
     this.activeTool = tool
     this.hoveredStrokeId = null
+    this.eraserPoint = null
     this.notify()
   }
 
@@ -67,6 +69,12 @@ export class InkyStore {
       this.notify()
     }
   }
+
+  setEraserPoint(point: { x: number; y: number; radius: number } | null) {
+    this.eraserPoint = point
+    this.notify()
+  }
+
 
   setStrokeColor(color: string) {
     this.strokeColor = color
@@ -146,7 +154,15 @@ export class InkyStore {
     this.notify()
   }
 
+  selectAll() {
+    if (this.strokes.length === 0) return
+    this.selectedStrokeIds = this.strokes.map((s) => s.id)
+    this.activeTool = 'select'
+    this.notify()
+  }
+
   clearSelection() {
+
     if (this.selectedStrokeIds.length === 0 && !this.marquee) return
     this.selectedStrokeIds = []
     this.marquee = null
