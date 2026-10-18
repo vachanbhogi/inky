@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Point } from '../../lib/canvas/coordinates'
 import { toWorld } from '../../lib/canvas/coordinates'
-import { checkBoundingBoxOverlap, getBoundingBox } from '../../lib/canvas/spatial-index'
+import {
+  checkBoundingBoxOverlap,
+  getBoundingBox,
+  isPointOnStroke,
+} from '../../lib/canvas/spatial-index'
 import { inkyStore } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import type { Stroke } from '../../lib/canvas/types'
@@ -123,8 +127,25 @@ export function InkyBoard() {
       })
     } else if (activeTool === 'select') {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
-      inkyStore.clearSelection()
-      inkyStore.setMarquee({ startX: worldX, startY: worldY, endX: worldX, endY: worldY })
+
+      // Test reverse order so top-most stroke is clicked first
+      let clickedStroke: Stroke | null = null
+      for (let i = inkyStore.strokes.length - 1; i >= 0; i--) {
+        const s = inkyStore.strokes[i]
+        if (isPointOnStroke(worldX, worldY, s)) {
+          clickedStroke = s
+          break
+        }
+      }
+
+      if (clickedStroke) {
+        inkyStore.selectStroke(clickedStroke.id, e.shiftKey)
+      } else {
+        if (!e.shiftKey) {
+          inkyStore.clearSelection()
+        }
+        inkyStore.setMarquee({ startX: worldX, startY: worldY, endX: worldX, endY: worldY })
+      }
     } else if (activeTool === 'eraser') {
       eraseAtScreenPoint(screenX, screenY)
     }
