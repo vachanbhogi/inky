@@ -15,6 +15,7 @@ export class InkyStore {
 
   // Selection & Transform state
   selectedStrokeIds: string[] = []
+  hoveredStrokeId: string | null = null
   marquee: Marquee | null = null
   activeHandle: HandleType | null = null
   transformInitialState: {
@@ -56,7 +57,15 @@ export class InkyStore {
 
   setActiveTool(tool: ToolType) {
     this.activeTool = tool
+    this.hoveredStrokeId = null
     this.notify()
+  }
+
+  setHoveredStrokeId(id: string | null) {
+    if (this.hoveredStrokeId !== id) {
+      this.hoveredStrokeId = id
+      this.notify()
+    }
   }
 
   setStrokeColor(color: string) {

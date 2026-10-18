@@ -250,4 +250,12 @@ describe('inkyStore', () => {
     expect(inkyStore.strokes.length).toBe(2)
     expect(inkyStore.strokes.map((s) => s.id)).toEqual(['s1', 's2'])
   })
+
+  it('manages hoveredStrokeId state and clears on tool switch', () => {
+    inkyStore.setHoveredStrokeId('stroke-abc')
+    expect(inkyStore.hoveredStrokeId).toBe('stroke-abc')
+
+    inkyStore.setActiveTool('draw')
+    expect(inkyStore.hoveredStrokeId).toBeNull()
+  })
 })
