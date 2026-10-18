@@ -129,6 +129,24 @@ describe('spatial-index', () => {
     expect(detectHandle(150, 150, selection, zoom)).toBeNull()
   })
 
+  it('accommodates touch screens with expanded touch hit radius for handles', () => {
+    const selection = {
+      box: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+      angle: 0,
+    }
+    const zoom = 1
+
+    // A finger tap 22px away from NW handle (96, 96): e.g. at (76, 96)
+    // Distance = 20px. Default mouse threshold is 16px -> null.
+    // Touch threshold (32px) -> 'nw'
+    expect(detectHandle(76, 96, selection, zoom, false)).toBeNull()
+    expect(detectHandle(76, 96, selection, zoom, true)).toBe('nw')
+
+    // Finger tap near rotate handle (150, 72): tap at (150, 50), distance 22px
+    expect(detectHandle(150, 50, selection, zoom, false)).toBeNull()
+    expect(detectHandle(150, 50, selection, zoom, true)).toBe('rotate')
+  })
+
   it('detects strokes overlapping marquee bounding box', () => {
     const marqueeBox = { minX: 50, minY: 50, maxX: 150, maxY: 150 }
     const stroke1Box = { minX: 60, minY: 60, maxX: 80, maxY: 80 } // inside

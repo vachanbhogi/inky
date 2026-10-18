@@ -122,6 +122,7 @@ export function detectHandle(
   worldY: number,
   selection: { box: BoundingBox; angle?: number },
   zoom = 1,
+  isTouch = false,
 ): HandleType | null {
   const { box, angle = 0 } = selection
   const { minX, minY, maxX, maxY } = box
@@ -140,7 +141,8 @@ export function detectHandle(
   const bw = maxX - minX + pad * 2
   const bh = maxY - minY + pad * 2
 
-  const threshold = 16 / zoom
+  const baseThreshold = isTouch ? 32 : 16
+  const threshold = baseThreshold / zoom
   const dist = (x1: number, y1: number, x2: number, y2: number) => Math.hypot(x1 - x2, y1 - y2)
 
   if (dist(ux, uy, bx, by) < threshold) return 'nw'

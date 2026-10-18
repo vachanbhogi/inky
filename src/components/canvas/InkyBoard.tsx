@@ -168,7 +168,13 @@ export function InkyBoard() {
 
       // Check if clicking a resize or rotate handle first
       const hitHandle = currentBox
-        ? detectHandle(worldX, worldY, { box: currentBox }, inkyStore.camera.z)
+        ? detectHandle(
+            worldX,
+            worldY,
+            { box: currentBox },
+            inkyStore.camera.z,
+            e.pointerType === 'touch',
+          )
         : null
 
       if (currentBox && hitHandle) {
