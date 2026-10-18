@@ -95,4 +95,57 @@ describe('inkyStore', () => {
     inkyStore.setMarquee({ startX: 0, startY: 0, endX: 100, endY: 100 })
     expect(inkyStore.marquee).toEqual({ startX: 0, startY: 0, endX: 100, endY: 100 })
   })
+
+  it('translates selected strokes and commits transform to undo stack', () => {
+    inkyStore.strokes = [
+      {
+        id: 's1',
+        points: [
+          [10, 10],
+          [20, 20],
+        ],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 10, minY: 10, maxX: 20, maxY: 20 },
+      },
+    ]
+    inkyStore.selectStroke('s1')
+    inkyStore.transformInitialState = {
+      strokes: [
+        {
+          id: 's1',
+          points: [
+            [10, 10],
+            [20, 20],
+          ],
+          boundingBox: { minX: 10, minY: 10, maxX: 20, maxY: 20 },
+        },
+      ],
+      selectionBox: { minX: 10, minY: 10, maxX: 20, maxY: 20 },
+    }
+
+    inkyStore.translateSelected(15, 25)
+
+    expect(inkyStore.strokes[0].points).toEqual([
+      [25, 35],
+      [35, 45],
+    ])
+    expect(inkyStore.strokes[0].boundingBox).toEqual({
+      minX: 25,
+      minY: 35,
+      maxX: 35,
+      maxY: 45,
+    })
+
+    inkyStore.commitTransform()
+    expect(inkyStore.transformInitialState).toBeNull()
+    expect(inkyStore.canUndo).toBe(true)
+
+    // Undo should restore original points
+    inkyStore.undo()
+    expect(inkyStore.strokes[0].points).toEqual([
+      [10, 10],
+      [20, 20],
+    ])
+  })
 })

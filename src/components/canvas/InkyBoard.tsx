@@ -19,6 +19,8 @@ export function InkyBoard() {
   const currentStrokeRef = useRef<{ id: string; points: Point[] } | null>(null)
   const isPointerDownRef = useRef(false)
   const lastPanPointRef = useRef<{ x: number; y: number } | null>(null)
+  const dragStartWorldRef = useRef<{ x: number; y: number } | null>(null)
+  const isDraggingSelectionRef = useRef(false)
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
 
@@ -127,6 +129,15 @@ export function InkyBoard() {
       })
     } else if (activeTool === 'select') {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      const currentBox = inkyStore.getSelectionBoundingBox()
+
+      // If clicking inside existing selection bounding box, start translating
+      const isInsideSelection =
+        currentBox &&
+        worldX >= currentBox.minX - 4 &&
+        worldX <= currentBox.maxX + 4 &&
+        worldY >= currentBox.minY - 4 &&
+        worldY <= currentBox.maxY + 4
 
       // Test reverse order so top-most stroke is clicked first
       let clickedStroke: Stroke | null = null
@@ -138,8 +149,44 @@ export function InkyBoard() {
         }
       }
 
-      if (clickedStroke) {
+      if (
+        isInsideSelection &&
+        (!clickedStroke || inkyStore.selectedStrokeIds.includes(clickedStroke.id))
+      ) {
+        // Dragging existing selection
+        isDraggingSelectionRef.current = true
+        dragStartWorldRef.current = { x: worldX, y: worldY }
+        const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
+        inkyStore.transformInitialState = {
+          strokes: selected.map((s) => ({
+            id: s.id,
+            points: s.points.map(([px, py]) => [px, py]),
+            boundingBox: { ...s.boundingBox },
+            pathData: s.pathData,
+            angle: s.angle,
+          })),
+          selectionBox: { ...currentBox },
+        }
+      } else if (clickedStroke) {
         inkyStore.selectStroke(clickedStroke.id, e.shiftKey)
+        const updatedBox = inkyStore.getSelectionBoundingBox()
+        if (updatedBox) {
+          isDraggingSelectionRef.current = true
+          dragStartWorldRef.current = { x: worldX, y: worldY }
+          const selected = inkyStore.strokes.filter((s) =>
+            inkyStore.selectedStrokeIds.includes(s.id),
+          )
+          inkyStore.transformInitialState = {
+            strokes: selected.map((s) => ({
+              id: s.id,
+              points: s.points.map(([px, py]) => [px, py]),
+              boundingBox: { ...s.boundingBox },
+              pathData: s.pathData,
+              angle: s.angle,
+            })),
+            selectionBox: { ...updatedBox },
+          }
+        }
       } else {
         if (!e.shiftKey) {
           inkyStore.clearSelection()
@@ -194,14 +241,21 @@ export function InkyBoard() {
         points,
         options: { size: inkyStore.strokeSize },
       })
-    } else if (activeTool === 'select' && inkyStore.marquee) {
+    } else if (activeTool === 'select') {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
-      inkyStore.setMarquee({
-        startX: inkyStore.marquee.startX,
-        startY: inkyStore.marquee.startY,
-        endX: worldX,
-        endY: worldY,
-      })
+
+      if (isDraggingSelectionRef.current && dragStartWorldRef.current) {
+        const dx = worldX - dragStartWorldRef.current.x
+        const dy = worldY - dragStartWorldRef.current.y
+        inkyStore.translateSelected(dx, dy)
+      } else if (inkyStore.marquee) {
+        inkyStore.setMarquee({
+          startX: inkyStore.marquee.startX,
+          startY: inkyStore.marquee.startY,
+          endX: worldX,
+          endY: worldY,
+        })
+      }
     } else if (activeTool === 'eraser') {
       eraseAtScreenPoint(screenX, screenY)
     }
@@ -221,27 +275,33 @@ export function InkyBoard() {
       inkyStore.setCurrentStroke(null)
       currentStrokeRef.current = null
       inkyStore.addStroke(finalStroke)
-    } else if (activeTool === 'select' && inkyStore.marquee) {
-      const m = inkyStore.marquee
-      const marqueeBox = {
-        minX: Math.min(m.startX, m.endX),
-        minY: Math.min(m.startY, m.endY),
-        maxX: Math.max(m.startX, m.endX),
-        maxY: Math.max(m.startY, m.endY),
+    } else if (activeTool === 'select') {
+      if (isDraggingSelectionRef.current) {
+        isDraggingSelectionRef.current = false
+        dragStartWorldRef.current = null
+        inkyStore.commitTransform()
+      } else if (inkyStore.marquee) {
+        const m = inkyStore.marquee
+        const marqueeBox = {
+          minX: Math.min(m.startX, m.endX),
+          minY: Math.min(m.startY, m.endY),
+          maxX: Math.max(m.startX, m.endX),
+          maxY: Math.max(m.startY, m.endY),
+        }
+
+        // Check if marquee has non-trivial drag (e.g. at least 3px)
+        const width = marqueeBox.maxX - marqueeBox.minX
+        const height = marqueeBox.maxY - marqueeBox.minY
+
+        if (width > 3 || height > 3) {
+          const selectedIds = inkyStore.strokes
+            .filter((s) => checkBoundingBoxOverlap(marqueeBox, s.boundingBox))
+            .map((s) => s.id)
+          inkyStore.selectStrokes(selectedIds)
+        }
+
+        inkyStore.setMarquee(null)
       }
-
-      // Check if marquee has non-trivial drag (e.g. at least 3px)
-      const width = marqueeBox.maxX - marqueeBox.minX
-      const height = marqueeBox.maxY - marqueeBox.minY
-
-      if (width > 3 || height > 3) {
-        const selectedIds = inkyStore.strokes
-          .filter((s) => checkBoundingBoxOverlap(marqueeBox, s.boundingBox))
-          .map((s) => s.id)
-        inkyStore.selectStrokes(selectedIds)
-      }
-
-      inkyStore.setMarquee(null)
     }
   }
 

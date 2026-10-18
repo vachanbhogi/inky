@@ -1,5 +1,6 @@
 import type { HandleType } from './spatial-index'
 import { getUnifiedBoundingBox } from './spatial-index'
+import { generateStrokePath } from './svg-utils'
 import type { Marquee, Stroke, ToolType } from './types'
 
 type Listener = () => void
@@ -17,7 +18,13 @@ export class InkyStore {
   marquee: Marquee | null = null
   activeHandle: HandleType | null = null
   transformInitialState: {
-    strokes: { id: string; points: Stroke['points']; boundingBox: Stroke['boundingBox'] }[]
+    strokes: {
+      id: string
+      points: Stroke['points']
+      boundingBox: Stroke['boundingBox']
+      pathData?: string
+      angle?: number
+    }[]
     selectionBox: { minX: number; minY: number; maxX: number; maxY: number }
   } | null = null
 
@@ -160,6 +167,47 @@ export class InkyStore {
     this.redoStack = []
     this.strokes = this.strokes.filter((s) => !this.selectedStrokeIds.includes(s.id))
     this.selectedStrokeIds = []
+    this.notify()
+  }
+
+  translateSelected(dx: number, dy: number) {
+    if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
+
+    for (const initStroke of this.transformInitialState.strokes) {
+      const stroke = this.strokes.find((s) => s.id === initStroke.id)
+      if (!stroke) continue
+
+      stroke.points = initStroke.points.map(([px, py]) => [px + dx, py + dy])
+      stroke.pathData = generateStrokePath(stroke.points, stroke.size)
+      stroke.boundingBox = {
+        minX: initStroke.boundingBox.minX + dx,
+        minY: initStroke.boundingBox.minY + dy,
+        maxX: initStroke.boundingBox.maxX + dx,
+        maxY: initStroke.boundingBox.maxY + dy,
+      }
+    }
+    this.notify()
+  }
+
+  commitTransform() {
+    if (!this.transformInitialState) return
+    this.undoStack.push(
+      this.strokes.map((s) => {
+        const init = this.transformInitialState?.strokes.find((is) => is.id === s.id)
+        if (init) {
+          return {
+            ...s,
+            points: init.points,
+            boundingBox: { ...init.boundingBox },
+            pathData: init.pathData,
+            angle: init.angle,
+          }
+        }
+        return { ...s }
+      }),
+    )
+    this.redoStack = []
+    this.transformInitialState = null
     this.notify()
   }
 }
