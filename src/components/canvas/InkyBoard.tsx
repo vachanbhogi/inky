@@ -71,6 +71,36 @@ export function InkyBoard() {
         return
       }
 
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        inkyStore.selectAll()
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault()
+        inkyStore.setCamera({ z: inkyStore.camera.z + 0.1 })
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault()
+        inkyStore.setCamera({ z: inkyStore.camera.z - 0.1 })
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault()
+        inkyStore.setCamera({ z: 1 })
+        return
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        inkyStore.clearSelection()
+        return
+      }
+
       if (e.key === 'Backspace' || e.key === 'Delete') {
         if (inkyStore.selectedStrokeIds.length > 0) {
           e.preventDefault()
@@ -87,21 +117,26 @@ export function InkyBoard() {
         return
       }
 
-      switch (e.key) {
+      switch (e.key.toLowerCase()) {
+        case 'h':
         case '1':
           inkyStore.setActiveTool('pan')
           break
+        case 'v':
         case '2':
           inkyStore.setActiveTool('select')
           break
+        case 'p':
         case '3':
           inkyStore.setActiveTool('draw')
           break
+        case 'e':
         case '0':
           inkyStore.setActiveTool('eraser')
           break
       }
     }
+
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === ' ') {
