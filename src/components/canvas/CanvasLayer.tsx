@@ -72,7 +72,18 @@ export function CanvasLayer() {
             ctx.strokeRect(minX - 2, minY - 2, maxX - minX + 4, maxY - minY + 4)
           }
 
-          // Eraser target stroke hover highlight bounding box
+          // Faint spatial hitboxes in eraser mode for touch visual awareness
+          if (state.activeTool === 'eraser' && state.hoveredStrokeId !== stroke.id) {
+            const { minX, minY, maxX, maxY } = stroke.boundingBox
+            const pad = 2
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)'
+            ctx.lineWidth = 1 / z
+            ctx.setLineDash([3 / z, 3 / z])
+            ctx.strokeRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2)
+            ctx.setLineDash([])
+          }
+
+          // Eraser target stroke hover highlight bounding box with marching ants
           if (state.activeTool === 'eraser' && state.hoveredStrokeId === stroke.id) {
             const { minX, minY, maxX, maxY } = stroke.boundingBox
             const pad = 4
@@ -87,6 +98,22 @@ export function CanvasLayer() {
 
           ctx.restore()
         }
+      }
+
+      // Draw dynamic circular eraser reticle when active
+      if (state.eraserPoint) {
+        const { x: ex, y: ey, radius } = state.eraserPoint
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(ex, ey, radius, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.12)'
+        ctx.fill()
+        ctx.strokeStyle = '#ef4444'
+        ctx.lineWidth = 1.5 / z
+        ctx.setLineDash([4 / z, 3 / z])
+        ctx.lineDashOffset = marchOffset / z
+        ctx.stroke()
+        ctx.restore()
       }
 
       // Draw active in-progress stroke
