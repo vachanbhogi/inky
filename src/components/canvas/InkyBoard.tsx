@@ -3,6 +3,7 @@ import type { Point } from '../../lib/canvas/coordinates'
 import { toWorld } from '../../lib/canvas/coordinates'
 import {
   checkBoundingBoxOverlap,
+  detectHandle,
   getBoundingBox,
   isPointOnStroke,
 } from '../../lib/canvas/spatial-index'
@@ -131,6 +132,27 @@ export function InkyBoard() {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
       const currentBox = inkyStore.getSelectionBoundingBox()
 
+      // Check if clicking a resize or rotate handle first
+      const hitHandle = currentBox
+        ? detectHandle(worldX, worldY, { box: currentBox }, inkyStore.camera.z)
+        : null
+
+      if (currentBox && hitHandle && hitHandle !== 'rotate') {
+        inkyStore.setActiveHandle(hitHandle)
+        const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
+        inkyStore.transformInitialState = {
+          strokes: selected.map((s) => ({
+            id: s.id,
+            points: s.points.map(([px, py]) => [px, py]),
+            boundingBox: { ...s.boundingBox },
+            pathData: s.pathData,
+            angle: s.angle,
+          })),
+          selectionBox: { ...currentBox },
+        }
+        return
+      }
+
       // If clicking inside existing selection bounding box, start translating
       const isInsideSelection =
         currentBox &&
@@ -244,7 +266,9 @@ export function InkyBoard() {
     } else if (activeTool === 'select') {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
 
-      if (isDraggingSelectionRef.current && dragStartWorldRef.current) {
+      if (inkyStore.activeHandle && inkyStore.activeHandle !== 'rotate') {
+        inkyStore.scaleSelected(inkyStore.activeHandle, worldX, worldY)
+      } else if (isDraggingSelectionRef.current && dragStartWorldRef.current) {
         const dx = worldX - dragStartWorldRef.current.x
         const dy = worldY - dragStartWorldRef.current.y
         inkyStore.translateSelected(dx, dy)
@@ -276,7 +300,10 @@ export function InkyBoard() {
       currentStrokeRef.current = null
       inkyStore.addStroke(finalStroke)
     } else if (activeTool === 'select') {
-      if (isDraggingSelectionRef.current) {
+      if (inkyStore.activeHandle) {
+        inkyStore.setActiveHandle(null)
+        inkyStore.commitTransform()
+      } else if (isDraggingSelectionRef.current) {
         isDraggingSelectionRef.current = false
         dragStartWorldRef.current = null
         inkyStore.commitTransform()

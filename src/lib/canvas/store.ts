@@ -170,6 +170,70 @@ export class InkyStore {
     this.notify()
   }
 
+  scaleSelected(handle: HandleType, currentWorldX: number, currentWorldY: number) {
+    if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
+
+    const { selectionBox } = this.transformInitialState
+    const { minX, minY, maxX, maxY } = selectionBox
+    const originalWidth = maxX - minX
+    const originalHeight = maxY - minY
+    if (originalWidth <= 0 || originalHeight <= 0) return
+
+    let anchorX = minX
+    let anchorY = minY
+
+    if (handle === 'nw') {
+      anchorX = maxX
+      anchorY = maxY
+    } else if (handle === 'ne') {
+      anchorX = minX
+      anchorY = maxY
+    } else if (handle === 'sw') {
+      anchorX = maxX
+      anchorY = minY
+    } else if (handle === 'se') {
+      anchorX = minX
+      anchorY = minY
+    }
+
+    const scaleX =
+      handle === 'nw' || handle === 'sw'
+        ? (anchorX - currentWorldX) / originalWidth
+        : (currentWorldX - anchorX) / originalWidth
+
+    const scaleY =
+      handle === 'nw' || handle === 'ne'
+        ? (anchorY - currentWorldY) / originalHeight
+        : (currentWorldY - anchorY) / originalHeight
+
+    // Minimum scale safeguard to prevent inversion
+    const safeScaleX = Math.max(0.05, Math.abs(scaleX)) * (scaleX < 0 ? -1 : 1)
+    const safeScaleY = Math.max(0.05, Math.abs(scaleY)) * (scaleY < 0 ? -1 : 1)
+
+    for (const initStroke of this.transformInitialState.strokes) {
+      const stroke = this.strokes.find((s) => s.id === initStroke.id)
+      if (!stroke) continue
+
+      stroke.points = initStroke.points.map(([px, py]) => [
+        anchorX + (px - anchorX) * safeScaleX,
+        anchorY + (py - anchorY) * safeScaleY,
+      ])
+      stroke.pathData = generateStrokePath(stroke.points, stroke.size)
+      let minPtX = Number.POSITIVE_INFINITY
+      let minPtY = Number.POSITIVE_INFINITY
+      let maxPtX = Number.NEGATIVE_INFINITY
+      let maxPtY = Number.NEGATIVE_INFINITY
+      for (const [px, py] of stroke.points) {
+        if (px < minPtX) minPtX = px
+        if (py < minPtY) minPtY = py
+        if (px > maxPtX) maxPtX = px
+        if (py > maxPtY) maxPtY = py
+      }
+      stroke.boundingBox = { minX: minPtX, minY: minPtY, maxX: maxPtX, maxY: maxPtY }
+    }
+    this.notify()
+  }
+
   translateSelected(dx: number, dy: number) {
     if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
 

@@ -148,4 +148,39 @@ describe('inkyStore', () => {
       [20, 20],
     ])
   })
+
+  it('scales selected strokes via corner handles correctly', () => {
+    inkyStore.strokes = [
+      {
+        id: 's1',
+        points: [
+          [100, 100],
+          [200, 200],
+        ],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+      },
+    ]
+    inkyStore.selectStroke('s1')
+    inkyStore.transformInitialState = {
+      strokes: [
+        {
+          id: 's1',
+          points: [
+            [100, 100],
+            [200, 200],
+          ],
+          boundingBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+        },
+      ],
+      selectionBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+    }
+
+    // Drag SE handle from (200, 200) to (250, 250) (1.5x scale from anchor (100, 100))
+    inkyStore.scaleSelected('se', 250, 250)
+
+    expect(inkyStore.strokes[0].points[0]).toEqual([100, 100])
+    expect(inkyStore.strokes[0].points[1]).toEqual([250, 250])
+  })
 })
