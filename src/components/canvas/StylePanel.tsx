@@ -49,7 +49,7 @@ export function StylePanel() {
                   inkyStore.notify()
                 }
               }}
-              className="relative p-1 rounded-full cursor-pointer transition-transform duration-150 active:scale-90 flex items-center justify-center"
+              className="relative min-w-[36px] min-h-[36px] p-1 rounded-full cursor-pointer transition-transform duration-150 active:scale-90 flex items-center justify-center"
             >
               <span
                 className={`block w-4 h-4 rounded-full transition-all duration-150 ${
@@ -89,7 +89,7 @@ export function StylePanel() {
               onClick={() => {
                 inkyStore.setStrokeSize(size)
               }}
-              className={`p-1.5 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
+              className={`min-w-[36px] min-h-[36px] p-1.5 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90 ${
                 isSelected ? 'bg-black/8 text-[#111111]' : 'text-[#787774] hover:bg-black/5'
               }`}
             >

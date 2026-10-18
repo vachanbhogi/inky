@@ -37,52 +37,52 @@ export function Toolbar() {
           type="button"
           title="Select (2)"
           onClick={() => inkyStore.setActiveTool('select')}
-          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'select'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
           }`}
         >
-          <MousePointer size={16} />
+          <MousePointer size={18} />
         </button>
 
         <button
           type="button"
           title="Pen (3)"
           onClick={() => inkyStore.setActiveTool('draw')}
-          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'draw'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
           }`}
         >
-          <Pen size={16} />
+          <Pen size={18} />
         </button>
 
         <button
           type="button"
           title="Eraser (0)"
           onClick={() => inkyStore.setActiveTool('eraser')}
-          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'eraser'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
           }`}
         >
-          <Eraser size={16} />
+          <Eraser size={18} />
         </button>
 
         <button
           type="button"
           title="Pan (1)"
           onClick={() => inkyStore.setActiveTool('pan')}
-          className={`relative p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+          className={`relative min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
             activeTool === 'pan'
               ? 'bg-[#111111] text-white shadow-sm'
               : 'text-[#111111] hover:bg-black/5'
           }`}
         >
-          <Hand size={16} />
+          <Hand size={18} />
         </button>
       </nav>
 
