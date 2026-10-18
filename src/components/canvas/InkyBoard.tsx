@@ -229,13 +229,28 @@ export function InkyBoard() {
   }
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPointerDownRef.current) return
     const container = containerRef.current
     if (!container) return
 
     const rect = container.getBoundingClientRect()
     const screenX = e.clientX - rect.left
     const screenY = e.clientY - rect.top
+
+    // When in eraser mode, update hovered stroke for visual bounding box feedback
+    if (activeTool === 'eraser') {
+      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      let hitId: string | null = null
+      for (let i = inkyStore.strokes.length - 1; i >= 0; i--) {
+        const s = inkyStore.strokes[i]
+        if (isPointOnStroke(worldX, worldY, s, 20 / inkyStore.camera.z)) {
+          hitId = s.id
+          break
+        }
+      }
+      inkyStore.setHoveredStrokeId(hitId)
+    }
+
+    if (!isPointerDownRef.current) return
 
     if (lastPanPointRef.current) {
       const dx = e.clientX - lastPanPointRef.current.x
@@ -346,8 +361,18 @@ export function InkyBoard() {
     const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
     const eraserRadius = 16 / inkyStore.camera.z
 
+    const toDeleteId =
+      inkyStore.hoveredStrokeId ||
+      inkyStore.strokes.find((s) => isPointOnStroke(worldPoint[0], worldPoint[1], s, eraserRadius))
+        ?.id
+
+    if (toDeleteId) {
+      inkyStore.deleteStroke(toDeleteId)
+      inkyStore.setHoveredStrokeId(null)
+      return
+    }
+
     const remainingStrokes = inkyStore.strokes.filter((stroke) => {
-      // Check if any point in stroke is within eraser radius
       return !stroke.points.some(([px, py]) => {
         const dist = Math.hypot(px - worldPoint[0], py - worldPoint[1])
         return dist <= eraserRadius

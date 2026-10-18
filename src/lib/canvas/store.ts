@@ -170,6 +170,17 @@ export class InkyStore {
     return getUnifiedBoundingBox(selected.map((s) => s.boundingBox))
   }
 
+  deleteStroke(id: string) {
+    const exists = this.strokes.some((s) => s.id === id)
+    if (!exists) return
+    this.undoStack.push([...this.strokes])
+    this.redoStack = []
+    this.strokes = this.strokes.filter((s) => s.id !== id)
+    this.selectedStrokeIds = this.selectedStrokeIds.filter((sId) => sId !== id)
+    if (this.hoveredStrokeId === id) this.hoveredStrokeId = null
+    this.notify()
+  }
+
   deleteSelected() {
     if (this.selectedStrokeIds.length === 0) return
     this.undoStack.push([...this.strokes])
