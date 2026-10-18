@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Point } from '../../lib/canvas/coordinates'
 import { toWorld } from '../../lib/canvas/coordinates'
-import { getBoundingBox } from '../../lib/canvas/spatial-index'
+import { checkBoundingBoxOverlap, getBoundingBox } from '../../lib/canvas/spatial-index'
 import { inkyStore } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import type { Stroke } from '../../lib/canvas/types'
@@ -121,6 +121,10 @@ export function InkyBoard() {
         points,
         options: { size: inkyStore.strokeSize },
       })
+    } else if (activeTool === 'select') {
+      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      inkyStore.clearSelection()
+      inkyStore.setMarquee({ startX: worldX, startY: worldY, endX: worldX, endY: worldY })
     } else if (activeTool === 'eraser') {
       eraseAtScreenPoint(screenX, screenY)
     }
@@ -169,6 +173,14 @@ export function InkyBoard() {
         points,
         options: { size: inkyStore.strokeSize },
       })
+    } else if (activeTool === 'select' && inkyStore.marquee) {
+      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      inkyStore.setMarquee({
+        startX: inkyStore.marquee.startX,
+        startY: inkyStore.marquee.startY,
+        endX: worldX,
+        endY: worldY,
+      })
     } else if (activeTool === 'eraser') {
       eraseAtScreenPoint(screenX, screenY)
     }
@@ -188,6 +200,27 @@ export function InkyBoard() {
       inkyStore.setCurrentStroke(null)
       currentStrokeRef.current = null
       inkyStore.addStroke(finalStroke)
+    } else if (activeTool === 'select' && inkyStore.marquee) {
+      const m = inkyStore.marquee
+      const marqueeBox = {
+        minX: Math.min(m.startX, m.endX),
+        minY: Math.min(m.startY, m.endY),
+        maxX: Math.max(m.startX, m.endX),
+        maxY: Math.max(m.startY, m.endY),
+      }
+
+      // Check if marquee has non-trivial drag (e.g. at least 3px)
+      const width = marqueeBox.maxX - marqueeBox.minX
+      const height = marqueeBox.maxY - marqueeBox.minY
+
+      if (width > 3 || height > 3) {
+        const selectedIds = inkyStore.strokes
+          .filter((s) => checkBoundingBoxOverlap(marqueeBox, s.boundingBox))
+          .map((s) => s.id)
+        inkyStore.selectStrokes(selectedIds)
+      }
+
+      inkyStore.setMarquee(null)
     }
   }
 

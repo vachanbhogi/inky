@@ -128,4 +128,15 @@ describe('spatial-index', () => {
     // Center point should not hit any handle
     expect(detectHandle(150, 150, selection, zoom)).toBeNull()
   })
+
+  it('detects strokes overlapping marquee bounding box', () => {
+    const marqueeBox = { minX: 50, minY: 50, maxX: 150, maxY: 150 }
+    const stroke1Box = { minX: 60, minY: 60, maxX: 80, maxY: 80 } // inside
+    const stroke2Box = { minX: 140, minY: 140, maxX: 180, maxY: 180 } // overlapping
+    const stroke3Box = { minX: 200, minY: 200, maxX: 250, maxY: 250 } // outside
+
+    expect(checkBoundingBoxOverlap(marqueeBox, stroke1Box)).toBe(true)
+    expect(checkBoundingBoxOverlap(marqueeBox, stroke2Box)).toBe(true)
+    expect(checkBoundingBoxOverlap(marqueeBox, stroke3Box)).toBe(false)
+  })
 })
