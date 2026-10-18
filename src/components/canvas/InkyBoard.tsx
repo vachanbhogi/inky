@@ -24,10 +24,12 @@ export function InkyBoard() {
   const isDraggingSelectionRef = useRef(false)
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
+  const [camera, setCamera] = useState(inkyStore.camera)
 
   useEffect(() => {
     const unsub = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
+      setCamera({ ...inkyStore.camera })
     })
 
     const worker = new PerfectFreehandWorker()
@@ -427,6 +429,12 @@ export function InkyBoard() {
       className={`inky-canvas-root relative w-full h-full touch-none select-none overflow-hidden ${
         activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
       }`}
+      style={{
+        backgroundColor: '#fbfbfa',
+        backgroundImage: 'radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px)',
+        backgroundSize: `${24 * camera.z}px ${24 * camera.z}px`,
+        backgroundPosition: `${camera.x}px ${camera.y}px`,
+      }}
     >
       <CanvasLayer />
       <Toolbar />
