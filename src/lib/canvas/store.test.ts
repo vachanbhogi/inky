@@ -183,4 +183,38 @@ describe('inkyStore', () => {
     expect(inkyStore.strokes[0].points[0]).toEqual([100, 100])
     expect(inkyStore.strokes[0].points[1]).toEqual([250, 250])
   })
+
+  it('rotates selected strokes accurately around selection center', () => {
+    inkyStore.strokes = [
+      {
+        id: 's1',
+        points: [
+          [100, 100],
+          [200, 200],
+        ],
+        color: '#111',
+        size: 4,
+        boundingBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+      },
+    ]
+    inkyStore.selectStroke('s1')
+    inkyStore.transformInitialState = {
+      strokes: [
+        {
+          id: 's1',
+          points: [
+            [100, 100],
+            [200, 200],
+          ],
+          boundingBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+          angle: 0,
+        },
+      ],
+      selectionBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+    }
+
+    // Center is (150, 150). Drag handle from top (150, 50) to right (250, 150) (+90 deg or PI/2)
+    inkyStore.rotateSelected(250, 150)
+    expect(inkyStore.strokes[0].angle).toBeCloseTo(Math.PI / 2, 4)
+  })
 })

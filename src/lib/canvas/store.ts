@@ -253,6 +253,28 @@ export class InkyStore {
     this.notify()
   }
 
+  rotateSelected(currentWorldX: number, currentWorldY: number) {
+    if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
+
+    const { selectionBox } = this.transformInitialState
+    const cx = selectionBox.minX + (selectionBox.maxX - selectionBox.minX) / 2
+    const cy = selectionBox.minY + (selectionBox.maxY - selectionBox.minY) / 2
+
+    // Angle of current pointer relative to box center
+    // Rotation handle is straight up (negative Y), so angle 0 corresponds to (-pi/2)
+    const pointerAngle = Math.atan2(currentWorldY - cy, currentWorldX - cx)
+    const deltaAngle = pointerAngle - -Math.PI / 2
+
+    for (const initStroke of this.transformInitialState.strokes) {
+      const stroke = this.strokes.find((s) => s.id === initStroke.id)
+      if (!stroke) continue
+
+      const baseAngle = initStroke.angle || 0
+      stroke.angle = baseAngle + deltaAngle
+    }
+    this.notify()
+  }
+
   commitTransform() {
     if (!this.transformInitialState) return
     this.undoStack.push(

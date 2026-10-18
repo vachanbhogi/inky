@@ -137,7 +137,7 @@ export function InkyBoard() {
         ? detectHandle(worldX, worldY, { box: currentBox }, inkyStore.camera.z)
         : null
 
-      if (currentBox && hitHandle && hitHandle !== 'rotate') {
+      if (currentBox && hitHandle) {
         inkyStore.setActiveHandle(hitHandle)
         const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
         inkyStore.transformInitialState = {
@@ -266,7 +266,9 @@ export function InkyBoard() {
     } else if (activeTool === 'select') {
       const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
 
-      if (inkyStore.activeHandle && inkyStore.activeHandle !== 'rotate') {
+      if (inkyStore.activeHandle === 'rotate') {
+        inkyStore.rotateSelected(worldX, worldY)
+      } else if (inkyStore.activeHandle) {
         inkyStore.scaleSelected(inkyStore.activeHandle, worldX, worldY)
       } else if (isDraggingSelectionRef.current && dragStartWorldRef.current) {
         const dx = worldX - dragStartWorldRef.current.x
