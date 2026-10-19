@@ -11,6 +11,8 @@ import { inkyStore } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-gesture'
 import type { Stroke } from '../../lib/canvas/types'
+import { findEnclosedStrokes } from '../../lib/math/enclosure'
+import { isClosedLoop } from '../../lib/math/loop-detection'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
 import { ShortcutsModal } from './ShortcutsModal'
@@ -465,6 +467,17 @@ export function InkyBoard() {
       const finalStroke = inkyStore.currentStroke
       inkyStore.setCurrentStroke(null)
       currentStrokeRef.current = null
+
+      const loop = isClosedLoop(finalStroke.points.map((p) => [p[0], p[1]]))
+      if (loop.isLoop && loop.polygon) {
+        const enclosedIds = findEnclosedStrokes(loop.polygon, inkyStore.strokes)
+        if (enclosedIds.length > 0) {
+          inkyStore.selectStrokes(enclosedIds)
+          inkyStore.setActiveTool('select')
+          return
+        }
+      }
+
       inkyStore.addStroke(finalStroke)
     } else if (activeTool === 'select') {
       if (inkyStore.activeHandle) {
