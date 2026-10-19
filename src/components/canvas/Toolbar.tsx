@@ -25,9 +25,9 @@ export function Toolbar() {
     return unsub
   }, [])
 
-  const zoomIn = () => inkyStore.setCamera({ z: inkyStore.camera.z + 0.1 })
-  const zoomOut = () => inkyStore.setCamera({ z: inkyStore.camera.z - 0.1 })
-  const zoomReset = () => inkyStore.setCamera({ z: 1 })
+  const zoomIn = () => inkyStore.zoomAt(inkyStore.camera.z + 0.1)
+  const zoomOut = () => inkyStore.zoomAt(inkyStore.camera.z - 0.1)
+  const zoomReset = () => inkyStore.zoomAt(1)
 
   return (
     <>

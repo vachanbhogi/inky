@@ -64,6 +64,24 @@ export class InkyStore {
     this.notify()
   }
 
+  zoomAt(newZoom: number, screenCenterX?: number, screenCenterY?: number) {
+    const clampedZ = Math.min(Math.max(newZoom, 0.1), 5)
+    if (clampedZ === this.camera.z) return
+
+    // If screen center not provided, default to window viewport center
+    const cx = screenCenterX ?? (typeof window !== 'undefined' ? window.innerWidth / 2 : 0)
+    const cy = screenCenterY ?? (typeof window !== 'undefined' ? window.innerHeight / 2 : 0)
+
+    // Current world point under the focal center
+    const worldX = (cx - this.camera.x) / this.camera.z
+    const worldY = (cy - this.camera.y) / this.camera.z
+
+    this.camera.x = cx - worldX * clampedZ
+    this.camera.y = cy - worldY * clampedZ
+    this.camera.z = clampedZ
+    this.notify()
+  }
+
   setActiveTool(tool: ToolType) {
     this.activeTool = tool
     this.hoveredStrokeId = null

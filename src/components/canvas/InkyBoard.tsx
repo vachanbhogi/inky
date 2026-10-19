@@ -80,19 +80,19 @@ export function InkyBoard() {
 
       if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
         e.preventDefault()
-        inkyStore.setCamera({ z: inkyStore.camera.z + 0.1 })
+        inkyStore.zoomAt(inkyStore.camera.z + 0.1)
         return
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key === '-') {
         e.preventDefault()
-        inkyStore.setCamera({ z: inkyStore.camera.z - 0.1 })
+        inkyStore.zoomAt(inkyStore.camera.z - 0.1)
         return
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key === '0') {
         e.preventDefault()
-        inkyStore.setCamera({ z: 1 })
+        inkyStore.zoomAt(1)
         return
       }
 
@@ -538,15 +538,8 @@ export function InkyBoard() {
     const screenY = e.clientY - rect.top
 
     if (e.ctrlKey || e.metaKey) {
-      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
       const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95
-      const newZ = Math.min(Math.max(inkyStore.camera.z * zoomFactor, 0.1), 5)
-
-      inkyStore.setCamera({
-        x: screenX - worldX * newZ,
-        y: screenY - worldY * newZ,
-        z: newZ,
-      })
+      inkyStore.zoomAt(inkyStore.camera.z * zoomFactor, screenX, screenY)
     } else {
       inkyStore.setCamera({
         x: inkyStore.camera.x - e.deltaX,
