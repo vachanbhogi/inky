@@ -1,0 +1,44 @@
+import type { Point } from './coordinates'
+import type { BoundingBox } from './spatial-index'
+
+export type ToolType = 'draw' | 'pan' | 'eraser' | 'select'
+
+export const PALETTE_COLORS = [
+  '#111111', // Ink Charcoal
+  '#2563eb', // Cobalt Blue
+  '#dc2626', // Signal Crimson
+  '#16a34a', // Forest Green
+  '#9333ea', // Royal Violet
+] as const
+
+export type StrokeColor = (typeof PALETTE_COLORS)[number] | string
+
+export interface Marquee {
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+}
+
+export interface Stroke {
+  id: string
+  points: Point[]
+  color: string
+  size: number
+  pathData?: string
+  boundingBox: BoundingBox
+  angle?: number
+}
+
+export interface CanvasState {
+  strokes: Stroke[]
+  currentStroke: Stroke | null
+  camera: {
+    x: number
+    y: number
+    z: number
+  }
+  activeTool: ToolType
+  strokeColor: string
+  strokeSize: number
+}
