@@ -22,3 +22,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python & Model Weights
+__pycache__/
+*.py[cod]
+.venv/
+training/.venv/
+training/__pycache__/
+training/checkpoints/
+training/crohme_data/
+training/*.onnx.data
+training/onnx_exported/*.onnx.data
+training/onnx_exported/*.onnx
