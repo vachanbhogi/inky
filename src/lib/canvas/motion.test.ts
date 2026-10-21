@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { easeOutQuint, lassoDissolve, prefersReducedMotion, recognizedPulseAlpha } from './motion'
+import {
+  easeOutQuint,
+  lassoDissolve,
+  prefersReducedMotion,
+  recognizedPulseAlpha,
+  stampWipe,
+} from './motion'
 import type { Stroke } from './types'
 
 const realMatchMedia = globalThis.matchMedia
@@ -106,5 +112,37 @@ describe('recognizedPulseAlpha', () => {
   it('snaps to done under reduced motion', () => {
     stubReducedMotion(true)
     expect(recognizedPulseAlpha(0)).toEqual({ alpha: 0, done: true })
+  })
+})
+
+describe('stampWipe', () => {
+  const bbox = { minX: 100, maxX: 200 }
+
+  it('starts 16px before the bbox left edge', () => {
+    stubReducedMotion(false)
+    expect(stampWipe(0, bbox)).toEqual({ clipX: 84, done: false })
+  })
+
+  it('ends 16px past the bbox right edge at 420ms', () => {
+    stubReducedMotion(false)
+    expect(stampWipe(420, bbox)).toEqual({ clipX: 216, done: true })
+  })
+
+  it('stays complete past 420ms', () => {
+    stubReducedMotion(false)
+    expect(stampWipe(9999, bbox).done).toBe(true)
+  })
+
+  it('is strictly inside the bbox at the midpoint', () => {
+    stubReducedMotion(false)
+    const r = stampWipe(210, bbox)
+    expect(r.done).toBe(false)
+    expect(r.clipX).toBeGreaterThan(84)
+    expect(r.clipX).toBeLessThan(216)
+  })
+
+  it('snaps to the fully revealed state under reduced motion', () => {
+    stubReducedMotion(true)
+    expect(stampWipe(0, bbox)).toEqual({ clipX: 216, done: true })
   })
 })

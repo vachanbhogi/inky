@@ -7,6 +7,8 @@ import type { Stroke } from './types'
 
 export const LASSO_DISSOLVE_MS = 280
 export const RECOGNIZED_PULSE_MS = 420
+export const STAMP_WIPE_MS = 420
+export const STAMP_WIPE_EDGE_PX = 16
 
 export function prefersReducedMotion(): boolean {
   if (typeof globalThis.matchMedia !== 'function') return false
@@ -44,4 +46,21 @@ export function recognizedPulseAlpha(elapsedMs: number): { alpha: number; done: 
   }
   const p = easeOutQuint(elapsedMs / RECOGNIZED_PULSE_MS)
   return { alpha: 0.16 * (1 - p), done: false }
+}
+
+export interface WipeResult {
+  clipX: number
+  done: boolean
+}
+
+/** Handwriting wipe: the clip edge advances minX-16 → maxX+16 across the
+ * stamped bbox, so the answer appears to be written left to right. */
+export function stampWipe(elapsedMs: number, bbox: { minX: number; maxX: number }): WipeResult {
+  const from = bbox.minX - STAMP_WIPE_EDGE_PX
+  const to = bbox.maxX + STAMP_WIPE_EDGE_PX
+  if (prefersReducedMotion() || elapsedMs >= STAMP_WIPE_MS) {
+    return { clipX: to, done: true }
+  }
+  const p = easeOutQuint(elapsedMs / STAMP_WIPE_MS)
+  return { clipX: from + (to - from) * p, done: false }
 }

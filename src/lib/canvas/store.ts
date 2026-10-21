@@ -25,6 +25,8 @@ export class InkyStore {
   gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
     null
   recognizedPulse: { strokeIds: string[]; startedAt: number } | null = null
+  // Recently stamped answer strokes, revealed by the handwriting wipe.
+  stampedReveal: { strokeIds: string[]; startedAt: number } | null = null
   mathCapsule: {
     latex: string
     worldPosition: { x: number; y: number }
@@ -76,9 +78,15 @@ export class InkyStore {
     this.notify()
   }
 
+  setStampedReveal(value: InkyStore['stampedReveal']) {
+    this.stampedReveal = value
+    this.notify()
+  }
+
   clearTransientAnimations() {
     this.gestureDissolve = null
     this.recognizedPulse = null
+    this.stampedReveal = null
     this.notify()
   }
 
@@ -162,6 +170,24 @@ export class InkyStore {
     this.notify()
   }
 
+  /** Add a batch of strokes (e.g. a stamped answer) as ONE undo step,
+   * select them, arm the handwriting wipe, and dismiss the capsule. */
+  stampResult(strokes: Stroke[]) {
+    if (strokes.length === 0) return
+    this.undoStack.push([...this.strokes])
+    this.redoStack = []
+    this.strokes.push(...strokes)
+    this.selectedStrokeIds = strokes.map((s) => s.id)
+    this.stampedReveal = { strokeIds: strokes.map((s) => s.id), startedAt: performance.now() }
+    this.mathCapsule = null
+    this.notify()
+  }
+
+  /** Test-only: expose undo stack depth so tests can assert batch semantics. */
+  undoDepthForTest(): number {
+    return this.undoStack.length
+  }
+
   get canUndo(): boolean {
     return this.undoStack.length > 0
   }
@@ -176,6 +202,9 @@ export class InkyStore {
     if (prev !== undefined) {
       this.redoStack.push([...this.strokes])
       this.strokes = prev
+      // Drop selection entries for strokes this undo removed.
+      const existing = new Set(prev.map((s) => s.id))
+      this.selectedStrokeIds = this.selectedStrokeIds.filter((id) => existing.has(id))
       this.notify()
     }
   }
@@ -398,3 +427,9 @@ export class InkyStore {
 }
 
 export const inkyStore = new InkyStore()
+
+// Dev-only E2E hook: lets agent-browser tests inspect/drive the store without
+// a React testing library. Never exposed in production builds.
+if (import.meta.env.DEV) {
+  ;(window as unknown as { inkyStore?: InkyStore }).inkyStore = inkyStore
+}

@@ -125,14 +125,9 @@ export function MathActionCapsule() {
       inkyStore.strokeSize,
     )
 
-    // Add directly to inkyStore canvas
-    for (const s of newStrokes) {
-      inkyStore.addStroke(s)
-    }
-
-    // Select the new answer strokes and dismiss capsule
-    inkyStore.selectStrokes(newStrokes.map((s) => s.id))
-    inkyStore.setMathCapsule(null)
+    // Stamp the whole answer as ONE undo step: appends, selects, arms the
+    // handwriting wipe, and dismisses the capsule in a single store call.
+    inkyStore.stampResult(newStrokes)
   }
 
   const handleDismiss = (e: React.MouseEvent) => {
