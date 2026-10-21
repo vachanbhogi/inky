@@ -13,8 +13,11 @@ import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-ges
 import type { Stroke } from '../../lib/canvas/types'
 import { findEnclosedStrokes } from '../../lib/math/enclosure'
 import { isClosedLoop } from '../../lib/math/loop-detection'
+import { recognizeInkML } from '../../lib/math/ml-recognizer'
+import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
+import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
 import { Toolbar } from './Toolbar'
 
@@ -474,6 +477,34 @@ export function InkyBoard() {
         if (enclosedIds.length > 0) {
           inkyStore.selectStrokes(enclosedIds)
           inkyStore.setActiveTool('select')
+
+          // Calculate center of enclosed strokes to anchor the MathActionCapsule
+          const enclosedStrokes = inkyStore.strokes.filter((s) => enclosedIds.includes(s.id))
+          const minX = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minX))
+          const maxX = Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxX))
+          const minY = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minY))
+          const centerX = (minX + maxX) / 2
+
+          // Dynamically recognize the enclosed strokes: show rule-based
+          // latex instantly, then upgrade in place when ML inference lands.
+          const detectedLatex = recognizeFormulaStrokes(enclosedStrokes)
+          inkyStore.setMathCapsule({
+            latex: detectedLatex,
+            worldPosition: { x: centerX, y: minY },
+            enclosedStrokeIds: enclosedIds,
+            source: 'rule',
+          })
+          recognizeInkML(enclosedStrokes).then((mlLatex) => {
+            if (!mlLatex) return
+            const capsule = inkyStore.mathCapsule
+            if (!capsule) return
+            // Only upgrade if the capsule is still open for the same strokes.
+            const sameSet =
+              capsule.enclosedStrokeIds.length === enclosedIds.length &&
+              enclosedIds.every((id) => capsule.enclosedStrokeIds.includes(id))
+            if (!sameSet) return
+            inkyStore.setMathCapsule({ ...capsule, latex: mlLatex, source: 'ml' })
+          })
           return
         }
       }
@@ -584,6 +615,7 @@ export function InkyBoard() {
       }}
     >
       <CanvasLayer />
+      <MathActionCapsule />
       <Toolbar />
       <ShortcutsModal />
     </div>

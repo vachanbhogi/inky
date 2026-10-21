@@ -20,6 +20,12 @@ export class InkyStore {
   activeHandle: HandleType | null = null
   eraserPoint: { x: number; y: number; radius: number } | null = null
   showShortcuts = false
+  mathCapsule: {
+    latex: string
+    worldPosition: { x: number; y: number }
+    enclosedStrokeIds: string[]
+    source: 'rule' | 'ml'
+  } | null = null
   transformInitialState: {
     strokes: {
       id: string
@@ -53,6 +59,18 @@ export class InkyStore {
       this.showShortcuts = show
       this.notify()
     }
+  }
+
+  setMathCapsule(
+    capsule: {
+      latex: string
+      worldPosition: { x: number; y: number }
+      enclosedStrokeIds: string[]
+      source: 'rule' | 'ml'
+    } | null,
+  ) {
+    this.mathCapsule = capsule
+    this.notify()
   }
 
   setCamera(partial: Partial<{ x: number; y: number; z: number }>) {
