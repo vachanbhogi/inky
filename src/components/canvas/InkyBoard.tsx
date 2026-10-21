@@ -113,6 +113,10 @@ export function InkyBoard() {
           inkyStore.setShowShortcuts(false)
           return
         }
+        if (inkyStore.mathCapsule) {
+          inkyStore.setMathCapsule(null)
+          return
+        }
         inkyStore.clearSelection()
         return
       }
@@ -177,6 +181,11 @@ export function InkyBoard() {
   // Pointer event handlers
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.inky-ui')) return
+    // Clicking empty canvas dismisses an open capsule (clicks inside the
+    // capsule never reach here — its root stops propagation).
+    if (inkyStore.mathCapsule) {
+      inkyStore.setMathCapsule(null)
+    }
     const container = containerRef.current
     if (!container) return
 
