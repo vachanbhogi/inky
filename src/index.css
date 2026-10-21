@@ -97,6 +97,45 @@ body {
   animation: capsuleSwap 160ms ease-out;
 }
 
+/* ML-refinement sparkle: pulses while inference is upgrading the rule latex,
+   then pops once when the upgrade (or fallback) lands. */
+.inky-capsule-sparkle {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #93c5fd;
+  box-shadow: 0 0 6px rgba(147, 197, 253, 0.9);
+  flex-shrink: 0;
+  animation: sparklePulse 1400ms ease-in-out infinite alternate;
+}
+
+@keyframes sparklePulse {
+  from {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.inky-capsule-sparkle-resolve {
+  animation: sparkleResolve 200ms ease-out;
+}
+
+@keyframes sparkleResolve {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.8);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .inky-capsule-formula .katex {
   font-size: 1.05em;
 }

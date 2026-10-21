@@ -63,6 +63,21 @@ export function MathActionCapsule() {
 
   const display = capsule ?? lastCapsuleRef.current
 
+  // Sparkle resolve pop: when mlPending transitions true→false (ML settled or
+  // fell back), flash the one-shot resolve class for 200ms so the dot "pops".
+  const [sparkleResolved, setSparkleResolved] = useState(false)
+  const prevPendingRef = useRef(capsule?.mlPending ?? false)
+  useEffect(() => {
+    const pending = capsule?.mlPending ?? false
+    const wasPending = prevPendingRef.current
+    prevPendingRef.current = pending
+    if (wasPending && !pending) {
+      setSparkleResolved(true)
+      const timer = setTimeout(() => setSparkleResolved(false), 200)
+      return () => clearTimeout(timer)
+    }
+  }, [capsule?.mlPending])
+
   // Derived anchor, memoized so the clamp effect isn't re-fired every render.
   const screen = useMemo(() => {
     return display
@@ -156,6 +171,15 @@ export function MathActionCapsule() {
             {renderFormula(display.latex)}
           </span>
         </span>
+
+        {/* ML-refinement sparkle: pulses while inference is pending, pops once
+            on settle. Hidden once resolved (dot is a pending affordance). */}
+        {(display.mlPending || sparkleResolved) && (
+          <span
+            aria-hidden="true"
+            className={`inky-capsule-sparkle${sparkleResolved ? ' inky-capsule-sparkle-resolve' : ''}`}
+          />
+        )}
 
         <div className="w-[1px] h-4 bg-white/20 shrink-0" />
 

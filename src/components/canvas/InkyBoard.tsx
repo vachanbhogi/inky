@@ -512,17 +512,22 @@ export function InkyBoard() {
             worldPosition: { x: centerX, y: minY },
             enclosedStrokeIds: enclosedIds,
             source: 'rule',
+            mlPending: true,
           })
           recognizeInkML(enclosedStrokes).then((mlLatex) => {
-            if (!mlLatex) return
             const capsule = inkyStore.mathCapsule
             if (!capsule) return
-            // Only upgrade if the capsule is still open for the same strokes.
+            // Only settle if the capsule is still open for the same strokes.
             const sameSet =
               capsule.enclosedStrokeIds.length === enclosedIds.length &&
               enclosedIds.every((id) => capsule.enclosedStrokeIds.includes(id))
             if (!sameSet) return
-            inkyStore.setMathCapsule({ ...capsule, latex: mlLatex, source: 'ml' })
+            if (!mlLatex) {
+              // ML failed/timed out: keep the rule latex, stop the sparkle.
+              inkyStore.setMathCapsule({ ...capsule, mlPending: false })
+              return
+            }
+            inkyStore.setMathCapsule({ ...capsule, latex: mlLatex, source: 'ml', mlPending: false })
           })
           return
         }

@@ -32,6 +32,8 @@ export class InkyStore {
     worldPosition: { x: number; y: number }
     enclosedStrokeIds: string[]
     source: 'rule' | 'ml'
+    /** True while ML inference is still upgrading the instant rule latex. */
+    mlPending?: boolean
   } | null = null
   transformInitialState: {
     strokes: {
@@ -96,6 +98,7 @@ export class InkyStore {
       worldPosition: { x: number; y: number }
       enclosedStrokeIds: string[]
       source: 'rule' | 'ml'
+      mlPending?: boolean
     } | null,
   ) {
     this.mathCapsule = capsule
