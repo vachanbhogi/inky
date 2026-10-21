@@ -3,18 +3,34 @@ import { evaluate } from 'mathjs'
 export type MathAction = 'solve' | 'factor' | 'simplify'
 
 /**
- * Which capsule actions make sense for a given formula. `solve` iff the
- * cleaned latex has `=`, `factor` iff it has `^2`, `simplify` iff it has no
- * `=`. Empty latex offers nothing.
+ * Which capsule actions make sense for a given formula: an action is
+ * applicable only when it transforms the input into something different —
+ * offering a no-op action stamps the question back as its own answer (final
+ * review I2). `solve` iff the cleaned latex has `=` and solves, `factor` iff
+ * it has `^2` and factors, `simplify` iff it has no `=` and evaluates.
+ * Empty latex offers nothing.
  */
 export function getAvailableActions(latex: string): MathAction[] {
   const clean = latex.replace(/\$/g, '').trim()
   if (!clean) return []
   const actions: MathAction[] = []
-  if (clean.includes('=')) actions.push('solve')
-  if (!clean.includes('=')) actions.push('simplify')
-  if (clean.includes('^2')) actions.push('factor')
+  if (clean.includes('=') && transformsInput(clean, 'solve')) actions.push('solve')
+  if (!clean.includes('=') && transformsInput(clean, 'simplify')) actions.push('simplify')
+  if (clean.includes('^2') && transformsInput(clean, 'factor')) actions.push('factor')
   return actions
+}
+
+/** The text an action would actually stamp (mirrors MathActionCapsule). */
+export function stampedTextFor(
+  solution: { resultLatex: string; plainText: string },
+  action: MathAction,
+): string {
+  return action === 'solve' ? solution.plainText : solution.resultLatex
+}
+
+function transformsInput(latex: string, action: MathAction): boolean {
+  const solution = solveMath(latex, action)
+  return !!solution && stampedTextFor(solution, action).trim() !== latex
 }
 
 export interface MathSolution {

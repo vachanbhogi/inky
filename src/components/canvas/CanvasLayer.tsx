@@ -203,7 +203,11 @@ export function CanvasLayer() {
       }
 
       // Draw unified selection bounding box + handles
-      if (state.activeTool === 'select' && state.selectedStrokeIds.length > 0) {
+      if (
+        state.activeTool === 'select' &&
+        state.selectedStrokeIds.length > 0 &&
+        state.stampedReveal === null
+      ) {
         const bbox = state.getSelectionBoundingBox()
         if (bbox) {
           const { minX, minY, maxX, maxY } = bbox

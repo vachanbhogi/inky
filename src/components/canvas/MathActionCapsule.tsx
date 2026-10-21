@@ -5,8 +5,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateCapsuleIntegrity } from '../../lib/canvas/capsule-integrity'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { inkyStore } from '../../lib/canvas/store'
-import { getAvailableActions, type MathAction, solveMath } from '../../lib/math/math-solver'
-import { synthesizeHandwrittenStrokes } from '../../lib/math/math-to-strokes'
+import {
+  getAvailableActions,
+  type MathAction,
+  solveMath,
+  stampedTextFor,
+} from '../../lib/math/math-solver'
+import { planStamp } from '../../lib/math/math-to-strokes'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
@@ -69,6 +74,9 @@ export function MathActionCapsule() {
   // Sparkle resolve pop: when mlPending transitions true→false (ML settled or
   // fell back), flash the one-shot resolve class for 200ms so the dot "pops".
   const [sparkleResolved, setSparkleResolved] = useState(false)
+  // Inline note when a result cannot be hand-written (e.g. "No real roots") —
+  // the click must never be a silent no-op (final review I1).
+  const [notice, setNotice] = useState('')
   const prevPendingRef = useRef(capsule?.mlPending ?? false)
   useEffect(() => {
     const pending = capsule?.mlPending ?? false
@@ -109,6 +117,14 @@ export function MathActionCapsule() {
     // Recomputing is idempotent; deps are the render inputs that move the pill.
   }, [display, screen])
 
+  // Reset the un-stampable-result notice whenever the formula changes (e.g.
+  // the ML upgrade replaces the rule latex). Must sit above the early return —
+  // hooks after a conditional return crash on the null→value transition (I1).
+  const currentLatex = display?.latex
+  useEffect(() => {
+    if (currentLatex !== undefined) setNotice('')
+  }, [currentLatex])
+
   if (!display) return null
 
   const [screenX, screenY] = screen
@@ -132,9 +148,10 @@ export function MathActionCapsule() {
       centerY = (minY + maxY) / 2
     }
 
-    // Synthesize realistic handwritten strokes for the result
-    const textToStamp = action === 'solve' ? solution.plainText : solution.resultLatex
-    const newStrokes = synthesizeHandwrittenStrokes(
+    // Synthesize realistic handwritten strokes for the result — or surface it
+    // as text when the glyph table cannot draw it (never a silent no-op).
+    const textToStamp = stampedTextFor(solution, action)
+    const plan = planStamp(
       textToStamp,
       maxX + 30,
       centerY - 18,
@@ -142,10 +159,14 @@ export function MathActionCapsule() {
       inkyStore.strokeColor,
       inkyStore.strokeSize,
     )
+    if (plan.kind === 'show') {
+      setNotice(plan.message)
+      return
+    }
 
     // Stamp the whole answer as ONE undo step: appends, selects, arms the
     // handwriting wipe, and dismisses the capsule in a single store call.
-    inkyStore.stampResult(newStrokes)
+    inkyStore.stampResult(plan.strokes)
   }
 
   const handleDismiss = (e: React.MouseEvent) => {
@@ -174,6 +195,12 @@ export function MathActionCapsule() {
             {renderFormula(display.latex)}
           </span>
         </span>
+
+        {notice && (
+          <span className="max-w-40 truncate text-[10px] italic text-stone-400" title={notice}>
+            {notice}
+          </span>
+        )}
 
         {/* ML-refinement sparkle: pulses while inference is pending, pops once
             on settle. Hidden once resolved (dot is a pending affordance). */}

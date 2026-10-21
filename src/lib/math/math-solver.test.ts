@@ -40,8 +40,8 @@ describe('getAvailableActions', () => {
     expect(getAvailableActions('3(2+4)')).toEqual(['simplify'])
   })
 
-  test('quadratic expression (no =) offers simplify and factor', () => {
-    expect(getAvailableActions('x^2+2x+1')).toEqual(['simplify', 'factor'])
+  test('quadratic expression (no =) offers nothing — both would stamp the input back (final review I2)', () => {
+    expect(getAvailableActions('x^2+2x+1')).toEqual([])
   })
 
   test('empty latex offers nothing', () => {
@@ -50,5 +50,16 @@ describe('getAvailableActions', () => {
 
   test('ignores $ delimiters when classifying', () => {
     expect(getAvailableActions('$2x+1=7$')).toEqual(['solve'])
+  })
+})
+
+describe('action applicability (final review I2)', () => {
+  test('does not offer actions that would stamp the input back unchanged', () => {
+    expect(getAvailableActions('y+1')).toEqual([])
+  })
+
+  test('keeps actions that genuinely transform the input', () => {
+    expect(getAvailableActions('x^2-5x+6=0')).toEqual(['solve', 'factor'])
+    expect(getAvailableActions('3(2+4)')).toEqual(['simplify'])
   })
 })

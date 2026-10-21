@@ -30,3 +30,11 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Math ML models
+
+The handwriting-recognition capsule upgrade loads FormulaNet ONNX models from
+`public/models/` (`formulanet-tokens.json`, `encoder.ort`, `decoder.ort`) in a
+Web Worker. These are gitignored (~150 MB); without them the app still works —
+recognition silently degrades to the instant rule-based fallback. Run
+`bash scripts/fetch-models.sh` to verify or restore them.

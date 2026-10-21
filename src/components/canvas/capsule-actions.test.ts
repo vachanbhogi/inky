@@ -25,3 +25,11 @@ describe('MathActionCapsule action gating', () => {
     expect(capsuleSrc).toMatch(/opacity-40/)
   })
 })
+
+describe('un-stampable results (final review I1/C1)', () => {
+  it('routes results the glyph table cannot draw to an inline notice', () => {
+    expect(capsuleSrc).toMatch(/planStamp\(/)
+    expect(capsuleSrc).toMatch(/plan\.kind === 'show'/)
+    expect(capsuleSrc).toMatch(/setNotice/)
+  })
+})

@@ -42,3 +42,5 @@ public/models/
 .superpowers/
 
 e2e-runs/
+
+training/onnx_exported/

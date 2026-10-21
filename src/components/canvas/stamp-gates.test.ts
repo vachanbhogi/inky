@@ -33,3 +33,9 @@ describe('dev-only E2E hook', () => {
     expect(storeSrc).toMatch(/import\.meta\.env\.DEV[\s\S]{0,120}window[^\n]*inkyStore/)
   })
 })
+
+describe('selection chrome during stamp reveal (final review I3)', () => {
+  it('suppresses the selection frame and handles while the reveal animates', () => {
+    expect(canvasLayerSrc).toMatch(/activeTool === 'select'[\s\S]{0,200}stampedReveal === null/)
+  })
+})

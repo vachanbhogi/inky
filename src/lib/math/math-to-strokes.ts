@@ -174,6 +174,58 @@ const GLYPH_PATHS: Record<string, [number, number][][]> = {
       [0.4, 0.95],
     ],
   ],
+  '.': [
+    [
+      [0.42, 0.78],
+      [0.58, 0.85],
+    ],
+  ],
+}
+
+const EXPONENT_SCALE = 0.6
+const EXPONENT_RISE = 0.38
+
+/**
+ * Glyphs in `text` that have no drawable path. Reported so callers can refuse
+ * to stamp silently-lossy output instead of printing wrong math (final C1).
+ */
+export function unsupportedGlyphs(text: string): string[] {
+  const missing = new Set<string>()
+  for (const ch of text) {
+    if (ch === ' ' || ch === '^') continue
+    if (!(GLYPH_PATHS[ch] ?? GLYPH_PATHS[ch.toLowerCase()])) missing.add(ch)
+  }
+  return [...missing]
+}
+
+export type StampPlan = { kind: 'stamp'; strokes: Stroke[] } | { kind: 'show'; message: string }
+
+/**
+ * Decide between stamping handwritten strokes and surfacing the result as
+ * text: never stamp a string the glyph table cannot draw (final review C1/I1).
+ */
+export function planStamp(
+  text: string,
+  startX: number,
+  startY: number,
+  charHeight = 36,
+  color = '#111111',
+  strokeWidth = 3.5,
+): StampPlan {
+  const trimmed = text.trim()
+  if (!trimmed || unsupportedGlyphs(trimmed).length > 0) {
+    return { kind: 'show', message: trimmed }
+  }
+  const strokes = synthesizeHandwrittenStrokes(
+    trimmed,
+    startX,
+    startY,
+    charHeight,
+    color,
+    strokeWidth,
+  )
+  if (strokes.length === 0) return { kind: 'show', message: trimmed }
+  return { kind: 'stamp', strokes }
 }
 
 export function synthesizeHandwrittenStrokes(
@@ -188,11 +240,17 @@ export function synthesizeHandwrittenStrokes(
   const charWidth = charHeight * 0.6
   const spacing = charWidth * 0.35
   let curX = startX
+  let superscript = false
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     if (ch === ' ') {
       curX += charWidth * 0.8
+      continue
+    }
+    if (ch === '^') {
+      // Exponent marker: the next glyph renders raised and smaller.
+      superscript = true
       continue
     }
 
@@ -202,12 +260,13 @@ export function synthesizeHandwrittenStrokes(
       continue
     }
 
+    const h = superscript ? charHeight * EXPONENT_SCALE : charHeight
+    const w = superscript ? charWidth * EXPONENT_SCALE : charWidth
+    const top = superscript ? startY - charHeight * EXPONENT_RISE : startY
+
     glyph.forEach((part, idx) => {
       // Scale points to world coordinates
-      const points: Point[] = part.map(([px, py]) => [
-        curX + px * charWidth,
-        startY + py * charHeight,
-      ])
+      const points: Point[] = part.map(([px, py]) => [curX + px * w, top + py * h])
       const strokeId = `stamped-stroke-${Date.now()}-${i}-${idx}-${Math.random().toString(36).slice(2, 6)}`
       result.push({
         id: strokeId,
@@ -219,7 +278,8 @@ export function synthesizeHandwrittenStrokes(
       })
     })
 
-    curX += charWidth + spacing
+    curX += w + spacing
+    superscript = false
   }
 
   return result
