@@ -20,6 +20,11 @@ export class InkyStore {
   activeHandle: HandleType | null = null
   eraserPoint: { x: number; y: number; radius: number } | null = null
   showShortcuts = false
+  // Transient gesture-handoff animations (circle → capsule). Cleared by
+  // CanvasLayer when their progress reports done.
+  gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
+    null
+  recognizedPulse: { strokeIds: string[]; startedAt: number } | null = null
   mathCapsule: {
     latex: string
     worldPosition: { x: number; y: number }
@@ -59,6 +64,22 @@ export class InkyStore {
       this.showShortcuts = show
       this.notify()
     }
+  }
+
+  setGestureDissolve(value: InkyStore['gestureDissolve']) {
+    this.gestureDissolve = value
+    this.notify()
+  }
+
+  setRecognizedPulse(value: InkyStore['recognizedPulse']) {
+    this.recognizedPulse = value
+    this.notify()
+  }
+
+  clearTransientAnimations() {
+    this.gestureDissolve = null
+    this.recognizedPulse = null
+    this.notify()
   }
 
   setMathCapsule(

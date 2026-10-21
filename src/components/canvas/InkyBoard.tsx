@@ -484,6 +484,16 @@ export function InkyBoard() {
           const maxX = Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxX))
           const minY = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minY))
           const centerX = (minX + maxX) / 2
+          const anchor = { x: centerX, y: minY }
+
+          // Gesture handoff: the lasso dissolves toward the capsule anchor and
+          // the enclosed strokes pulse once — the circle "becomes" the capsule.
+          inkyStore.setGestureDissolve({
+            stroke: finalStroke,
+            anchor,
+            startedAt: performance.now(),
+          })
+          inkyStore.setRecognizedPulse({ strokeIds: enclosedIds, startedAt: performance.now() })
 
           // Dynamically recognize the enclosed strokes: show rule-based
           // latex instantly, then upgrade in place when ML inference lands.
