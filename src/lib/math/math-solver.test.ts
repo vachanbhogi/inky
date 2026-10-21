@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { cleanEquationForMathjs, solveMath } from './math-solver'
+import { cleanEquationForMathjs, getAvailableActions, solveMath } from './math-solver'
 
 describe('math-solver', () => {
   test('cleanEquationForMathjs converts latex syntax cleanly', () => {
@@ -24,5 +24,31 @@ describe('math-solver', () => {
   test('evaluates arithmetic expression: 15 * 4 + 2', () => {
     const res = solveMath('15 * 4 + 2', 'simplify')
     expect(res.resultLatex).toBe('= 62')
+  })
+})
+
+describe('getAvailableActions', () => {
+  test('equation without ^2 offers solve only', () => {
+    expect(getAvailableActions('2x+1=7')).toEqual(['solve'])
+  })
+
+  test('quadratic equation offers solve and factor', () => {
+    expect(getAvailableActions('x^2-5x+6=0')).toEqual(['solve', 'factor'])
+  })
+
+  test('plain expression offers simplify only', () => {
+    expect(getAvailableActions('3(2+4)')).toEqual(['simplify'])
+  })
+
+  test('quadratic expression (no =) offers simplify and factor', () => {
+    expect(getAvailableActions('x^2+2x+1')).toEqual(['simplify', 'factor'])
+  })
+
+  test('empty latex offers nothing', () => {
+    expect(getAvailableActions('')).toEqual([])
+  })
+
+  test('ignores $ delimiters when classifying', () => {
+    expect(getAvailableActions('$2x+1=7$')).toEqual(['solve'])
   })
 })

@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateCapsuleIntegrity } from '../../lib/canvas/capsule-integrity'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { inkyStore } from '../../lib/canvas/store'
-import { solveMath } from '../../lib/math/math-solver'
+import { getAvailableActions, type MathAction, solveMath } from '../../lib/math/math-solver'
 import { synthesizeHandwrittenStrokes } from '../../lib/math/math-to-strokes'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
@@ -62,6 +62,9 @@ export function MathActionCapsule() {
   }, [capsule])
 
   const display = capsule ?? lastCapsuleRef.current
+
+  // Actions that make sense for this formula (e.g. no Solve without an "=").
+  const actions = useMemo(() => (display ? getAvailableActions(display.latex) : []), [display])
 
   // Sparkle resolve pop: when mlPending transitions true→false (ML settled or
   // fell back), flash the one-shot resolve class for 200ms so the dot "pops".
@@ -183,29 +186,35 @@ export function MathActionCapsule() {
 
         <div className="w-[1px] h-4 bg-white/20 shrink-0" />
 
-        {/* Clean Apple-style Action Buttons */}
+        {/* Action buttons — rendered from the availability list; unavailable
+            actions stay visible but inert (aria-disabled, dimmed). Solve stays
+            visually primary when available. */}
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={(e) => handleAction(e, 'solve')}
-            className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white text-[#111111] hover:bg-stone-200 active:scale-95 transition-[transform,background-color] duration-150 cursor-pointer"
-          >
-            Solve
-          </button>
-          <button
-            type="button"
-            onClick={(e) => handleAction(e, 'factor')}
-            className="text-xs font-medium px-2 py-1 rounded-lg text-stone-300 hover:text-white hover:bg-white/10 active:scale-95 transition-[transform,background-color,color] duration-150 cursor-pointer"
-          >
-            Factor
-          </button>
-          <button
-            type="button"
-            onClick={(e) => handleAction(e, 'simplify')}
-            className="text-xs font-medium px-2 py-1 rounded-lg text-stone-300 hover:text-white hover:bg-white/10 active:scale-95 transition-[transform,background-color,color] duration-150 cursor-pointer"
-          >
-            Simplify
-          </button>
+          {(
+            [
+              { action: 'solve' as const, label: 'Solve', primary: true },
+              { action: 'factor' as const, label: 'Factor', primary: false },
+              { action: 'simplify' as const, label: 'Simplify', primary: false },
+            ] satisfies { action: MathAction; label: string; primary: boolean }[]
+          ).map(({ action, label, primary }) => {
+            const available = actions.includes(action)
+            const base =
+              'text-xs px-2 py-1 rounded-lg transition-[transform,background-color,color,opacity] duration-150'
+            const style = primary
+              ? 'font-semibold px-2.5 bg-white text-[#111111] hover:bg-stone-200 active:scale-95 cursor-pointer'
+              : 'font-medium text-stone-300 hover:text-white hover:bg-white/10 active:scale-95 cursor-pointer'
+            return (
+              <button
+                key={action}
+                type="button"
+                aria-disabled={!available}
+                onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
+                className={available ? `${base} ${style}` : `${base} opacity-40 cursor-default`}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Dismiss Icon */}

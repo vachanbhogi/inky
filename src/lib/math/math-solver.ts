@@ -1,5 +1,22 @@
 import { evaluate } from 'mathjs'
 
+export type MathAction = 'solve' | 'factor' | 'simplify'
+
+/**
+ * Which capsule actions make sense for a given formula. `solve` iff the
+ * cleaned latex has `=`, `factor` iff it has `^2`, `simplify` iff it has no
+ * `=`. Empty latex offers nothing.
+ */
+export function getAvailableActions(latex: string): MathAction[] {
+  const clean = latex.replace(/\$/g, '').trim()
+  if (!clean) return []
+  const actions: MathAction[] = []
+  if (clean.includes('=')) actions.push('solve')
+  if (!clean.includes('=')) actions.push('simplify')
+  if (clean.includes('^2')) actions.push('factor')
+  return actions
+}
+
 export interface MathSolution {
   latex: string
   action: 'solve' | 'factor' | 'simplify' | 'graph'
