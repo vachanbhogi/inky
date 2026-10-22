@@ -15,12 +15,16 @@ import {
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
 function renderFormula(latex: string): React.ReactNode {
+  // Model output can arrive $-wrapped; KaTeX throws on `$`, which would drop
+  // the pill into the raw-latex fallback. Strip the delimiters — they are
+  // display noise anyway (the solver strips them on its side too).
+  const source = latex.replace(/\$/g, '')
   try {
-    const html = katex.renderToString(latex, { throwOnError: true, displayMode: false })
+    const html = katex.renderToString(source, { throwOnError: true, displayMode: false })
     // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX generates and escapes this markup itself; throwOnError:true makes bad LaTeX throw here (caught below) instead of emitting error nodes.
     return <span className="inky-capsule-formula" dangerouslySetInnerHTML={{ __html: html }} />
   } catch {
-    return <span className="text-xs font-medium text-stone-200 tracking-wide">{latex}</span>
+    return <span className="text-xs font-medium text-stone-200 tracking-wide">{source}</span>
   }
 }
 

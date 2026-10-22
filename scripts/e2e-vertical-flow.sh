@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E vertical-flow verification (agent-browser driven): draw equation -> lasso circle -> rule capsule (mlPending) -> ML upgrade -> Solve stamps real text (one undo) -> undo -> dismissals -> marquee-selection open -> stamp pans with canvas -> eraser deletes stamp -> reduced-motion pass.
+# E2E vertical-flow verification (agent-browser driven): draw equation -> lasso circle -> rule capsule (mlPending) -> ML upgrade -> Solve stamps real text (one undo) -> undo -> dismissals -> marquee-selection open -> stamp pans with canvas -> eraser deletes stamp -> brace-form dead-Solve regression (injected latex + human-drawn quadratic) -> reduced-motion pass.
 # Equation strokes carry a deterministic +/-2px jitter and a human-ish pause so the input reads like a hand, not a plotter. Exit code 0 only if every assertion passes. Artifacts: e2e-runs/<ts>/.
 set -u
 
@@ -288,6 +288,130 @@ if poll_js 'window.inkyStore.stamps.length' 0 10; then ok "eraser removed the st
 if poll_js 'document.querySelectorAll("[data-stamp-id]").length' 0 10; then ok "stamp DOM element gone"; else bad "[data-stamp-id] still in DOM after erasing"; fi
 assert_eq "$(js 'window.inkyStore.strokes.length')" "9" "ink untouched by stamp erase (9 strokes)"
 agent-browser screenshot "$RUN_DIR/06-erased-stamp.png" >>"$LOG" 2>&1
+
+section "10d. brace-form latex (x^{ 2 }-1=0) offers a live Solve (dead-Solve regression)"
+# The model emits LaTeX braces; without the canonicalizeSuperscripts math
+# boundary the gate saw `x^{ 2 }` (no literal ^2) -> every button dimmed.
+# Inject the exact captured string deterministically, click Solve, verify the
+# stamped answer, then undo (step 11 reloads regardless; keep counts clean).
+ensure_draw_tool
+js '(function(){ window.inkyStore.setMathCapsule({latex: "x^{ 2 }-1=0", worldPosition: {x: 600, y: 250}, enclosedStrokeIds: [], source: "ml", mlPending: false}); return "ok" })()' >/dev/null
+if poll_js 'window.inkyStore.mathCapsule !== null' true 6; then ok "injected brace-form capsule open"; else bad "injected capsule did not open"; fi
+SOLVE_DIS="$(js '(function(){var b=[...document.querySelectorAll("button")].find(function(x){return x.textContent==="Solve"}); return b ? b.getAttribute("aria-disabled") : "missing"})()')"
+assert_eq "$SOLVE_DIS" '"false"' "Solve enabled for brace-form latex"
+SOLVE_LINE3="$(agent-browser snapshot -i 2>>"$LOG" | grep -m1 'button "Solve"')"
+SOLVE_REF3="${SOLVE_LINE3##*ref=}"
+SOLVE_REF3="${SOLVE_REF3%%]*}"
+if [ -n "$SOLVE_REF3" ] && [ "$SOLVE_REF3" != "$SOLVE_LINE3" ]; then
+  agent-browser click "@$SOLVE_REF3" >>"$LOG" 2>&1
+  ok "Solve clicked on brace-form capsule"
+else
+  bad "Solve button not found for brace-form capsule"
+fi
+if poll_js 'window.inkyStore.stamps.length === 1 && window.inkyStore.stamps[0].text === "x = 1, -1"' true 10; then
+  ok "brace-form Solve stamped x = 1, -1"
+else
+  bad "brace-form stamp: $(js 'JSON.stringify(window.inkyStore.stamps.map(function(s){return s.text}))')"
+fi
+agent-browser press Meta+z >>"$LOG" 2>&1
+if poll_js 'window.inkyStore.strokes.length' 9 10; then ok "undo after brace stamp left ink intact (9 strokes)"; else bad "ink changed by brace-stamp undo"; fi
+if poll_js 'window.inkyStore.stamps.length' 0 10; then ok "brace stamp undone (canvas ready for 10e)"; else bad "brace stamp not removed by undo"; fi
+
+section "10e. human-drawn x²-1=0: real recognizer output must offer a live Solve"
+# Draws the quadratic glyphs that produced the dead-Solve bug in the wild
+# (settled latex `x^{ 2 }-1=0` / `v^{ 2 }=0`), lassos ONLY them, and asserts
+# the ML-settled capsule offers a working Solve + stamps an answer. One
+# redraw retry (clear + draw again) if the settle comes back without `=`.
+draw_quadratic() {
+  stroke 31 330 575 390 645
+  stroke 32 390 575 330 645
+  # superscript 2 — with a horizontal base sweep so it can't read as `c`
+  stroke 33 452 546 440 540 426 544 422 554 434 563 452 571 424 571
+  stroke 34 470 610 530 610
+  stroke 35 563 572 563 652
+  stroke 36 600 595 655 595
+  stroke 37 600 630 655 630
+  local k px py
+  local pts=()
+  for k in {0..15}; do
+    read -r px py <<<"$(awk -v k="$k" 'BEGIN{pi=atan2(0,-1); th=(360*k/16)*pi/180; printf "%.0f %.0f", 700+28*cos(th), 610+42*sin(th)}')"
+    # stroke() takes FLAT x y args — a "px py" string per element would be
+    # misread as alternating coordinates and scramble the ellipse.
+    pts+=("$px" "$py")
+  done
+  pts+=("${pts[0]}" "${pts[1]}")
+  stroke 38 "${pts[@]}"
+}
+# Same loop-detection contract as draw_lasso (close byte-identical, outward
+# overshoot, inward cut crossing the head) around center (525,600) rx260 ry105:
+# sized so every glyph corner (incl. the `0` at x672-728/y568-652) is strictly
+# inside — a too-tight ellipse dropped the `0` and the recognizer settled
+# `x^{ 2 }-1=`. World y 535-745, clear of the original equation (y <= 365).
+draw_lasso_low() {
+  local k px py
+  local pts=()
+  for k in {0..24}; do
+    read -r px py <<<"$(awk -v k="$k" 'BEGIN{pi=atan2(0,-1); th=(180+15*k)*pi/180; printf "%.0f %.0f", 525+260*cos(th), 600+105*sin(th)}')"
+    pts+=("$px $py")
+  done
+  pts[24]="${pts[0]}"
+  pts+=("236 585" "221 572" "298 600" "328 614")
+  set -- ${pts[0]}
+  agent-browser mouse move "$1" "$2" >>"$LOG" 2>&1
+  agent-browser mouse down >>"$LOG" 2>&1
+  for k in "${pts[@]:1}"; do
+    set -- $k
+    agent-browser mouse move "$1" "$2" --steps 3 >>"$LOG" 2>&1
+  done
+  agent-browser mouse up >>"$LOG" 2>&1
+}
+QUAD_ML_LATEX=""
+QUAD_OK=false
+for attempt in 1 2; do
+  ensure_draw_tool
+  BASE="$(js 'window.inkyStore.strokes.length')"
+  draw_quadratic
+  assert_eq "$(js 'window.inkyStore.strokes.length')" "$((BASE + 8))" "8 quadratic glyph strokes on canvas (attempt $attempt)"
+  draw_lasso_low
+  if poll_js 'window.inkyStore.mathCapsule !== null' true 10; then ok "capsule opened for the quadratic"; else bad "capsule did not open for the quadratic (attempt $attempt)"; fi
+  assert_eq "$(js 'window.inkyStore.mathCapsule ? window.inkyStore.mathCapsule.enclosedStrokeIds.length : -1')" "8" "lasso enclosed only the 8 quadratic strokes"
+  ml3=false
+  for ((i = 0; i < 60; i++)); do
+    if [ "$(js 'window.inkyStore.mathCapsule && window.inkyStore.mathCapsule.source === "ml"')" = "true" ]; then ml3=true; break; fi
+    sleep 0.25
+  done
+  if $ml3; then ok "ML settled for the quadratic"; else bad "ML did not settle for the quadratic (attempt $attempt)"; fi
+  QUAD_ML_LATEX="$(js 'window.inkyStore.mathCapsule ? window.inkyStore.mathCapsule.latex : ""')"
+  note "quadratic ml latex: $QUAD_ML_LATEX"
+  echo "quad-ml: $QUAD_ML_LATEX" >>"$RUN_DIR/latex.log"
+  # A usable settle is an equation with a numeric ^2 — the sup must read as 2
+  # (a `c` reading gives `x^c-1=0`, which is genuinely unsolvable, so the
+  # retry is for recognizer drift, not for the button bug under test).
+  if [[ "$QUAD_ML_LATEX" == *"="* ]] && echo "$QUAD_ML_LATEX" | grep -qE '\^\{? ?2'; then QUAD_OK=true; break; fi
+  note "unusable settle (attempt $attempt): needs '=' and numeric ^2; clearing ink and retrying once"
+  js 'window.inkyStore.clear(); "ok"' >/dev/null
+done
+if $QUAD_OK; then ok "quadratic settled into a parseable equation"; else bad "no parseable equation after 2 attempts: $QUAD_ML_LATEX"; fi
+QUAD_SOLVE_DIS="$(js '(function(){var b=[...document.querySelectorAll("button")].find(function(x){return x.textContent==="Solve"}); return b ? b.getAttribute("aria-disabled") : "missing"})()')"
+assert_eq "$QUAD_SOLVE_DIS" '"false"' "Solve enabled for ML-settled quadratic (regression gate)"
+QSL="$(agent-browser snapshot -i 2>>"$LOG" | grep -m1 'button "Solve"')"
+QSR="${QSL##*ref=}"
+QSR="${QSR%%]*}"
+if [ -n "$QSR" ] && [ "$QSR" != "$QSL" ]; then
+  agent-browser click "@$QSR" >>"$LOG" 2>&1
+  ok "Solve clicked on the quadratic capsule"
+else
+  bad "Solve button not found for the quadratic capsule"
+fi
+if poll_js 'window.inkyStore.stamps.length' 1 10; then ok "quadratic Solve stamped an answer"; else bad "no stamp after quadratic Solve (stamps=$(js 'window.inkyStore.stamps.length'))"; fi
+QUAD_STAMP="$(js 'window.inkyStore.stamps[0] ? window.inkyStore.stamps[0].text : ""')"
+if [ "$QUAD_STAMP" != "$QUAD_ML_LATEX" ] && [[ "$QUAD_STAMP" == *" = "* ]]; then
+  ok "stamp is a solve-result, not the question ($QUAD_STAMP)"
+else
+  bad "unexpected quadratic stamp: $QUAD_STAMP (latex: $QUAD_ML_LATEX)"
+fi
+if poll_js 'window.inkyStore.mathCapsule !== null' false 10; then ok "capsule dismissed after quadratic Solve"; else bad "capsule still open after quadratic Solve"; fi
+agent-browser screenshot "$RUN_DIR/07-quadratic-solve.png" >>"$LOG" 2>&1
 
 section "11. reduced-motion pass"
 agent-browser set media light reduced-motion >>"$LOG" 2>&1

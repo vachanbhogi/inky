@@ -60,6 +60,14 @@ describe('normalizeLatex (placeholder cleanup)', () => {
     expect(normalizeLatex('x = 2.00, -1.00')).toBe('x=2.00,-1.00')
   })
 
+  test('keeps braces in superscripts (KaTeX needs x^{10}, not x^10)', () => {
+    // The solver canonicalizes braces on its side; normalizeLatex must NOT —
+    // display renders multi-digit exponents correctly only while braces
+    // survive. (Spaces next to { } survive tightening; `1 0` collapses.)
+    expect(normalizeLatex('x ^ { 1 0 } = 0')).toBe('x^{ 10 }=0')
+    expect(normalizeLatex('x ^ { 2 } - 1 = 0')).toBe('x^{ 2 }-1=0')
+  })
+
   test('idsToLatex emits normalized latex end to end', () => {
     const v: TokenVocab = {
       model: 't',

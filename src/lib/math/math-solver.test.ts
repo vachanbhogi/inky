@@ -64,6 +64,34 @@ describe('action applicability (final review I2)', () => {
   })
 })
 
+describe('emitted latex shapes (brace superscripts — dead-Solve regression)', () => {
+  test('brace forms offer the same actions as ASCII', () => {
+    expect(getAvailableActions('x^{2}-1=0')).toEqual(['solve', 'factor'])
+    expect(getAvailableActions('x^{ 2 }-1=0')).toEqual(['solve', 'factor'])
+    expect(getAvailableActions('x^{2}-5x+6=0')).toEqual(['solve', 'factor'])
+  })
+
+  test('brace quadratic expression offers factor — not the bogus simplify', () => {
+    expect(getAvailableActions('x^{2}+2x+1')).toEqual(['factor'])
+  })
+
+  test('solveMath stamps real answers for brace inputs', () => {
+    expect(solveMath('x^{ 2 }-1=0', 'solve').plainText).toBe('x = 1, -1')
+    expect(solveMath('x^{2}-5x+6=0', 'solve').plainText).toBe('x = 3, 2')
+    expect(solveMath('x^{2}+2x+1', 'factor').plainText).toBe('(x + 1)^2')
+  })
+
+  test('equations with an empty or garbage side offer nothing (no NaN stamps)', () => {
+    // A recognizer slip like `x^2-1=` (missing RHS) made c/disc NaN; the
+    // solve branch fell through to 'No real roots' — which *transformed* the
+    // input, so the capsule offered a Solve that stamped nonsense.
+    expect(getAvailableActions('x^{ 2 }-1=')).toEqual([])
+    expect(getAvailableActions('x^2-1=')).toEqual([])
+    expect(getAvailableActions('x^2-1=abc')).toEqual([])
+    expect(getAvailableActions('2x+1=')).toEqual([])
+  })
+})
+
 describe('real transformations for factor/simplify (user pass)', () => {
   test('simplify collapses symbolic sums', () => {
     expect(solveMath('x+x', 'simplify').plainText).toBe('2x')
