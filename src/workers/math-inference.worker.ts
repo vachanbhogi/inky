@@ -32,19 +32,21 @@ let sessionsPromise: Promise<{
   vocab: TokenVocab
 }> | null = null
 
+const MODEL_BASE = `${import.meta.env.BASE_URL}models/`
+
 function loadSessions() {
   if (!sessionsPromise) {
     sessionsPromise = (async () => {
-      const vocabRes = await fetch('/models/formulanet-tokens.json')
+      const vocabRes = await fetch(`${MODEL_BASE}formulanet-tokens.json`)
       if (!vocabRes.ok) throw new Error(`vocab fetch failed: ${vocabRes.status}`)
       const vocab = (await vocabRes.json()) as TokenVocab
 
       const [encBuf, decBuf] = await Promise.all([
-        fetch('/models/encoder.ort').then((r) => {
+        fetch(`${MODEL_BASE}encoder.ort`).then((r) => {
           if (!r.ok) throw new Error(`encoder fetch failed: ${r.status}`)
           return r.arrayBuffer()
         }),
-        fetch('/models/decoder.ort').then((r) => {
+        fetch(`${MODEL_BASE}decoder.ort`).then((r) => {
           if (!r.ok) throw new Error(`decoder fetch failed: ${r.status}`)
           return r.arrayBuffer()
         }),
@@ -59,6 +61,12 @@ function loadSessions() {
       ])
       return { enc, dec, vocab }
     })()
+    // M11: never cache a rejected load — one flaky fetch (offline, cold
+    // cache) must not permanently disable recognition for the session.
+    sessionsPromise = sessionsPromise.catch((err: unknown) => {
+      sessionsPromise = null
+      throw err
+    })
   }
   return sessionsPromise
 }

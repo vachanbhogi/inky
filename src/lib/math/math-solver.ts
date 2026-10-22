@@ -1,4 +1,4 @@
-import { evaluate } from 'mathjs'
+import { evaluate, simplify } from 'mathjs'
 
 export type MathAction = 'solve' | 'factor' | 'simplify'
 
@@ -30,8 +30,13 @@ export function stampedTextFor(
 
 function transformsInput(latex: string, action: MathAction): boolean {
   const solution = solveMath(latex, action)
-  return !!solution && stampedTextFor(solution, action).trim() !== latex
+  if (!solution) return false
+  const squash = (s: string) => s.replace(/\s+/g, '')
+  return squash(stampedTextFor(solution, action)) !== squash(latex)
 }
+
+const quadRegex =
+  /^([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])\^2(?:([+-]\d*(?:\.\d+)?)\*?[a-zA-Z])?(?:([+-]\d+(?:\.\d+)?))??$/
 
 export interface MathSolution {
   latex: string
@@ -92,8 +97,6 @@ export function solveMath(
       }
 
       // Quadratic: ax^2 + bx + c = 0 (support +/- signs)
-      const quadRegex =
-        /^([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])\^2(?:([+-]\d*(?:\.\d+)?)\*?[a-zA-Z])?(?:([+-]\d+(?:\.\d+)?))?$/
       const matchQuad = leftStr.match(quadRegex)
       if (matchQuad) {
         const aStr = matchQuad[1]
@@ -109,8 +112,10 @@ export function solveMath(
 
         const disc = b * b - 4 * a * c
         if (action === 'factor' && disc >= 0) {
-          const r1 = (-b + Math.sqrt(disc)) / (2 * a)
-          const r2 = (-b - Math.sqrt(disc)) / (2 * a)
+          const rLo = (-b + Math.sqrt(disc)) / (2 * a)
+          const rHi = (-b - Math.sqrt(disc)) / (2 * a)
+          const r1 = Math.min(rLo, rHi)
+          const r2 = Math.max(rLo, rHi)
           if (r1 === r2) {
             const sign = r1 >= 0 ? `- ${r1}` : `+ ${Math.abs(r1)}`
             return {
@@ -165,8 +170,8 @@ export function solveMath(
   }
 
   // Case 2: Expression to evaluate or simplify
+  const expr = cleanEquationForMathjs(clean)
   try {
-    const expr = cleanEquationForMathjs(clean)
     const val = evaluate(expr)
     if (typeof val === 'number') {
       const cleanVal = Number.isInteger(val) ? val.toString() : val.toFixed(2)
@@ -178,7 +183,48 @@ export function solveMath(
       }
     }
   } catch {
-    // If evaluation fails, return as simplified identity
+    // Not numeric — try symbolic transforms below.
+  }
+
+  const squash = (s: string) => s.replace(/\s+/g, '')
+
+  // Symbolic simplify (mathjs): x + x -> 2x. Only when it changes the
+  // expression — an identity result is what the applicability gate rejects.
+  if (action === 'simplify') {
+    try {
+      const simplified = simplify(expr)
+        .toString()
+        .replace(/\s*\*\s*/g, '')
+      if (squash(simplified) !== squash(clean)) {
+        return { latex: clean, action, resultLatex: simplified, plainText: simplified }
+      }
+    } catch {
+      // Not symbolically simplifiable — fall through.
+    }
+  }
+
+  // Factor a quadratic expression (no '=' needed): x^2+2x+1 -> (x + 1)^2
+  if (action === 'factor') {
+    const m = expr.match(quadRegex)
+    if (m) {
+      const varName = m[2]
+      const a = !m[1] || m[1] === '+' ? 1 : m[1] === '-' ? -1 : Number.parseFloat(m[1])
+      const b = !m[3] || m[3] === '+' ? (m[3] ? 1 : 0) : m[3] === '-' ? -1 : Number.parseFloat(m[3])
+      const c = m[4] ? Number.parseFloat(m[4]) : 0
+      const disc = b * b - 4 * a * c
+      if (disc >= 0) {
+        const rLo = (-b + Math.sqrt(disc)) / (2 * a)
+        const rHi = (-b - Math.sqrt(disc)) / (2 * a)
+        const r1 = Math.min(rLo, rHi)
+        const r2 = Math.max(rLo, rHi)
+        const fmt = (r: number) => (r >= 0 ? `- ${r}` : `+ ${Math.abs(r)}`)
+        const text =
+          r1 === r2 ? `(${varName} ${fmt(r1)})^2` : `(${varName} ${fmt(r1)})(${varName} ${fmt(r2)})`
+        if (squash(text) !== squash(clean)) {
+          return { latex: clean, action, resultLatex: text, plainText: text }
+        }
+      }
+    }
   }
 
   return {

@@ -25,9 +25,11 @@ describe('InkyBoard mlPending lifecycle', () => {
     const nullBranchIdx = inkyBoardSrc.indexOf('if (!mlLatex)')
     expect(nullBranchIdx).toBeGreaterThan(-1)
     // The settle call clearing pending must exist within the null branch
-    // (failure settle), before the branch's early return.
-    const nullBranch = inkyBoardSrc.slice(nullBranchIdx, nullBranchIdx + 300)
+    // (failure settle), before the branch's early return. With an empty rule
+    // fallback the capsule closes instead — both live under this branch.
+    const nullBranch = inkyBoardSrc.slice(nullBranchIdx, nullBranchIdx + 600)
     expect(nullBranch).toMatch(/mlPending:\s*false/)
+    expect(nullBranch).toMatch(/setMathCapsule\(null\)/)
   })
 })
 

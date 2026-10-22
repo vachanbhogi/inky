@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { TokenVocab } from './ml-decode'
-import { argmaxLastPosition, idsToLatex, shouldStopDecoding } from './ml-decode'
+import { argmaxLastPosition, idsToLatex, normalizeLatex, shouldStopDecoding } from './ml-decode'
 
 const vocab: TokenVocab = {
   model: 'test',
@@ -46,8 +46,31 @@ describe('ml-decode', () => {
   })
 
   test('idsToLatex skips specials and joins with single spaces', () => {
-    expect(idsToLatex([0, 9, 6, 4, 2], vocab)).toBe('A + 2')
+    expect(idsToLatex([0, 9, 6, 4, 2], vocab)).toBe('A+2')
     expect(idsToLatex([0, 2], vocab)).toBe('')
     expect(idsToLatex([3, 3, 4], vocab)).toBe('2') // unk dropped
+  })
+})
+
+describe('normalizeLatex (placeholder cleanup)', () => {
+  test('lowercases model variables and tightens operator spacing', () => {
+    expect(normalizeLatex('2 X + 1 = 7')).toBe('2x+1=7')
+    expect(normalizeLatex('7x + 7 = 2')).toBe('7x+7=2')
+    expect(normalizeLatex('( x - 2 ) ^ 2 = 0')).toBe('(x-2)^2=0')
+    expect(normalizeLatex('x = 2.00, -1.00')).toBe('x=2.00,-1.00')
+  })
+
+  test('idsToLatex emits normalized latex end to end', () => {
+    const v: TokenVocab = {
+      model: 't',
+      vocabSize: 10,
+      bosId: 0,
+      eosId: 2,
+      padId: 1,
+      unkId: 3,
+      maxLen: 32,
+      id2token: ['<s>', '<pad>', '</s>', '<unk>', '2', 'X', '+', '=', '7', '1'],
+    }
+    expect(idsToLatex([4, 5, 6, 9, 7, 8], v)).toBe('2x+1=7')
   })
 })

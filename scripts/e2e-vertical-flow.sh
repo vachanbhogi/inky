@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E vertical-flow verification (agent-browser driven): draw equation -> lasso circle -> rule capsule (mlPending) -> ML upgrade -> Solve stamp (one undo) -> undo -> dismissals -> reduced-motion pass.
+# E2E vertical-flow verification (agent-browser driven): draw equation -> lasso circle -> rule capsule (mlPending) -> ML upgrade -> Solve stamps real text (one undo) -> undo -> dismissals -> marquee-selection open -> reduced-motion pass.
 # Equation strokes carry a deterministic +/-2px jitter and a human-ish pause so the input reads like a hand, not a plotter. Exit code 0 only if every assertion passes. Artifacts: e2e-runs/<ts>/.
 set -u
 
@@ -159,7 +159,7 @@ case "$ORT_CT" in
   *) bad "unexpected /ort/ probe response: $ORT_CT" ;;
 esac
 
-section "6. Solve stamps the answer as one batch"
+section "6. Solve stamps the answer as real text sized from the user's writing"
 PRE="$(js 'window.inkyStore.strokes.length')"
 SOLVE_LINE="$(agent-browser snapshot -i 2>>"$LOG" | grep -m1 'button "Solve"')"
 SOLVE_REF="${SOLVE_LINE##*ref=}"
@@ -173,20 +173,27 @@ if [ -n "$SOLVE_REF" ] && [ "$SOLVE_REF" != "$SOLVE_LINE" ]; then
 else
   bad "Solve button not found in snapshot"
 fi
-revealed=false
-for ((i = 0; i < 8; i++)); do
-  if [ "$(js 'window.inkyStore.stampedReveal !== null')" = "true" ]; then revealed=true; break; fi
-  sleep 0.05
-done
-if $revealed; then ok "stampedReveal armed on stamp"; else note "stampedReveal 420ms window missed; verified via stroke count + screenshot"; fi
+if poll_js 'document.querySelectorAll("[data-stamp-id]").length' 1 10; then ok "stamp rendered as DOM text"; else bad "no [data-stamp-id] element after Solve"; fi
+assert_eq "$(js 'window.inkyStore.stamps.length')" "1" "store holds one stamp"
+assert_eq "$(js 'window.inkyStore.stamps[0] ? window.inkyStore.stamps[0].text : ""')" '"x = 3"' "stamp text is the solved answer"
+assert_eq "$(js 'document.querySelector("[data-stamp-id]") ? document.querySelector("[data-stamp-id]").textContent : ""')" '"x = 3"' "DOM stamp reads x = 3"
+STAMP_FS="$(js 'window.inkyStore.stamps[0] ? window.inkyStore.stamps[0].fontSize : 0')"
+if [ -n "$STAMP_FS" ] && awk -v fs="$STAMP_FS" 'BEGIN{exit !(fs >= 16 && fs <= 96)}'; then
+  ok "stamp sized from the user's glyphs (fontSize $STAMP_FS in [16,96])"
+else
+  bad "stamp fontSize out of range: $STAMP_FS"
+fi
 if poll_js 'window.inkyStore.mathCapsule !== null' false 10; then ok "capsule dismissed after Solve"; else bad "capsule still open after Solve"; fi
+assert_eq "$(js 'window.inkyStore.activeTool')" '"draw"' "pen restored after stamp"
 POST="$(js 'window.inkyStore.strokes.length')"
-if [ -n "$POST" ] && [ "$POST" -gt "$PRE" ] 2>/dev/null; then ok "stamped strokes added ($PRE -> $POST)"; else bad "stamp did not add strokes ($PRE -> $POST)"; fi
+assert_eq "$POST" "$PRE" "ink untouched by stamping ($PRE strokes, stamps are text)"
 agent-browser screenshot "$RUN_DIR/03-stamp.png" >>"$LOG" 2>&1
 
-section "7. one Meta+z undo restores pre-stamp strokes"
+section "7. one Meta+z undo removes the stamp; ink untouched"
 agent-browser press Meta+z >>"$LOG" 2>&1
-if poll_js 'window.inkyStore.strokes.length' "$PRE" 10; then ok "undo restored to $PRE strokes"; else bad "undo: got $(js 'window.inkyStore.strokes.length') want $PRE"; fi
+if poll_js 'window.inkyStore.stamps.length' 0 10; then ok "undo removed the stamp"; else bad "undo: stamps = $(js 'window.inkyStore.stamps.length') want 0"; fi
+if poll_js 'document.querySelectorAll("[data-stamp-id]").length' 0 10; then ok "stamp DOM element gone"; else bad "[data-stamp-id] still in DOM after undo"; fi
+assert_eq "$(js 'window.inkyStore.strokes.length')" "$PRE" "ink unchanged by undo ($PRE strokes)"
 
 section "8. Escape dismisses the capsule"
 ensure_draw_tool
@@ -205,6 +212,18 @@ agent-browser mouse move 1100 650 >>"$LOG" 2>&1
 agent-browser mouse down >>"$LOG" 2>&1
 agent-browser mouse up >>"$LOG" 2>&1
 if poll_js 'window.inkyStore.mathCapsule !== null' false 10; then ok "click-away dismissed the capsule"; else bad "click-away did not dismiss the capsule"; fi
+
+section "9b. marquee selection alone (no circle) opens the capsule"
+agent-browser press v >>"$LOG" 2>&1
+assert_eq "$(js 'window.inkyStore.activeTool')" '"select"' "select tool active"
+agent-browser mouse move 250 220 >>"$LOG" 2>&1
+agent-browser mouse down >>"$LOG" 2>&1
+agent-browser mouse move 900 500 --steps 12 >>"$LOG" 2>&1
+agent-browser mouse up >>"$LOG" 2>&1
+if poll_js 'window.inkyStore.selectedStrokeIds.length > 0' true 10; then ok "marquee selected the equation"; else bad "marquee selected nothing"; fi
+if poll_js 'window.inkyStore.mathCapsule !== null' true 10; then ok "capsule opened from selection alone"; else bad "capsule did not open for marquee selection"; fi
+agent-browser press Escape >>"$LOG" 2>&1
+if poll_js 'window.inkyStore.mathCapsule !== null' false 10; then ok "dismissed after select test"; else bad "could not dismiss after select test"; fi
 
 section "10. fast close before ML settles -> no resurrection (12s)"
 ensure_draw_tool

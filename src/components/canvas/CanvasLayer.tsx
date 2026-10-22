@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { lassoDissolve, recognizedPulseAlpha, stampWipe } from '../../lib/canvas/motion'
+import { lassoDissolve, recognizedPulseAlpha } from '../../lib/canvas/motion'
 import { checkBoundingBoxOverlap, getViewportBoundingBox } from '../../lib/canvas/spatial-index'
 import { inkyStore } from '../../lib/canvas/store'
 
@@ -73,33 +73,6 @@ export function CanvasLayer() {
         }
       }
 
-      // Handwriting wipe: stamped answer strokes draw on left→right via a
-      // clip edge advancing across the batch bbox. Cleared once complete.
-      const reveal = state.stampedReveal
-      let wipeClipX: number | null = null
-      let revealIds: Set<string> | null = null
-      if (reveal) {
-        let minX = Number.POSITIVE_INFINITY
-        let maxX = Number.NEGATIVE_INFINITY
-        for (const id of reveal.strokeIds) {
-          const s = state.strokes.find((st) => st.id === id)
-          if (!s) continue
-          minX = Math.min(minX, s.boundingBox.minX)
-          maxX = Math.max(maxX, s.boundingBox.maxX)
-        }
-        if (Number.isFinite(minX)) {
-          const { clipX, done } = stampWipe(performance.now() - reveal.startedAt, { minX, maxX })
-          if (done) {
-            inkyStore.setStampedReveal(null)
-          } else {
-            wipeClipX = clipX
-            revealIds = new Set(reveal.strokeIds)
-          }
-        } else {
-          inkyStore.setStampedReveal(null)
-        }
-      }
-
       // Draw all finalized strokes
       for (const stroke of state.strokes) {
         if (!checkBoundingBoxOverlap(viewportBox, stroke.boundingBox)) {
@@ -108,11 +81,6 @@ export function CanvasLayer() {
 
         if (stroke.pathData) {
           ctx.save()
-          if (revealIds?.has(stroke.id) && wipeClipX !== null) {
-            ctx.beginPath()
-            ctx.rect(-1e6, -1e6, wipeClipX + 1e6, 2e6)
-            ctx.clip()
-          }
           if (stroke.angle) {
             const cx =
               stroke.boundingBox.minX + (stroke.boundingBox.maxX - stroke.boundingBox.minX) / 2
@@ -203,11 +171,7 @@ export function CanvasLayer() {
       }
 
       // Draw unified selection bounding box + handles
-      if (
-        state.activeTool === 'select' &&
-        state.selectedStrokeIds.length > 0 &&
-        state.stampedReveal === null
-      ) {
+      if (state.activeTool === 'select' && state.selectedStrokeIds.length > 0) {
         const bbox = state.getSelectionBoundingBox()
         if (bbox) {
           const { minX, minY, maxX, maxY } = bbox
@@ -264,8 +228,7 @@ export function CanvasLayer() {
           (state.hoveredStrokeId !== null || state.eraserPoint !== null)) ||
         state.currentStroke !== null ||
         state.gestureDissolve !== null ||
-        state.recognizedPulse !== null ||
-        state.stampedReveal !== null
+        state.recognizedPulse !== null
 
       if (needsContinuousAnimation) {
         animationFrameId = requestAnimationFrame(render)

@@ -55,18 +55,21 @@ describe('store transient animation state', () => {
 })
 
 describe('InkyBoard gesture handoff wiring', () => {
-  it('sets gestureDissolve only inside the enclosed-stroke branch', () => {
-    // The dissolve call must appear after the `enclosedIds.length > 0` guard
-    // and before the early `return` of that branch — never on a bare loop.
-    const guardIdx = inkyBoardSrc.indexOf('if (enclosedIds.length > 0)')
+  it('arms the dissolve only for the circle gesture (guarded shared opener)', () => {
+    // Capsule opening is centralized in openMathCapsule; the handoff
+    // animations must be gated on the caller passing its lasso stroke —
+    // the select path (marquee/click) opens without them.
+    const helperIdx = inkyBoardSrc.indexOf('function openMathCapsule')
     const dissolveIdx = inkyBoardSrc.indexOf('setGestureDissolve(')
-    expect(guardIdx).toBeGreaterThan(-1)
-    expect(dissolveIdx).toBeGreaterThan(guardIdx)
-    expect(dissolveIdx - guardIdx).toBeLessThan(1600)
+    expect(helperIdx).toBeGreaterThan(-1)
+    expect(dissolveIdx).toBeGreaterThan(helperIdx)
+    expect(inkyBoardSrc).toMatch(/if \(gestureStroke\) \{[\s\S]{0,280}setGestureDissolve\(/)
+    expect(inkyBoardSrc).toMatch(/openMathCapsule\(enclosedStrokes, finalStroke\)/)
+    expect(inkyBoardSrc).toMatch(/openMathCapsule\(strokes\)/)
   })
 
   it('sets recognizedPulse with the enclosed stroke ids', () => {
-    expect(inkyBoardSrc).toMatch(/setRecognizedPulse\(\{[^}]*enclosedIds/s)
+    expect(inkyBoardSrc).toMatch(/setRecognizedPulse\(\{\s*strokeIds: ids/)
   })
 })
 

@@ -64,3 +64,55 @@ describe('stroke-recognizer', () => {
     expect(recognizeFormulaStrokes([s1, s2])).toBe('+')
   })
 })
+
+describe('size invariance (writes big or small)', () => {
+  test('tiny strokes recognize the same as normal ones', () => {
+    expect(
+      recognizeFormulaStrokes([
+        mkStroke(
+          [
+            [10, 50],
+            [16, 50],
+          ],
+          's1',
+        ),
+      ]),
+    ).toBe('-')
+    expect(
+      recognizeFormulaStrokes([
+        mkStroke(
+          [
+            [20, 10],
+            [20, 18],
+          ],
+          's1',
+        ),
+      ]),
+    ).toBe('1')
+  })
+
+  test('huge strokes recognize the same as normal ones', () => {
+    expect(
+      recognizeFormulaStrokes([
+        mkStroke(
+          [
+            [10, 150],
+            [210, 150],
+          ],
+          's1',
+        ),
+      ]),
+    ).toBe('-')
+    expect(
+      recognizeFormulaStrokes([
+        mkStroke(
+          [
+            [20, 10],
+            [20, 140],
+          ],
+          's1',
+        ),
+      ]),
+    ).toBe('1')
+  })
+})

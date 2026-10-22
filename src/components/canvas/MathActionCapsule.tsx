@@ -11,7 +11,6 @@ import {
   solveMath,
   stampedTextFor,
 } from '../../lib/math/math-solver'
-import { planStamp } from '../../lib/math/math-to-strokes'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
@@ -44,7 +43,12 @@ export function MathActionCapsule() {
         return
       }
       setCapsule(next)
-      setCamera({ ...inkyStore.camera })
+      // Only re-render for real camera moves (M6): compare before setting so
+      // unrelated store notifications don't invalidate the memoized anchor.
+      setCamera((prev) => {
+        const c = inkyStore.camera
+        return prev.x === c.x && prev.y === c.y && prev.z === c.z ? prev : { ...c }
+      })
     })
   }, [])
 
@@ -69,17 +73,25 @@ export function MathActionCapsule() {
   const display = capsule ?? lastCapsuleRef.current
 
   // Actions that make sense for this formula (e.g. no Solve without an "=").
-  const actions = useMemo(() => (display ? getAvailableActions(display.latex) : []), [display])
+  // None are offered while ML is still reading the ink — the rule latex may
+  // only be a placeholder, so don't invite a click on it.
+  const actions = useMemo(
+    () => (display && !display.mlPending ? getAvailableActions(display.latex) : []),
+    [display],
+  )
 
   // Sparkle resolve pop: when mlPending transitions true→false (ML settled or
   // fell back), flash the one-shot resolve class for 200ms so the dot "pops".
+  // Guard on the capsule existing (M3): a dismissal mid-pending must not arm
+  // the pop for a pill that is already fading out.
   const [sparkleResolved, setSparkleResolved] = useState(false)
-  // Inline note when a result cannot be hand-written (e.g. "No real roots") —
-  // the click must never be a silent no-op (final review I1).
-  const [notice, setNotice] = useState('')
   const prevPendingRef = useRef(capsule?.mlPending ?? false)
   useEffect(() => {
-    const pending = capsule?.mlPending ?? false
+    if (!capsule) {
+      prevPendingRef.current = false
+      return
+    }
+    const pending = capsule.mlPending ?? false
     const wasPending = prevPendingRef.current
     prevPendingRef.current = pending
     if (wasPending && !pending) {
@@ -87,7 +99,7 @@ export function MathActionCapsule() {
       const timer = setTimeout(() => setSparkleResolved(false), 200)
       return () => clearTimeout(timer)
     }
-  }, [capsule?.mlPending])
+  }, [capsule])
 
   // Derived anchor, memoized so the clamp effect isn't re-fired every render.
   const screen = useMemo(() => {
@@ -117,65 +129,58 @@ export function MathActionCapsule() {
     // Recomputing is idempotent; deps are the render inputs that move the pill.
   }, [display, screen])
 
-  // Reset the un-stampable-result notice whenever the formula changes (e.g.
-  // the ML upgrade replaces the rule latex). Must sit above the early return —
-  // hooks after a conditional return crash on the null→value transition (I1).
-  const currentLatex = display?.latex
-  useEffect(() => {
-    if (currentLatex !== undefined) setNotice('')
-  }, [currentLatex])
-
   if (!display) return null
 
   const [screenX, screenY] = screen
 
-  const handleAction = (e: React.MouseEvent, action: 'solve' | 'factor' | 'simplify') => {
+  const handleAction = (e: React.MouseEvent, action: MathAction) => {
     e.stopPropagation()
     if (exiting) return
     const solution = solveMath(display.latex, action)
     if (!solution?.resultLatex) return
 
-    // Find bounding box of enclosed strokes to place answer to the right
+    // The enclosed strokes anchor the stamp to the right of the formula and
+    // define the hand it should match: the answer is sized from the height of
+    // the user's own glyphs (Caveat digits ≈ 0.6em tall).
     const enclosedStrokes = inkyStore.strokes.filter((s) =>
       display.enclosedStrokeIds.includes(s.id),
     )
-    let maxX = display.worldPosition.x + 100
-    let centerY = display.worldPosition.y
+    const maxX =
+      enclosedStrokes.length > 0
+        ? Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxX))
+        : display.worldPosition.x + 100
+    let fontSize = 36
+    let stampY = display.worldPosition.y - 18
     if (enclosedStrokes.length > 0) {
-      maxX = Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxX))
       const minY = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minY))
       const maxY = Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxY))
-      centerY = (minY + maxY) / 2
+      const centerY = (minY + maxY) / 2
+      fontSize = Math.min(96, Math.max(16, (maxY - minY) * 1.6))
+      stampY = centerY - fontSize * 0.6
     }
 
-    // Synthesize realistic handwritten strokes for the result — or surface it
-    // as text when the glyph table cannot draw it (never a silent no-op).
-    const textToStamp = stampedTextFor(solution, action)
-    const plan = planStamp(
-      textToStamp,
-      maxX + 30,
-      centerY - 18,
-      36,
-      inkyStore.strokeColor,
-      inkyStore.strokeSize,
-    )
-    if (plan.kind === 'show') {
-      setNotice(plan.message)
-      return
-    }
-
-    // Stamp the whole answer as ONE undo step: appends, selects, arms the
-    // handwriting wipe, and dismisses the capsule in a single store call.
-    inkyStore.stampResult(plan.strokes)
+    // The whole answer stamps as ONE undo step: appends the text stamp, arms
+    // the reveal wipe, dismisses the capsule, and returns the user to the pen.
+    inkyStore.stampResult({
+      text: stampedTextFor(solution, action),
+      worldX: maxX + 30,
+      worldY: stampY,
+      color: inkyStore.strokeColor,
+      fontSize,
+    })
   }
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation()
     inkyStore.setMathCapsule(null)
+    // Dismissal returns the board to a clean pen-ready state (QoL pass).
+    inkyStore.clearSelection()
+    inkyStore.setActiveTool('draw')
   }
 
   return (
-    <div
+    <fieldset
+      aria-label="Formula actions"
       className="inky-ui absolute z-40 origin-bottom pointer-events-auto"
       style={{
         left: `${screenX + edgeOffset.x}px`,
@@ -189,18 +194,21 @@ export function MathActionCapsule() {
         data-capsule-state={exiting ? 'exiting' : 'open'}
         className={`${exiting ? 'inky-capsule-out' : 'inky-capsule-in'} bg-[#111111]/90 backdrop-blur-md text-white border border-white/10 shadow-2xl rounded-2xl px-3 py-2 flex items-center gap-3 max-w-[min(60vw,420px)]`}
       >
-        {/* Formula typography — key on latex so upgrades crossfade in place */}
-        <span key={display.latex} title={display.latex} className="min-w-0 flex-1 truncate">
-          <span className="inky-capsule-swap inline-block max-w-full align-middle">
-            {renderFormula(display.latex)}
-          </span>
+        {/* Formula — shows "Reading…" while ML is upgrading the rule latex,
+            so the pill never displays a raw placeholder guess. */}
+        <span className="min-w-0 flex-1 truncate" aria-live="polite">
+          {display.mlPending ? (
+            <span className="text-xs italic text-stone-300">Reading…</span>
+          ) : (
+            <span
+              key={display.latex}
+              title={display.latex}
+              className="inky-capsule-swap inline-block max-w-full align-middle"
+            >
+              {renderFormula(display.latex)}
+            </span>
+          )}
         </span>
-
-        {notice && (
-          <span className="max-w-40 truncate text-[10px] italic text-stone-400" title={notice}>
-            {notice}
-          </span>
-        )}
 
         {/* ML-refinement sparkle: pulses while inference is pending, pops once
             on settle. Hidden once resolved (dot is a pending affordance). */}
@@ -235,6 +243,7 @@ export function MathActionCapsule() {
                 key={action}
                 type="button"
                 aria-disabled={!available}
+                title={available ? undefined : 'Not applicable to this formula'}
                 onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
                 className={available ? `${base} ${style}` : `${base} opacity-40 cursor-default`}
               >
@@ -255,6 +264,6 @@ export function MathActionCapsule() {
           <X size={14} />
         </button>
       </div>
-    </div>
+    </fieldset>
   )
 }

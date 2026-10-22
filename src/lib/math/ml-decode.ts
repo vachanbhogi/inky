@@ -48,6 +48,20 @@ export function argmaxLastPosition(
   return best
 }
 
+/**
+ * Tighten decoded latex for display: the tokenizer joins atoms with single
+ * spaces and the model emits capitalized single-letter variables — both read
+ * as placeholder noise in the capsule, so the formula lands clean.
+ */
+export function normalizeLatex(latex: string): string {
+  return latex
+    .replace(/(?<!\\)\b[XY]\b/g, (m) => m.toLowerCase())
+    .replace(/\s*([+\-^=(),])\s*/g, '$1')
+    .replace(/([0-9a-zA-Z])\s+([0-9a-zA-Z])/g, '$1$2')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Ids → LaTeX. The tokenizer uses WhitespaceSplit with no decoder, so
  * training joined atoms with single spaces; we mirror that then collapse.
  * Special tokens are dropped like HuggingFace skip_special_tokens=True. */
@@ -59,5 +73,5 @@ export function idsToLatex(ids: number[], vocab: TokenVocab): string {
     const tok = vocab.id2token[id]
     if (tok) parts.push(tok)
   }
-  return parts.join(' ').replace(/\s+/g, ' ').trim()
+  return normalizeLatex(parts.join(' '))
 }

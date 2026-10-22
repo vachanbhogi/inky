@@ -49,18 +49,19 @@ export function recognizedPulseAlpha(elapsedMs: number): { alpha: number; done: 
 }
 
 export interface WipeResult {
-  clipX: number
+  /** Leading edge of the revealed region, in px from the text's left edge. */
+  revealX: number
   done: boolean
 }
 
-/** Handwriting wipe: the clip edge advances minX-16 → maxX+16 across the
- * stamped bbox, so the answer appears to be written left to right. */
-export function stampWipe(elapsedMs: number, bbox: { minX: number; maxX: number }): WipeResult {
-  const from = bbox.minX - STAMP_WIPE_EDGE_PX
-  const to = bbox.maxX + STAMP_WIPE_EDGE_PX
+/** Stamp reveal wipe: a feathered mask edge sweeps left→right across the
+ * stamped text (screen px; the DOM text layer scales with the camera), fully
+ * past the trailing edge at STAMP_WIPE_MS so the answer appears written. */
+export function stampWipe(elapsedMs: number, textWidth: number): WipeResult {
+  const to = textWidth + STAMP_WIPE_EDGE_PX
   if (prefersReducedMotion() || elapsedMs >= STAMP_WIPE_MS) {
-    return { clipX: to, done: true }
+    return { revealX: to, done: true }
   }
   const p = easeOutQuint(elapsedMs / STAMP_WIPE_MS)
-  return { clipX: from + (to - from) * p, done: false }
+  return { revealX: p * to, done: false }
 }

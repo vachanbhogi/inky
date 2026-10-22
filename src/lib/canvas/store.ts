@@ -5,6 +5,35 @@ import type { Marquee, Stroke, ToolType } from './types'
 
 type Listener = () => void
 
+/** A stamped answer: real text in a handwriting face, sized from the user's
+ * own writing, living on the world plane like any other ink. */
+export interface Stamp {
+  id: string
+  text: string
+  worldX: number
+  worldY: number
+  color: string
+  fontSize: number
+}
+
+/** Rendered bbox estimate for a text stamp (Caveat advance ≈ 0.5em per char).
+ * Used for eraser hit tests and viewport clamping. */
+export function stampBoundingBox(stamp: Stamp) {
+  const width = stamp.text.length * stamp.fontSize * 0.5
+  const height = stamp.fontSize * 1.25
+  return {
+    minX: stamp.worldX,
+    minY: stamp.worldY,
+    maxX: stamp.worldX + width,
+    maxY: stamp.worldY + height,
+  }
+}
+
+interface UndoSnapshot {
+  strokes: Stroke[]
+  stamps: Stamp[]
+}
+
 export class InkyStore {
   strokes: Stroke[] = []
   currentStroke: Stroke | null = null
@@ -25,8 +54,10 @@ export class InkyStore {
   gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
     null
   recognizedPulse: { strokeIds: string[]; startedAt: number } | null = null
-  // Recently stamped answer strokes, revealed by the handwriting wipe.
-  stampedReveal: { strokeIds: string[]; startedAt: number } | null = null
+  // Text stamps (stamped answers) rendered by StampLayer.
+  stamps: Stamp[] = []
+  // Most recent stamp, revealed by the feathered wipe.
+  stampedReveal: { stampId: string; startedAt: number } | null = null
   mathCapsule: {
     latex: string
     worldPosition: { x: number; y: number }
@@ -46,9 +77,13 @@ export class InkyStore {
     selectionBox: { minX: number; minY: number; maxX: number; maxY: number }
   } | null = null
 
-  private undoStack: Stroke[][] = []
-  private redoStack: Stroke[][] = []
+  private undoStack: UndoSnapshot[] = []
+  private redoStack: UndoSnapshot[] = []
   private listeners: Set<Listener> = new Set()
+
+  private snapshot(): UndoSnapshot {
+    return { strokes: [...this.strokes], stamps: [...this.stamps] }
+  }
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener)
@@ -167,23 +202,59 @@ export class InkyStore {
   }
 
   addStroke(stroke: Stroke) {
-    this.undoStack.push([...this.strokes])
+    this.undoStack.push(this.snapshot())
     this.redoStack = []
     this.strokes.push(stroke)
     this.notify()
   }
 
-  /** Add a batch of strokes (e.g. a stamped answer) as ONE undo step,
-   * select them, arm the handwriting wipe, and dismiss the capsule. */
-  stampResult(strokes: Stroke[]) {
-    if (strokes.length === 0) return
-    this.undoStack.push([...this.strokes])
+  /** Stamp an answer as ONE undo step: append the text stamp, arm the
+   * reveal wipe, dismiss the capsule, clear the selection, and return the
+   * user to the pen. The stamp's x is clamped so it can never land
+   * off-screen (M2) — rendered width ≈ chars × fontSize × 0.5em × zoom. */
+  stampResult(stamp: Omit<Stamp, 'id'>) {
+    if (!stamp.text.trim()) return
+    let worldX = stamp.worldX
+    if (typeof window !== 'undefined') {
+      const z = this.camera.z
+      const estWidth = stamp.text.length * stamp.fontSize * 0.5 * z
+      const screenX = worldX * z + this.camera.x
+      const maxRight = window.innerWidth - 16
+      if (screenX + estWidth > maxRight) {
+        worldX = Math.max((8 - this.camera.x) / z, (maxRight - estWidth - this.camera.x) / z)
+      }
+    }
+    const id = `stamp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    this.undoStack.push(this.snapshot())
     this.redoStack = []
-    this.strokes.push(...strokes)
-    this.selectedStrokeIds = strokes.map((s) => s.id)
-    this.stampedReveal = { strokeIds: strokes.map((s) => s.id), startedAt: performance.now() }
+    this.stamps.push({ ...stamp, id, worldX })
+    this.stampedReveal = { stampId: id, startedAt: performance.now() }
     this.mathCapsule = null
+    this.selectedStrokeIds = []
+    this.activeTool = 'draw'
     this.notify()
+  }
+
+  deleteStamp(id: string) {
+    if (!this.stamps.some((s) => s.id === id)) return
+    this.undoStack.push(this.snapshot())
+    this.redoStack = []
+    this.stamps = this.stamps.filter((s) => s.id !== id)
+    if (this.stampedReveal?.stampId === id) this.stampedReveal = null
+    this.notify()
+  }
+
+  /** Eraser hit test in world space: delete the stamp under the point. */
+  deleteStampAt(x: number, y: number, radius: number): boolean {
+    const hit = this.stamps.find((s) => {
+      const b = stampBoundingBox(s)
+      return (
+        x >= b.minX - radius && x <= b.maxX + radius && y >= b.minY - radius && y <= b.maxY + radius
+      )
+    })
+    if (!hit) return false
+    this.deleteStamp(hit.id)
+    return true
   }
 
   /** Test-only: expose undo stack depth so tests can assert batch semantics. */
@@ -203,11 +274,13 @@ export class InkyStore {
     if (!this.canUndo) return
     const prev = this.undoStack.pop()
     if (prev !== undefined) {
-      this.redoStack.push([...this.strokes])
-      this.strokes = prev
+      this.redoStack.push(this.snapshot())
+      this.strokes = prev.strokes
+      this.stamps = prev.stamps
       // Drop selection entries for strokes this undo removed.
-      const existing = new Set(prev.map((s) => s.id))
+      const existing = new Set(prev.strokes.map((s) => s.id))
       this.selectedStrokeIds = this.selectedStrokeIds.filter((id) => existing.has(id))
+      this.dropRevealIfStampGone()
       this.notify()
     }
   }
@@ -216,17 +289,26 @@ export class InkyStore {
     if (!this.canRedo) return
     const next = this.redoStack.pop()
     if (next !== undefined) {
-      this.undoStack.push([...this.strokes])
-      this.strokes = next
+      this.undoStack.push(this.snapshot())
+      this.strokes = next.strokes
+      this.stamps = next.stamps
+      this.dropRevealIfStampGone()
       this.notify()
     }
   }
 
+  private dropRevealIfStampGone() {
+    const id = this.stampedReveal?.stampId
+    if (id && !this.stamps.some((s) => s.id === id)) this.stampedReveal = null
+  }
+
   clear() {
-    if (this.strokes.length === 0) return
-    this.undoStack.push([...this.strokes])
+    if (this.strokes.length === 0 && this.stamps.length === 0) return
+    this.undoStack.push(this.snapshot())
     this.redoStack = []
     this.strokes = []
+    this.stamps = []
+    this.stampedReveal = null
     this.selectedStrokeIds = []
     this.notify()
   }
@@ -284,7 +366,7 @@ export class InkyStore {
   deleteStroke(id: string) {
     const exists = this.strokes.some((s) => s.id === id)
     if (!exists) return
-    this.undoStack.push([...this.strokes])
+    this.undoStack.push(this.snapshot())
     this.redoStack = []
     this.strokes = this.strokes.filter((s) => s.id !== id)
     this.selectedStrokeIds = this.selectedStrokeIds.filter((sId) => sId !== id)
@@ -294,7 +376,7 @@ export class InkyStore {
 
   deleteSelected() {
     if (this.selectedStrokeIds.length === 0) return
-    this.undoStack.push([...this.strokes])
+    this.undoStack.push(this.snapshot())
     this.redoStack = []
     this.strokes = this.strokes.filter((s) => !this.selectedStrokeIds.includes(s.id))
     this.selectedStrokeIds = []
@@ -408,8 +490,8 @@ export class InkyStore {
 
   commitTransform() {
     if (!this.transformInitialState) return
-    this.undoStack.push(
-      this.strokes.map((s) => {
+    this.undoStack.push({
+      strokes: this.strokes.map((s) => {
         const init = this.transformInitialState?.strokes.find((is) => is.id === s.id)
         if (init) {
           return {
@@ -422,7 +504,8 @@ export class InkyStore {
         }
         return { ...s }
       }),
-    )
+      stamps: [...this.stamps],
+    })
     this.redoStack = []
     this.transformInitialState = null
     this.notify()

@@ -16,13 +16,14 @@ function classifyCluster(c: Cluster): string {
   const { strokes, width, height, aspect } = c
   const n = strokes.length
 
-  // Horizontal bar (minus or fraction or equal component)
-  if (n === 1 && width > 18 && height < 12 && aspect > 2.2) {
+  // Horizontal bar (minus or fraction or equal component). Relative
+  // thresholds so recognition holds whatever size the user writes at.
+  if (n === 1 && aspect > 2.2 && height < width * 0.35) {
     return '-'
   }
 
   // Vertical line or 1
-  if (n === 1 && height > 18 && width < 12 && aspect < 0.45) {
+  if (n === 1 && aspect < 0.45 && width < height * 0.4) {
     return '1'
   }
 
@@ -147,5 +148,5 @@ export function recognizeFormulaStrokes(strokes: Stroke[]): string {
     .replace(/([0-9])\s*([a-zA-Z])/g, '$1$2')
     .trim()
 
-  return raw || '2x + 1 = 7'
+  return raw
 }

@@ -40,8 +40,8 @@ describe('getAvailableActions', () => {
     expect(getAvailableActions('3(2+4)')).toEqual(['simplify'])
   })
 
-  test('quadratic expression (no =) offers nothing — both would stamp the input back (final review I2)', () => {
-    expect(getAvailableActions('x^2+2x+1')).toEqual([])
+  test('quadratic expression (no =) offers factor — it genuinely factors (user pass)', () => {
+    expect(getAvailableActions('x^2+2x+1')).toEqual(['factor'])
   })
 
   test('empty latex offers nothing', () => {
@@ -61,5 +61,21 @@ describe('action applicability (final review I2)', () => {
   test('keeps actions that genuinely transform the input', () => {
     expect(getAvailableActions('x^2-5x+6=0')).toEqual(['solve', 'factor'])
     expect(getAvailableActions('3(2+4)')).toEqual(['simplify'])
+  })
+})
+
+describe('real transformations for factor/simplify (user pass)', () => {
+  test('simplify collapses symbolic sums', () => {
+    expect(solveMath('x+x', 'simplify').plainText).toBe('2x')
+  })
+
+  test('factor factors quadratic expressions without an equals', () => {
+    expect(solveMath('x^2+2x+1', 'factor').plainText).toBe('(x + 1)^2')
+    expect(solveMath('x^2-5x+6', 'factor').plainText).toBe('(x - 2)(x - 3)')
+  })
+
+  test('unfactorable quadratics stay off the action list', () => {
+    expect(getAvailableActions('x^2+1')).toEqual([])
+    expect(getAvailableActions('x+x')).toEqual(['simplify'])
   })
 })
