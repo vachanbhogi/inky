@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E vertical-flow verification (agent-browser driven): draw equation -> lasso circle -> rule capsule (mlPending) -> ML upgrade -> Solve stamps real text (one undo) -> undo -> dismissals -> marquee-selection open -> reduced-motion pass.
+# E2E vertical-flow verification (agent-browser driven): draw equation -> lasso circle -> rule capsule (mlPending) -> ML upgrade -> Solve stamps real text (one undo) -> undo -> dismissals -> marquee-selection open -> stamp pans with canvas -> eraser deletes stamp -> reduced-motion pass.
 # Equation strokes carry a deterministic +/-2px jitter and a human-ish pause so the input reads like a hand, not a plotter. Exit code 0 only if every assertion passes. Artifacts: e2e-runs/<ts>/.
 set -u
 
@@ -234,6 +234,60 @@ agent-browser press Escape >>"$LOG" 2>&1
 if poll_js 'window.inkyStore.mathCapsule !== null' false 10; then ok "closed immediately"; else bad "initial close failed"; fi
 sleep 12
 assert_eq "$(js 'window.inkyStore.mathCapsule !== null')" "false" "capsule still null after 12s (ML settle did not resurrect)"
+
+section "10b. stamp pans with the canvas (space-drag)"
+ensure_draw_tool
+draw_lasso
+if poll_js 'window.inkyStore.mathCapsule !== null' true 10; then ok "capsule reopened for stamp"; else bad "capsule did not reopen for stamp"; fi
+ml2=false
+for ((i = 0; i < 60; i++)); do
+  if [ "$(js 'window.inkyStore.mathCapsule && window.inkyStore.mathCapsule.source === "ml"')" = "true" ]; then ml2=true; break; fi
+  sleep 0.25
+done
+if $ml2; then ok "ML settled for Solve"; else bad "ML did not settle for re-stamp"; fi
+SOLVE_LINE2="$(agent-browser snapshot -i 2>>"$LOG" | grep -m1 'button "Solve"')"
+SOLVE_REF2="${SOLVE_LINE2##*ref=}"
+SOLVE_REF2="${SOLVE_REF2%%]*}"
+if [ -n "$SOLVE_REF2" ] && [ "$SOLVE_REF2" != "$SOLVE_LINE2" ]; then
+  agent-browser click "@$SOLVE_REF2" >>"$LOG" 2>&1
+  ok "Solve clicked for re-stamp"
+else
+  bad "Solve button not found for re-stamp"
+fi
+if poll_js 'document.querySelectorAll("[data-stamp-id]").length' 1 10; then ok "stamp back on canvas"; else bad "no stamp for pan test"; fi
+LEFT_BEFORE="$(js '(function(){var el=document.querySelector("[data-stamp-id]"); return el ? Math.round(el.getBoundingClientRect().left) : -1})()')"
+# NOTE: 'keydown Space' sends an empty key via CDP; a literal space matches e.key === ' '.
+agent-browser keydown ' ' >>"$LOG" 2>&1
+agent-browser mouse move 400 550 >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse move 500 590 --steps 8 >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+agent-browser keyup ' ' >>"$LOG" 2>&1
+sleep 0.2
+LEFT_AFTER="$(js '(function(){var el=document.querySelector("[data-stamp-id]"); return el ? Math.round(el.getBoundingClientRect().left) : -1})()')"
+PAN_DELTA=$((LEFT_AFTER - LEFT_BEFORE))
+if [ "$PAN_DELTA" -ge 80 ] && [ "$PAN_DELTA" -le 120 ]; then
+  ok "stamp panned with the canvas (delta ${PAN_DELTA}px for a 100px drag)"
+else
+  bad "stamp did not follow the pan (delta ${PAN_DELTA}px, want ~100)"
+fi
+
+section "10c. eraser deletes the stamp (ink stays)"
+# Numeric evals — agent-browser returns strings WITH quotes, numbers bare (safe for $((...))).
+SC_X="$(js '(function(){var el=document.querySelector("[data-stamp-id]"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.left+r.width/2)})()')"
+SC_Y="$(js '(function(){var el=document.querySelector("[data-stamp-id]"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.top+r.height/2)})()')"
+[ -n "$SC_X" ] || SC_X=-1
+[ -n "$SC_Y" ] || SC_Y=-1
+agent-browser press e >>"$LOG" 2>&1
+assert_eq "$(js 'window.inkyStore.activeTool')" '"eraser"' "eraser tool active"
+agent-browser mouse move "$SC_X" "$SC_Y" >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse move $((SC_X + 6)) $((SC_Y + 3)) --steps 3 >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+if poll_js 'window.inkyStore.stamps.length' 0 10; then ok "eraser removed the stamp"; else bad "stamp survived the eraser (stamps=$(js 'window.inkyStore.stamps.length'))"; fi
+if poll_js 'document.querySelectorAll("[data-stamp-id]").length' 0 10; then ok "stamp DOM element gone"; else bad "[data-stamp-id] still in DOM after erasing"; fi
+assert_eq "$(js 'window.inkyStore.strokes.length')" "9" "ink untouched by stamp erase (9 strokes)"
+agent-browser screenshot "$RUN_DIR/06-erased-stamp.png" >>"$LOG" 2>&1
 
 section "11. reduced-motion pass"
 agent-browser set media light reduced-motion >>"$LOG" 2>&1

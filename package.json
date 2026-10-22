@@ -22,11 +22,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
+    "@happy-dom/global-registrator": "^21.0.4",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "happy-dom": "^21.0.4",
     "oxlint": "^1.81.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",

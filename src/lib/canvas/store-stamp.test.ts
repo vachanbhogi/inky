@@ -24,15 +24,16 @@ const mkStamp = (id: string): Stamp => ({
 
 describe('store.stampResult (text stamps)', () => {
   beforeEach(() => {
+    // Drain undo/redo stacks FIRST — undo()/redo() restore snapshots, so a
+    // drain after clearing would resurrect strokes/stamps from earlier files.
+    while (inkyStore.canUndo) inkyStore.undo()
+    while (inkyStore.canRedo) inkyStore.redo()
     inkyStore.strokes = []
     inkyStore.stamps = []
     inkyStore.selectedStrokeIds = []
     inkyStore.setMathCapsule(null)
     inkyStore.stampedReveal = null
     inkyStore.setActiveTool('select')
-    // Drain undo/redo stacks left by earlier tests.
-    while (inkyStore.canUndo) inkyStore.undo()
-    while (inkyStore.canRedo) inkyStore.redo()
   })
 
   it('appends the stamp, arms the reveal, clears capsule+selection, returns to the pen', () => {
@@ -100,9 +101,8 @@ describe('store.stampResult (text stamps)', () => {
   })
 
   it('clamps a stamp that would land off-screen (M2)', () => {
-    const g = globalThis as { window?: { innerWidth: number } }
-    const hadWindow = 'window' in g
-    g.window = { innerWidth: 400 }
+    const realWidth = window.innerWidth
+    window.innerWidth = 400
     try {
       inkyStore.camera = { x: 0, y: 0, z: 1 }
       inkyStore.stampResult({
@@ -118,11 +118,7 @@ describe('store.stampResult (text stamps)', () => {
       const rightEdge = stamp.worldX * 1 + 5 * 36 * 0.5
       expect(rightEdge).toBeLessThanOrEqual(400 - 16 + 0.001)
     } finally {
-      if (hadWindow) {
-        // Leave the stubbed window in place; nothing else reads it.
-      } else {
-        delete g.window
-      }
+      window.innerWidth = realWidth
     }
   })
 })
@@ -138,6 +134,13 @@ describe('store stamp eraser + clear', () => {
     const box = stampBoundingBox(inkyStore.stamps[0])
     const hit = inkyStore.deleteStampAt((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2, 4)
     expect(hit).toBe(true)
+    expect(inkyStore.stamps).toHaveLength(0)
+  })
+
+  it('deleteStampAt respects the eraser radius (near-edge hit counts)', () => {
+    const box = stampBoundingBox(inkyStore.stamps[0])
+    // 3px outside the right edge — inside a radius-4 eraser, outside the box.
+    expect(inkyStore.deleteStampAt(box.maxX + 3, (box.minY + box.maxY) / 2, 4)).toBe(true)
     expect(inkyStore.stamps).toHaveLength(0)
   })
 
