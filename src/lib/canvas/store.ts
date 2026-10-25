@@ -140,7 +140,8 @@ export class InkyStore {
     latex: string
     worldPosition: { x: number; y: number }
     enclosedStrokeIds: string[]
-    source: 'rule' | 'ml'
+    enclosedCharIds?: string[]
+    source: 'rule' | 'ml' | 'stamp'
     /** True while ML inference is still upgrading the instant rule latex. */
     mlPending?: boolean
   } | null = null
@@ -223,7 +224,8 @@ export class InkyStore {
       latex: string
       worldPosition: { x: number; y: number }
       enclosedStrokeIds: string[]
-      source: 'rule' | 'ml'
+      enclosedCharIds?: string[]
+      source: 'rule' | 'ml' | 'stamp'
       mlPending?: boolean
     } | null,
   ) {

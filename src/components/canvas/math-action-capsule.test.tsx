@@ -193,4 +193,48 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(inkyStore.stamps[0].worldY).toBe(135) // maxY (90) + 45
     expect(inkyStore.stamps[0].color).toBe('#2563eb')
   })
+
+  test('Hint stamps below enclosed stamp chars when source is stamp', async () => {
+    inkyStore.strokes = []
+    const stamp = {
+      id: 'stamp-prev-hint',
+      text: '2x^2 = 2',
+      worldX: 100,
+      worldY: 100,
+      color: '#2563eb',
+      fontSize: 24,
+      chars: [
+        { id: 'c0', char: '2', worldX: 100, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c1', char: 'x', worldX: 112, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c2', char: '^', worldX: 124, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c3', char: '2', worldX: 136, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c4', char: '=', worldX: 148, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c5', char: '2', worldX: 160, worldY: 100, fontSize: 24, angle: 0 },
+      ],
+    }
+    inkyStore.stamps = [stamp]
+    inkyStore.setMathCapsule({
+      latex: '2x^2 = 2',
+      worldPosition: { x: 130, y: 100 },
+      enclosedStrokeIds: [],
+      enclosedCharIds: stamp.chars.map((c) => c.id),
+      source: 'stamp',
+      mlPending: false,
+    })
+    await mountCapsule()
+
+    const hintBtn = button('Hint')
+    expect(hintBtn).not.toBeNull()
+    hintBtn?.click()
+    await flush()
+
+    // A second stamp was added with the next atomic step x^2 = 1
+    expect(inkyStore.stamps).toHaveLength(2)
+    const nextStamp = inkyStore.stamps[1]
+    expect(nextStamp.text).toBe('x^2 = 1')
+    expect(nextStamp.color).toBe('#2563eb')
+    expect(nextStamp.worldX).toBe(100)
+    // maxY is 100 + 24 * 1.25 = 130; + 45 = 175
+    expect(nextStamp.worldY).toBe(175)
+  })
 })

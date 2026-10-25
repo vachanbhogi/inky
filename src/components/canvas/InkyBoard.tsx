@@ -8,11 +8,11 @@ import {
   getBoundingBox,
   isPointOnStroke,
 } from '../../lib/canvas/spatial-index'
-import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
+import { charBoundingBox, inkyStore, type StampChar } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-gesture'
 import type { Stroke } from '../../lib/canvas/types'
-import { findEnclosedStrokes } from '../../lib/math/enclosure'
+import { findEnclosedStampChars, findEnclosedStrokes } from '../../lib/math/enclosure'
 import { isClosedLoop } from '../../lib/math/loop-detection'
 import { recognizeInkML } from '../../lib/math/ml-recognizer'
 import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
@@ -90,6 +90,48 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
   })
 }
 
+/** Open the math capsule for a stamped equation. */
+function openStampCapsule(
+  stamp: { text: string; charIds: string[]; chars: StampChar[] },
+  gestureStroke?: Stroke,
+) {
+  const existing = inkyStore.mathCapsule
+  if (
+    existing?.enclosedCharIds &&
+    existing.enclosedCharIds.length === stamp.charIds.length &&
+    stamp.charIds.every((id) => existing.enclosedCharIds?.includes(id))
+  ) {
+    return
+  }
+
+  const charBoxes = stamp.chars.map(charBoundingBox)
+  const minX = Math.min(...charBoxes.map((b) => b.minX))
+  const maxX = Math.max(...charBoxes.map((b) => b.maxX))
+  const minY = Math.min(...charBoxes.map((b) => b.minY))
+  const anchor = { x: (minX + maxX) / 2, y: minY }
+
+  inkyStore.selectChars(stamp.charIds)
+  inkyStore.setActiveTool('select')
+
+  if (gestureStroke) {
+    inkyStore.setGestureDissolve({
+      stroke: gestureStroke,
+      anchor,
+      startedAt: performance.now(),
+    })
+  }
+
+  // Stamped text is already parsed clean math — zero ML latency, instant actions.
+  inkyStore.setMathCapsule({
+    latex: stamp.text,
+    worldPosition: anchor,
+    enclosedStrokeIds: [],
+    enclosedCharIds: stamp.charIds,
+    source: 'stamp',
+    mlPending: false,
+  })
+}
+
 export function InkyBoard() {
   const containerRef = useRef<HTMLDivElement>(null)
   const workerRef = useRef<Worker | null>(null)
@@ -107,23 +149,44 @@ export function InkyBoard() {
   const [camera, setCamera] = useState(inkyStore.camera)
 
   useEffect(() => {
-    let lastSelectionSig = inkyStore.selectedStrokeIds.join(',')
+    let lastSelectionSig = `${inkyStore.selectedStrokeIds.join(',')}:${inkyStore.selectedCharIds.join(',')}`
     const unsub = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
       setCamera({ ...inkyStore.camera })
-      // Selecting strokes (marquee or click) opens the capsule — the same
+      // Selecting strokes or stamp chars (marquee or click) opens the capsule — the same
       // affordance the circle gesture gives. Deferred to a microtask so a
       // lasso's synchronous open always wins the idempotence check.
-      const sig = inkyStore.selectedStrokeIds.join(',')
+      const sig = `${inkyStore.selectedStrokeIds.join(',')}:${inkyStore.selectedCharIds.join(',')}`
       if (sig === lastSelectionSig) return
       lastSelectionSig = sig
       queueMicrotask(() => {
-        const ids = inkyStore.selectedStrokeIds
-        if (inkyStore.activeTool !== 'select' || ids.length === 0) return
+        const strokeIds = inkyStore.selectedStrokeIds
+        const charIds = inkyStore.selectedCharIds
+        if (inkyStore.activeTool !== 'select') return
         if (inkyStore.gestureDissolve) return
-        const strokes = inkyStore.strokes.filter((s) => ids.includes(s.id))
-        if (strokes.length === 0) return
-        openMathCapsule(strokes)
+
+        if (strokeIds.length > 0) {
+          const strokes = inkyStore.strokes.filter((s) => strokeIds.includes(s.id))
+          if (strokes.length > 0) {
+            openMathCapsule(strokes)
+            return
+          }
+        }
+
+        if (charIds.length > 0 && strokeIds.length === 0) {
+          // Check if selected chars belong to a stamp
+          for (const stamp of inkyStore.stamps) {
+            const matchingChars = stamp.chars.filter((c) => charIds.includes(c.id))
+            if (matchingChars.length > 0) {
+              openStampCapsule({
+                text: stamp.text,
+                charIds: stamp.chars.map((c) => c.id),
+                chars: stamp.chars,
+              })
+              break
+            }
+          }
+        }
       })
     })
 
@@ -569,6 +632,12 @@ export function InkyBoard() {
 
       const loop = isClosedLoop(finalStroke.points.map((p) => [p[0], p[1]]))
       if (loop.isLoop && loop.polygon) {
+        const enclosedStamps = findEnclosedStampChars(loop.polygon, inkyStore.stamps)
+        if (enclosedStamps.length > 0) {
+          openStampCapsule(enclosedStamps[0], finalStroke)
+          return
+        }
+
         const enclosedIds = findEnclosedStrokes(loop.polygon, inkyStore.strokes)
         if (enclosedIds.length > 0) {
           const enclosedStrokes = inkyStore.strokes.filter((s) => enclosedIds.includes(s.id))
