@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateCapsuleIntegrity } from '../../lib/canvas/capsule-integrity'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
+import { isGraphableExpression } from '../../lib/math/graph-engine'
 import {
   getAvailableActions,
   type MathAction,
@@ -96,6 +97,11 @@ export function MathActionCapsule() {
     [display],
   )
 
+  const isGraphable = useMemo(
+    () => (display && !display.mlPending ? isGraphableExpression(display.latex) : false),
+    [display],
+  )
+
   // Sparkle resolve pop: when mlPending transitions true→false (ML settled or
   // fell back), flash the one-shot resolve class for 200ms so the dot "pops".
   // Guard on the capsule existing (M3): a dismissal mid-pending must not arm
@@ -149,9 +155,17 @@ export function MathActionCapsule() {
 
   const [screenX, screenY] = screen
 
-  const handleAction = (e: React.MouseEvent, action: MathAction | 'hint') => {
+  const handleAction = (e: React.MouseEvent, action: MathAction | 'hint' | 'graph') => {
     e.stopPropagation()
     if (exiting) return
+
+    if (action === 'graph') {
+      inkyStore.openGraphSidebar(display.latex)
+      inkyStore.setMathCapsule(null)
+      inkyStore.clearSelection()
+      inkyStore.setActiveTool('draw')
+      return
+    }
 
     if (action === 'hint') {
       if (!socraticHint) return
@@ -311,6 +325,17 @@ export function MathActionCapsule() {
                 available: actions.includes('simplify'),
                 title: undefined,
               },
+              ...(isGraphable
+                ? [
+                    {
+                      action: 'graph' as const,
+                      label: 'Graph',
+                      primary: false,
+                      available: true,
+                      title: 'Open function graph in side panel',
+                    },
+                  ]
+                : []),
               ...(socraticHint
                 ? [
                     {
@@ -323,7 +348,7 @@ export function MathActionCapsule() {
                   ]
                 : []),
             ] satisfies {
-              action: MathAction | 'hint'
+              action: MathAction | 'hint' | 'graph'
               label: string
               primary: boolean
               available: boolean

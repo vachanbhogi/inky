@@ -18,6 +18,7 @@ import { recognizeInkML } from '../../lib/math/ml-recognizer'
 import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
+import { GraphSidebar } from './GraphSidebar'
 import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
@@ -768,6 +769,7 @@ export function InkyBoard() {
       <CanvasLayer />
       <StampLayer />
       <MathActionCapsule />
+      <GraphSidebar />
       <Toolbar />
       <ShortcutsModal />
     </div>

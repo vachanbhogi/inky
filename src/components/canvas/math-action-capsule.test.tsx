@@ -237,4 +237,27 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     // maxY is 100 + 24 * 1.25 = 130; + 45 = 175
     expect(nextStamp.worldY).toBe(175)
   })
+
+  test('Graph button appears when expression is graphable and opens graphSidebar', async () => {
+    setCapsule('y = x^2 - 4')
+    await mountCapsule()
+
+    const graphBtn = button('Graph')
+    expect(graphBtn).not.toBeNull()
+    expect(graphBtn?.getAttribute('aria-disabled')).toBe('false')
+
+    graphBtn?.click()
+    await flush()
+
+    expect(inkyStore.graphSidebar.isOpen).toBe(true)
+    expect(inkyStore.graphSidebar.equation).toBe('y = x^2 - 4')
+    expect(inkyStore.mathCapsule).toBeNull()
+  })
+
+  test('Graph button does not appear for non-graphable formulas or equations', async () => {
+    setCapsule('2x + 1 = 5')
+    await mountCapsule()
+
+    expect(button('Graph')).toBeNull()
+  })
 })
