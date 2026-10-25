@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Upload, FileText, ArrowLeft, Trash2, Clock } from 'lucide-react'
+import { Plus, Upload, FileText, Trash2, Clock } from 'lucide-react'
 import { boardCatalog, type BoardItem } from '../../lib/document/boardCatalog'
 import { renderPdfToPages } from '../../lib/pdf/pdfImporter'
 

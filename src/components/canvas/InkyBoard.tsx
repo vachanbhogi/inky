@@ -24,6 +24,8 @@ import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
+import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
+import { boardCatalog } from '../../lib/document/boardCatalog'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference
@@ -134,7 +136,11 @@ function openStampCapsule(
   })
 }
 
-export function InkyBoard() {
+interface InkyBoardProps {
+  onGoHome?: () => void
+}
+
+export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const workerRef = useRef<Worker | null>(null)
   const currentStrokeRef = useRef<{ id: string; points: Point[] } | null>(null)
@@ -149,6 +155,14 @@ export function InkyBoard() {
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [, setCamera] = useState(inkyStore.camera)
+
+  // Auto-sync strokes and stamps back to active board in catalog
+  useEffect(() => {
+    const unsub = inkyStore.subscribe(() => {
+      boardCatalog.updateActiveBoardData(inkyStore.strokes, inkyStore.stamps)
+    })
+    return unsub
+  }, [])
 
   useEffect(() => {
     let lastSelectionSig = `${inkyStore.selectedStrokeIds.join(',')}:${inkyStore.selectedCharIds.join(',')}`
@@ -781,11 +795,12 @@ export function InkyBoard() {
       }}
     >
       <BackgroundLayer />
+      <WorksheetBackgroundLayer />
       <CanvasLayer />
       <StampLayer />
       <MathActionCapsule />
       <GraphSidebar />
-      <Toolbar />
+      <Toolbar onGoHome={onGoHome} />
       <ShortcutsModal />
     </div>
   )

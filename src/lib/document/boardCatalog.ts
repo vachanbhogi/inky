@@ -34,9 +34,11 @@ class BoardCatalogStore {
     this.load()
   }
 
-  subscribe(fn: () => void) {
+  subscribe(fn: () => void): () => void {
     this.listeners.add(fn)
-    return () => this.listeners.delete(fn)
+    return () => {
+      this.listeners.delete(fn)
+    }
   }
 
   private notify() {
