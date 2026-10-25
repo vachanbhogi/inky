@@ -1,4 +1,5 @@
-import { solveMath } from './math-solver'
+import { rationalize } from 'mathjs'
+import { cleanEquationForMathjs, solveMath } from './math-solver'
 
 export interface StepCheckResult {
   isValid: boolean
@@ -456,7 +457,97 @@ export function generateSocraticHint(equation: string): SocraticHint | null {
     }
   }
 
-  // Case 4: Quadratic in standard form
+  // Case 4: Quadratic equations (ax^2 + bx + c = 0)
+  // Step 4a: Check if we can first isolate or divide common factor
+  if (clean.includes('=')) {
+    const [l, r] = clean.replace(/\s+/g, '').split('=')
+    try {
+      const lClean = cleanEquationForMathjs(l)
+      const rClean = cleanEquationForMathjs(r)
+      const rat = rationalize(`(${lClean}) - (${rClean})`, {}, true)
+      if (
+        rat.variables &&
+        rat.variables.length === 1 &&
+        rat.coefficients &&
+        rat.coefficients.length === 3
+      ) {
+        const cVal = Number(rat.coefficients[0])
+        const bVal = Number(rat.coefficients[1])
+        const aVal = Number(rat.coefficients[2])
+        const varName = String(rat.variables[0])
+
+        // If b === 0 (pure quadratic like 2x^2 - 2 = 0 or 2x^2 = 2):
+        if (bVal === 0) {
+          const lHasConstant = l.includes('+') || l.includes('-')
+          const rIsZero = r === '0'
+
+          // Step 1: 2x^2 - 2 = 0 -> balance constant to RHS: 2x^2 = 2
+          if (lHasConstant && rIsZero && cVal !== 0) {
+            const targetRhs = -cVal
+            const op = cVal < 0 ? `Add ${Math.abs(cVal)}` : `Subtract ${cVal}`
+            if (aVal === 1) {
+              return {
+                operation: `${op} to both sides`,
+                socraticPrompt: 'How can you isolate the squared term?',
+                expectedNextForm: `${varName}^2 = ${targetRhs}`,
+              }
+            }
+            return {
+              operation: `${op} to both sides`,
+              socraticPrompt: 'How can you isolate the variable term by moving the constant?',
+              expectedNextForm: `${aVal}${varName}^2 = ${targetRhs}`,
+            }
+          }
+
+          // Step 2: 2x^2 = 2 -> divide by leading coefficient: x^2 = 1
+          if (aVal !== 1 && aVal > 0) {
+            const rhsVal = -cVal / aVal
+            return {
+              operation: `Divide both sides by ${aVal}`,
+              socraticPrompt: 'What operation isolates the squared variable?',
+              expectedNextForm: `${varName}^2 = ${rhsVal}`,
+            }
+          }
+
+          // Step 3: x^2 = 1 or x^2 - 1 = 0 -> take square root of both sides
+          if (aVal === 1) {
+            const rhsVal = -cVal
+            if (rhsVal > 0) {
+              const root = Math.sqrt(rhsVal)
+              const cleanRoot = Number.isInteger(root) ? root : root.toFixed(2)
+              return {
+                operation: 'Take the square root of both sides',
+                socraticPrompt: 'What operation undoes squaring the variable?',
+                expectedNextForm: `${varName} = ±${cleanRoot}`,
+              }
+            }
+          }
+        }
+
+        // If common factor across all coefficients: e.g. 2x^2 - 4x + 2 = 0 -> divide by 2
+        if (aVal !== 1 && aVal > 0) {
+          if (bVal % aVal === 0 && cVal % aVal === 0) {
+            const newB = bVal / aVal
+            const newC = cVal / aVal
+            const bSign = newB > 0 ? `+ ${newB}` : newB < 0 ? `- ${Math.abs(newB)}` : ''
+            const cSign = newC > 0 ? `+ ${newC}` : newC < 0 ? `- ${Math.abs(newC)}` : ''
+            const bPart = bSign ? ` ${bSign}${varName}` : ''
+            const cPart = cSign ? ` ${cSign}` : ''
+            return {
+              operation: `Divide both sides by ${aVal}`,
+              socraticPrompt:
+                'Notice all terms share a common factor. What happens if you divide by it?',
+              expectedNextForm: `${varName}^2${bPart}${cPart} = 0`,
+            }
+          }
+        }
+      }
+    } catch {
+      // Fall through to standard factoring
+    }
+  }
+
+  // Case 4b: General quadratic in standard form: factor
   const roots = parseExpandedRoots(clean)
   if (roots) {
     const [r1, r2] = roots
