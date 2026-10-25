@@ -107,3 +107,61 @@ describe('real transformations for factor/simplify (user pass)', () => {
     expect(getAvailableActions('x+x')).toEqual(['simplify'])
   })
 })
+
+describe('real homework solver coverage', () => {
+  test('solves equations with variables on both sides', () => {
+    expect(getAvailableActions('3x + 2 = x + 10')).toEqual(['solve'])
+    const res = solveMath('3x + 2 = x + 10', 'solve')
+    expect(res.resultLatex).toBe('x = 4')
+    expect(res.plainText).toBe('x = 4')
+  })
+
+  test('solves equations with parentheses and distributive property', () => {
+    expect(getAvailableActions('2(x + 3) = 14')).toEqual(['solve'])
+    const res = solveMath('2(x + 3) = 14', 'solve')
+    expect(res.resultLatex).toBe('x = 4')
+    expect(res.plainText).toBe('x = 4')
+  })
+
+  test('solves equations with negative coefficients and subtraction', () => {
+    expect(getAvailableActions('5 - 2x = 1')).toEqual(['solve'])
+    const res1 = solveMath('5 - 2x = 1', 'solve')
+    expect(res1.resultLatex).toBe('x = 2')
+    expect(res1.plainText).toBe('x = 2')
+
+    expect(getAvailableActions('-x + 4 = 1')).toEqual(['solve'])
+    const res2 = solveMath('-x + 4 = 1', 'solve')
+    expect(res2.resultLatex).toBe('x = 3')
+    expect(res2.plainText).toBe('x = 3')
+  })
+
+  test('solves equations with fractions (LaTeX and slash form)', () => {
+    expect(getAvailableActions('\\frac{x}{2} + 3 = 7')).toEqual(['solve'])
+    const resFrac = solveMath('\\frac{x}{2} + 3 = 7', 'solve')
+    expect(resFrac.resultLatex).toBe('x = 8')
+    expect(resFrac.plainText).toBe('x = 8')
+
+    expect(getAvailableActions('x/2 + 3 = 7')).toEqual(['solve'])
+    const resSlash = solveMath('x/2 + 3 = 7', 'solve')
+    expect(resSlash.resultLatex).toBe('x = 8')
+    expect(resSlash.plainText).toBe('x = 8')
+  })
+
+  test('solves linear systems of 2 equations', () => {
+    // Comma-separated format
+    expect(getAvailableActions('x + y = 5, x - y = 1')).toEqual(['solve'])
+    const resComma = solveMath('x + y = 5, x - y = 1', 'solve')
+    expect(resComma.resultLatex).toBe('x = 3, y = 2')
+    expect(resComma.plainText).toBe('x = 3, y = 2')
+
+    // Newline-separated format
+    const resNewline = solveMath('x + y = 5\nx - y = 1', 'solve')
+    expect(resNewline.resultLatex).toBe('x = 3, y = 2')
+    expect(resNewline.plainText).toBe('x = 3, y = 2')
+
+    // LaTeX cases environment format
+    const resCases = solveMath('\\begin{cases} x + y = 5 \\\\ x - y = 1 \\end{cases}', 'solve')
+    expect(resCases.resultLatex).toBe('x = 3, y = 2')
+    expect(resCases.plainText).toBe('x = 3, y = 2')
+  })
+})
