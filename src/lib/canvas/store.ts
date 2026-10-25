@@ -104,6 +104,9 @@ export function stampBoundingBox(stamp: Stamp): BoundingBox {
   }
 }
 
+export type PaperStyle = 'blank' | 'dot-grid' | 'graph' | 'lined'
+export const PAPER_STYLES: readonly PaperStyle[] = ['blank', 'dot-grid', 'graph', 'lined']
+
 interface UndoSnapshot {
   strokes: Stroke[]
   stamps: Stamp[]
@@ -114,6 +117,7 @@ export class InkyStore {
   currentStroke: Stroke | null = null
   camera = { x: 0, y: 0, z: 1 }
   activeTool: ToolType = 'draw'
+  paperStyle: PaperStyle = 'blank'
   strokeColor = '#111111'
   strokeSize = 4
 
@@ -195,6 +199,19 @@ export class InkyStore {
       this.showShortcuts = show
       this.notify()
     }
+  }
+
+  setPaperStyle(style: PaperStyle) {
+    if (this.paperStyle !== style) {
+      this.paperStyle = style
+      this.notify()
+    }
+  }
+
+  cyclePaperStyle() {
+    const idx = PAPER_STYLES.indexOf(this.paperStyle)
+    const next = PAPER_STYLES[(idx + 1) % PAPER_STYLES.length]
+    this.setPaperStyle(next)
   }
 
   setGestureDissolve(value: InkyStore['gestureDissolve']) {
