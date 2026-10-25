@@ -16,6 +16,7 @@ import { isClosedLoop } from '../../lib/math/loop-detection'
 import { recognizeInkML } from '../../lib/math/ml-recognizer'
 import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
+import { BackgroundLayer } from './BackgroundLayer'
 import { CanvasLayer } from './CanvasLayer'
 import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
@@ -103,7 +104,7 @@ export function InkyBoard() {
   const isPinchingRef = useRef(false)
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
-  const [camera, setCamera] = useState(inkyStore.camera)
+  const [, setCamera] = useState(inkyStore.camera)
 
   useEffect(() => {
     let lastSelectionSig = inkyStore.selectedStrokeIds.join(',')
@@ -239,6 +240,9 @@ export function InkyBoard() {
         case 'e':
         case '0':
           inkyStore.setActiveTool('eraser')
+          break
+        case 'g':
+          inkyStore.cyclePaperStyle()
           break
       }
     }
@@ -687,11 +691,9 @@ export function InkyBoard() {
       }`}
       style={{
         backgroundColor: '#fbfbfa',
-        backgroundImage: 'radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px)',
-        backgroundSize: `${24 * camera.z}px ${24 * camera.z}px`,
-        backgroundPosition: `${camera.x}px ${camera.y}px`,
       }}
     >
+      <BackgroundLayer />
       <CanvasLayer />
       <StampLayer />
       <MathActionCapsule />
