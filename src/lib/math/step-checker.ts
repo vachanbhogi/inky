@@ -1,0 +1,518 @@
+import { solveMath } from './math-solver'
+
+export interface StepCheckResult {
+  isValid: boolean
+  confidence: number
+  reason?:
+    | 'sign_error'
+    | 'arithmetic_error'
+    | 'division_error'
+    | 'factor_error'
+    | 'syntax_error'
+    | 'unknown'
+  hint?: string
+}
+
+export interface DerivationReport {
+  allValid: boolean
+  firstErrorIndex?: number
+  stepResults: StepCheckResult[]
+}
+
+export interface SocraticHint {
+  operation: string
+  socraticPrompt: string
+  expectedNextForm: string
+}
+
+interface ParsedLinear {
+  varName: string
+  a: number
+  b: number
+  c: number
+}
+
+interface FactoredQuadratic {
+  varName: string
+  roots: [number, number]
+}
+
+function canonicalize(raw: string): string {
+  return raw
+    .replace(/\$/g, '')
+    .replace(/\\left|\\right/g, '')
+    .replace(/\^\s*\{\s*([^{}]+?)\s*\}/g, '^$1')
+    .replace(/\\times/g, '*')
+    .replace(/\\cdot/g, '*')
+    .replace(/\\div/g, '/')
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)')
+    .trim()
+}
+
+function hasSyntaxError(raw: string): boolean {
+  if (!raw?.trim()) return true
+  const clean = canonicalize(raw)
+  if (!clean.includes('=')) return true
+  const parts = clean.split('=')
+  if (parts.length !== 2) return true
+  if (!parts[0].trim() || !parts[1].trim()) return true
+
+  // Check invalid operator repetitions like ++, +*, *+, etc.
+  if (/[+\-*/]{2,}/.test(clean.replace(/\+-|-\+/g, '-'))) return true
+
+  // Check balanced parentheses
+  let depth = 0
+  for (const ch of clean) {
+    if (ch === '(') depth++
+    else if (ch === ')') {
+      depth--
+      if (depth < 0) return true
+    }
+  }
+  return depth !== 0
+}
+
+function parseSide(
+  sideStr: string,
+): { coeff: number; constant: number; varName: string | null } | null {
+  const clean = sideStr.replace(/\s+/g, '')
+  if (!clean) return null
+
+  // Replace subtraction with '+-' except at start or after operator
+  const normalized = clean.replace(/(?<!^|[+*/])-+/g, '+-')
+  const terms = normalized.split('+').filter((t) => t.length > 0)
+  let coeff = 0
+  let constant = 0
+  let varName: string | null = null
+
+  for (const term of terms) {
+    const m = term.match(/^([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])$/)
+    if (m) {
+      const cStr = m[1]
+      const v = m[2]
+      if (varName && varName !== v) {
+        return null // Multiple different variables in one side
+      }
+      varName = v
+      const c = !cStr || cStr === '+' ? 1 : cStr === '-' ? -1 : Number.parseFloat(cStr)
+      coeff += c
+    } else {
+      const val = Number.parseFloat(term)
+      if (!Number.isNaN(val)) {
+        constant += val
+      } else {
+        return null
+      }
+    }
+  }
+
+  return { coeff, constant, varName }
+}
+
+function parseLinear(equation: string): ParsedLinear | null {
+  const clean = canonicalize(equation)
+  if (!clean.includes('=')) return null
+  const [leftRaw, rightRaw] = clean.split('=')
+  if (!leftRaw || !rightRaw) return null
+
+  // Quadratic forms with ^2 are not pure linear
+  if (clean.includes('^2')) return null
+
+  const left = parseSide(leftRaw)
+  const right = parseSide(rightRaw)
+  if (!left || !right) return null
+
+  // Standard case 1: Variable on left, constant on right
+  if (left.varName && !right.varName) {
+    return {
+      varName: left.varName,
+      a: left.coeff,
+      b: left.constant,
+      c: right.constant,
+    }
+  }
+
+  // Standard case 2: Variable on right, constant on left (flipped)
+  if (!left.varName && right.varName) {
+    return {
+      varName: right.varName,
+      a: right.coeff,
+      b: right.constant,
+      c: left.constant,
+    }
+  }
+
+  // Case 3: Variable on both sides (e.g. 2x + 5 = x + 10)
+  if (left.varName && right.varName && left.varName === right.varName) {
+    return {
+      varName: left.varName,
+      a: left.coeff - right.coeff,
+      b: left.constant,
+      c: right.constant,
+    }
+  }
+
+  return null
+}
+
+function parseFactoredQuadratic(equation: string): FactoredQuadratic | null {
+  const clean = canonicalize(equation).replace(/\s+/g, '')
+  if (!clean.endsWith('=0')) return null
+
+  // Case 1: (ax + b)^2 = 0 or (ax + b)^{2} = 0
+  const sqMatch = clean.match(
+    /^\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)\^\{?2\}?=0$/,
+  )
+  if (sqMatch) {
+    const aStr = sqMatch[1]
+    const a = !aStr || aStr === '+' ? 1 : aStr === '-' ? -1 : Number.parseFloat(aStr)
+    const varName = sqMatch[2]
+    const b = Number.parseFloat(sqMatch[3])
+    const r = -b / a
+    return { varName, roots: [r, r] }
+  }
+
+  // Case 2: (a1 x + b1)(a2 x + b2) = 0 (optional * between)
+  const biMatch = clean.match(
+    /^\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)\*?\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)=0$/,
+  )
+  if (biMatch) {
+    const a1Str = biMatch[1]
+    const a1 = !a1Str || a1Str === '+' ? 1 : a1Str === '-' ? -1 : Number.parseFloat(a1Str)
+    const var1 = biMatch[2]
+    const b1 = Number.parseFloat(biMatch[3])
+
+    const a2Str = biMatch[4]
+    const a2 = !a2Str || a2Str === '+' ? 1 : a2Str === '-' ? -1 : Number.parseFloat(a2Str)
+    const var2 = biMatch[5]
+    const b2 = Number.parseFloat(biMatch[6])
+
+    if (var1 !== var2) return null
+    const r1 = -b1 / a1
+    const r2 = -b2 / a2
+    return {
+      varName: var1,
+      roots: [Math.min(r1, r2), Math.max(r1, r2)],
+    }
+  }
+
+  return null
+}
+
+function parseExpandedRoots(equation: string): [number, number] | null {
+  const clean = canonicalize(equation)
+  const sol = solveMath(clean, 'solve')
+  if (!sol?.resultLatex) return null
+  const m = sol.resultLatex.match(
+    /^[a-zA-Z]\s*=\s*([+-]?\d+(?:\.\d+)?)(?:,\s*([+-]?\d+(?:\.\d+)?))?$/,
+  )
+  if (!m) return null
+  const r1 = Number.parseFloat(m[1])
+  const r2 = m[2] ? Number.parseFloat(m[2]) : r1
+  return [Math.min(r1, r2), Math.max(r1, r2)]
+}
+
+/**
+ * Checks whether eq2 is a valid, mathematically sound next step following eq1.
+ */
+export function checkEquationEquivalence(eq1: string, eq2: string): StepCheckResult {
+  if (hasSyntaxError(eq1) || hasSyntaxError(eq2)) {
+    return {
+      isValid: false,
+      confidence: 0.95,
+      reason: 'syntax_error',
+      hint: 'Please check the mathematical syntax of your equation.',
+    }
+  }
+
+  const clean1 = canonicalize(eq1)
+  const clean2 = canonicalize(eq2)
+
+  // Identical equation
+  if (clean1.replace(/\s+/g, '') === clean2.replace(/\s+/g, '')) {
+    return { isValid: true, confidence: 1 }
+  }
+
+  const p1 = parseLinear(clean1)
+  const p2 = parseLinear(clean2)
+
+  // Both equations are linear forms
+  if (p1 && p2) {
+    if (p1.varName !== p2.varName) {
+      return {
+        isValid: false,
+        confidence: 0.95,
+        reason: 'unknown',
+        hint: `Variable changed from ${p1.varName} to ${p2.varName}.`,
+      }
+    }
+
+    // Step 1: Isolating variable term by eliminating constant (e.g. 2x + 5 = 15 -> 2x = 10)
+    if (p1.b !== 0 && p2.b === 0 && p1.a === p2.a) {
+      const correctRhs = p1.c - p1.b
+      if (p2.c === correctRhs) {
+        return { isValid: true, confidence: 1 }
+      }
+
+      // Sign error check: added constant instead of subtracting (or vice versa)
+      if (p2.c === p1.c + p1.b) {
+        const signWord = p1.b > 0 ? 'subtracted' : 'added'
+        const oppositeWord = p1.b > 0 ? 'added' : 'subtracted'
+        return {
+          isValid: false,
+          confidence: 0.95,
+          reason: 'sign_error',
+          hint: `Check if you ${oppositeWord} instead of ${signWord} ${Math.abs(p1.b)} from both sides.`,
+        }
+      }
+
+      // Arithmetic error: correct operation attempted but wrong arithmetic
+      return {
+        isValid: false,
+        confidence: 0.9,
+        reason: 'arithmetic_error',
+        hint: `Check your calculation on the right side: ${p1.c} ${p1.b >= 0 ? '-' : '+'} ${Math.abs(p1.b)} = ${correctRhs}.`,
+      }
+    }
+
+    // Step 2: Isolating variable by dividing coefficient (e.g. 2x = 10 -> x = 5)
+    if (p1.b === 0 && p2.b === 0 && p1.a !== 1 && p2.a === 1) {
+      const correctRhs = p1.c / p1.a
+      if (p2.c === correctRhs) {
+        return { isValid: true, confidence: 1 }
+      }
+
+      // Sign error on division (e.g. -2x = 10 -> x = 5)
+      if (Math.abs(p2.c) === Math.abs(correctRhs) && p2.c === -correctRhs) {
+        return {
+          isValid: false,
+          confidence: 0.95,
+          reason: 'sign_error',
+          hint: `Check the sign when dividing by ${p1.a}.`,
+        }
+      }
+
+      // Division error
+      return {
+        isValid: false,
+        confidence: 0.95,
+        reason: 'division_error',
+        hint: `Check your division: ${p1.c} / ${p1.a} = ${correctRhs}.`,
+      }
+    }
+
+    // General linear root comparison (e.g. student did combined operations or 1-step solve)
+    const root1 = (p1.c - p1.b) / p1.a
+    const root2 = (p2.c - p2.b) / p2.a
+    if (Math.abs(root1 - root2) < 1e-6) {
+      return { isValid: true, confidence: 1 }
+    }
+
+    // Direct solve sign error (e.g. x + 5 = 15 -> x = 20)
+    if (p1.a === 1 && p2.a === 1 && p1.b !== 0 && p2.b === 0) {
+      if (p2.c === p1.c + p1.b) {
+        const signWord = p1.b > 0 ? 'subtracted' : 'added'
+        const oppositeWord = p1.b > 0 ? 'added' : 'subtracted'
+        return {
+          isValid: false,
+          confidence: 0.95,
+          reason: 'sign_error',
+          hint: `Check if you ${oppositeWord} instead of ${signWord} ${Math.abs(p1.b)} from both sides.`,
+        }
+      }
+    }
+  }
+
+  // Quadratic factoring & expansion check
+  const factoredQuadratic1 = parseFactoredQuadratic(clean1)
+  const factoredQuadratic2 = parseFactoredQuadratic(clean2)
+  const expandedRoots1 = parseExpandedRoots(clean1)
+  const expandedRoots2 = parseExpandedRoots(clean2)
+
+  // Case 1: Factored form to factored form comparison (e.g. (x - 2)(x + 2) = 0 vs (x - 4)(x + 1) = 0)
+  if (factoredQuadratic1 && factoredQuadratic2) {
+    if (
+      Math.abs(factoredQuadratic1.roots[0] - factoredQuadratic2.roots[0]) < 1e-6 &&
+      Math.abs(factoredQuadratic1.roots[1] - factoredQuadratic2.roots[1]) < 1e-6
+    ) {
+      return { isValid: true, confidence: 1 }
+    }
+    return {
+      isValid: false,
+      confidence: 0.95,
+      reason: 'factor_error',
+      hint: 'Check the signs and constants in your factored binomials.',
+    }
+  }
+
+  // Case 2: Expanded form to factored form (e.g. x^2 - 4x + 4 = 0 -> (x - 2)^2 = 0)
+  if (expandedRoots1 && factoredQuadratic2) {
+    const [e1, e2] = expandedRoots1
+    const [f1, f2] = factoredQuadratic2.roots
+    if (Math.abs(e1 - f1) < 1e-6 && Math.abs(e2 - f2) < 1e-6) {
+      return { isValid: true, confidence: 1 }
+    }
+    return {
+      isValid: false,
+      confidence: 0.95,
+      reason: 'factor_error',
+      hint: 'Check the signs and constants in your factored binomials.',
+    }
+  }
+
+  // Case 3: Both expanded forms (e.g. x^2 - 4x + 4 = 0 vs x^2 - 4x = -4)
+  if (expandedRoots1 && expandedRoots2) {
+    if (
+      Math.abs(expandedRoots1[0] - expandedRoots2[0]) < 1e-6 &&
+      Math.abs(expandedRoots1[1] - expandedRoots2[1]) < 1e-6
+    ) {
+      return { isValid: true, confidence: 1 }
+    }
+  }
+
+  // Case 4: Factored form to linear root step (e.g. (x - 2)^2 = 0 -> x - 2 = 0)
+  if (factoredQuadratic1 && p2) {
+    const root2 = (p2.c - p2.b) / p2.a
+    const matchesRoot =
+      Math.abs(factoredQuadratic1.roots[0] - root2) < 1e-6 ||
+      Math.abs(factoredQuadratic1.roots[1] - root2) < 1e-6
+    if (matchesRoot) {
+      return { isValid: true, confidence: 1 }
+    }
+  }
+
+  // General solver comparison
+  const sol1 = solveMath(clean1, 'solve')
+  const sol2 = solveMath(clean2, 'solve')
+
+  if (sol1?.resultLatex && sol2?.resultLatex) {
+    if (sol1.resultLatex === sol2.resultLatex) {
+      return { isValid: true, confidence: 1 }
+    }
+
+    if (clean2.includes('(') && clean2.includes(')')) {
+      return {
+        isValid: false,
+        confidence: 0.9,
+        reason: 'factor_error',
+        hint: 'Check the signs of your factored terms.',
+      }
+    }
+  }
+
+  return {
+    isValid: false,
+    confidence: 0.7,
+    reason: 'unknown',
+    hint: 'This step does not appear to follow from the previous line.',
+  }
+}
+
+/**
+ * Generates a Socratic hint suggesting what operation to perform next.
+ */
+export function generateSocraticHint(equation: string): SocraticHint | null {
+  if (hasSyntaxError(equation)) return null
+
+  const clean = canonicalize(equation)
+  const p = parseLinear(clean)
+
+  if (p) {
+    // Case 1: Constant needs to be balanced
+    if (p.b !== 0) {
+      const op = p.b > 0 ? `Subtract ${p.b}` : `Add ${Math.abs(p.b)}`
+      const nextC = p.c - p.b
+      const coeffStr = p.a === 1 ? '' : p.a === -1 ? '-' : `${p.a}`
+      return {
+        operation: `${op} from both sides`,
+        socraticPrompt: 'How can you isolate the variable term by balancing the constant?',
+        expectedNextForm: `${coeffStr}${p.varName} = ${nextC}`,
+      }
+    }
+
+    // Case 2: Coefficient needs to be divided
+    if (p.a !== 1) {
+      const nextC = p.c / p.a
+      return {
+        operation: `Divide both sides by ${p.a}`,
+        socraticPrompt: 'What operation undoes multiplication by the coefficient?',
+        expectedNextForm: `${p.varName} = ${nextC}`,
+      }
+    }
+
+    // Already solved (e.g. x = 5)
+    return null
+  }
+
+  // Case 3: Factored quadratic
+  const factored = parseFactoredQuadratic(clean)
+  if (factored) {
+    const r = factored.roots[0]
+    const sign = -r >= 0 ? `+ ${-r}` : `- ${r}`
+    return {
+      operation: 'Apply the zero product property',
+      socraticPrompt: 'If a product of terms equals zero, what must be true about each factor?',
+      expectedNextForm: `${factored.varName} ${sign} = 0`,
+    }
+  }
+
+  // Case 4: Quadratic in standard form
+  const roots = parseExpandedRoots(clean)
+  if (roots) {
+    const [r1, r2] = roots
+    const cleanNoSpaces = clean.replace(/\s+/g, '')
+    const varMatch = cleanNoSpaces.match(/([a-zA-Z])\^2/)
+    const varName = varMatch ? varMatch[1] : 'x'
+
+    if (Math.abs(r1 - r2) < 1e-6) {
+      const sign = -r1 >= 0 ? `+ ${-r1}` : `- ${r1}`
+      return {
+        operation: 'Factor the quadratic expression',
+        socraticPrompt:
+          'Notice this is a perfect square trinomial. What binomial squared produces this?',
+        expectedNextForm: `(${varName} ${sign})^2 = 0`,
+      }
+    }
+
+    const sign1 = -r1 >= 0 ? `+ ${-r1}` : `- ${r1}`
+    const sign2 = -r2 >= 0 ? `+ ${-r2}` : `- ${r2}`
+    return {
+      operation: 'Factor the quadratic expression',
+      socraticPrompt:
+        'What two numbers multiply to the constant term and add up to the middle coefficient?',
+      expectedNextForm: `(${varName} ${sign1})(${varName} ${sign2}) = 0`,
+    }
+  }
+
+  return null
+}
+
+/** Alias for generateSocraticHint */
+export const suggestNextStep = generateSocraticHint
+
+/**
+ * Verifies a sequential chain of mathematical steps (e.g. lines written down a page).
+ */
+export function verifyDerivation(steps: string[]): DerivationReport {
+  const stepResults: StepCheckResult[] = []
+  let allValid = true
+  let firstErrorIndex: number | undefined
+
+  for (let i = 0; i < steps.length - 1; i++) {
+    const res = checkEquationEquivalence(steps[i], steps[i + 1])
+    stepResults.push(res)
+    if (!res.isValid && firstErrorIndex === undefined) {
+      allValid = false
+      firstErrorIndex = i + 1
+    }
+  }
+
+  return {
+    allValid,
+    firstErrorIndex,
+    stepResults,
+  }
+}
+
+/** Alias for verifyDerivation */
+export const verifyDerivationChain = verifyDerivation
