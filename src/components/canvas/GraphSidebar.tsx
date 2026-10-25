@@ -656,6 +656,14 @@ export function GraphSidebar() {
     const end = input.selectionEnd ?? input.value.length
     const val = input.value
 
+    // 0. Escape closes the graph sidebar even when input is focused
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      input.blur()
+      inkyStore.closeGraphSidebar()
+      return
+    }
+
     // 1. Auto-close parentheses: '(' -> '()' with cursor inside
     if (e.key === '(') {
       e.preventDefault()

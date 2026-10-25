@@ -127,4 +127,20 @@ describe('GraphSidebar component', () => {
     const clearAllBtn = document.querySelector('button[title="Clear All"]')
     expect(clearAllBtn).not.toBeNull()
   })
+
+  it('closes sidebar when Escape is pressed inside equation input box', async () => {
+    inkyStore.openGraphSidebar('y = 2x + 1')
+    await mountSidebar()
+
+    expect(inkyStore.graphSidebar.isOpen).toBe(true)
+
+    const input = document.querySelector('input') as HTMLInputElement
+    expect(input).not.toBeNull()
+    input.focus()
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flush()
+
+    expect(inkyStore.graphSidebar.isOpen).toBe(false)
+  })
 })
