@@ -11,6 +11,7 @@ import {
   solveMath,
   stampedTextFor,
 } from '../../lib/math/math-solver'
+import { getModelStatus, type ModelStatus, onModelStatusChange } from '../../lib/math/ml-recognizer'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
@@ -31,12 +32,17 @@ function renderFormula(latex: string): React.ReactNode {
 export function MathActionCapsule() {
   const [capsule, setCapsule] = useState(inkyStore.mathCapsule)
   const [camera, setCamera] = useState(inkyStore.camera)
+  const [modelStatus, setModelStatus] = useState<ModelStatus>(getModelStatus)
   // Keeps the last open capsule mounted (frozen) during the 140ms exit fade.
   const [exiting, setExiting] = useState(false)
   const lastCapsuleRef = useRef(inkyStore.mathCapsule)
   const pillRef = useRef<HTMLDivElement>(null)
   // Offset that keeps the pill inside the viewport when anchored near an edge.
   const [edgeOffset, setEdgeOffset] = useState({ x: 0, y: 0 })
+
+  useEffect(() => {
+    return onModelStatusChange(setModelStatus)
+  }, [])
 
   useEffect(() => {
     return inkyStore.subscribe(() => {
@@ -198,11 +204,14 @@ export function MathActionCapsule() {
         data-capsule-state={exiting ? 'exiting' : 'open'}
         className={`${exiting ? 'inky-capsule-out' : 'inky-capsule-in'} bg-[#111111]/90 backdrop-blur-md text-white border border-white/10 shadow-2xl rounded-2xl px-3 py-2 flex items-center gap-3 max-w-[min(60vw,420px)]`}
       >
-        {/* Formula — shows "Reading…" while ML is upgrading the rule latex,
-            so the pill never displays a raw placeholder guess. */}
+        {/* Formula — shows "Loading math model…" or "Reading…" while ML is upgrading the rule latex,
+            so the pill never displays a raw placeholder guess.
+            mlPending ? ( <span className="text-xs italic text-stone-300">Reading… */}
         <span className="min-w-0 flex-1 truncate" aria-live="polite">
           {display.mlPending ? (
-            <span className="text-xs italic text-stone-300">Reading…</span>
+            <span className="text-xs italic text-stone-300">
+              {modelStatus === 'loading' ? 'Loading math model…' : 'Reading…'}
+            </span>
           ) : (
             <span
               key={display.latex}

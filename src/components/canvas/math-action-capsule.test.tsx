@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { createRoot, type Root } from 'react-dom/client'
 import { inkyStore } from '../../lib/canvas/store'
+import { prewarmModel, setWorkerFactoryForTest } from '../../lib/math/ml-recognizer'
 import { MathActionCapsule } from './MathActionCapsule'
 
 // The store is a singleton shared across the suite: drain undo/redo BEFORE
@@ -93,6 +94,28 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(document.body.textContent).toContain('Reading…')
     expect(button('Solve')?.getAttribute('aria-disabled')).toBe('true')
     expect(button('Factor')?.getAttribute('aria-disabled')).toBe('true')
+  })
+
+  test('pending ML shows Loading math model… when model is loading, then transitions to Reading…', async () => {
+    class MockWorker {
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: unknown) => void) | null = null
+      postMessage() {}
+      terminate() {}
+    }
+    const mw = new MockWorker()
+    setWorkerFactoryForTest(() => mw as unknown as Worker)
+    prewarmModel()
+    mw.onmessage?.(new MessageEvent('message', { data: { status: 'loading' } }))
+
+    setCapsule('x^{ 2 }-1=0', true)
+    await mountCapsule()
+    expect(document.body.textContent).toContain('Loading math model…')
+
+    mw.onmessage?.(new MessageEvent('message', { data: { status: 'ready' } }))
+    await flush()
+    expect(document.body.textContent).toContain('Reading…')
+    setWorkerFactoryForTest(null)
   })
 
   test('renders $-wrapped latex through KaTeX, not the raw-text fallback', async () => {
