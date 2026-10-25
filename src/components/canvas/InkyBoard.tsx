@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Point } from '../../lib/canvas/coordinates'
 import { toWorld } from '../../lib/canvas/coordinates'
+import { initAutosave } from '../../lib/canvas/persistence'
 import {
   checkBoundingBoxOverlap,
   detectHandle,
@@ -256,7 +257,10 @@ export function InkyBoard() {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
 
+    const autosave = initAutosave(inkyStore)
+
     return () => {
+      autosave.destroy()
       unsub()
       worker.terminate()
       window.removeEventListener('keydown', handleKeyDown)
