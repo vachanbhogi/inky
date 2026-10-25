@@ -127,4 +127,114 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(document.body.textContent).not.toContain('$x^{2}')
     expect(button('Solve')?.getAttribute('aria-disabled')).toBe('false')
   })
+
+  test('Hint button appears when Socratic hint is available and stamps the next balanced step', async () => {
+    setCapsule('2x + 5 = 15')
+    await mountCapsule()
+    const hintBtn = button('Hint')
+    expect(hintBtn).not.toBeNull()
+    expect(hintBtn?.getAttribute('aria-disabled')).toBe('false')
+
+    hintBtn?.click()
+    await flush()
+
+    expect(inkyStore.stamps).toHaveLength(1)
+    expect(inkyStore.stamps[0].text).toBe('2x = 10')
+    expect(inkyStore.stamps[0].color).toBe('#2563eb')
+    expect(inkyStore.stamps[0].worldX).toBe(200)
+    expect(inkyStore.stamps[0].worldY).toBe(245)
+    expect(inkyStore.mathCapsule).toBeNull()
+    expect(inkyStore.activeTool).toBe('draw')
+  })
+
+  test('Hint button does not appear when no Socratic hint is available (e.g. solved x = 5)', async () => {
+    setCapsule('x = 5')
+    await mountCapsule()
+    expect(button('Hint')).toBeNull()
+  })
+
+  test('Hint button does not appear when ML inference is pending', async () => {
+    setCapsule('2x + 5 = 15', true)
+    await mountCapsule()
+    expect(button('Hint')).toBeNull()
+  })
+
+  test('Hint stamps below enclosed strokes when strokes exist', async () => {
+    const strokeId = 'stroke-test-1'
+    inkyStore.strokes = [
+      {
+        id: strokeId,
+        color: '#000000',
+        width: 2,
+        points: [
+          { x: 100, y: 50, pressure: 0.5 },
+          { x: 180, y: 90, pressure: 0.5 },
+        ],
+        pathData: 'M 100 50 L 180 90',
+        boundingBox: { minX: 100, maxX: 180, minY: 50, maxY: 90 },
+      },
+    ]
+    inkyStore.setMathCapsule({
+      latex: '2x + 5 = 15',
+      worldPosition: { x: 140, y: 70 },
+      enclosedStrokeIds: [strokeId],
+      source: 'ml',
+      mlPending: false,
+    })
+    await mountCapsule()
+    const hintBtn = button('Hint')
+    expect(hintBtn).not.toBeNull()
+    hintBtn?.click()
+    await flush()
+
+    expect(inkyStore.stamps).toHaveLength(1)
+    expect(inkyStore.stamps[0].text).toBe('2x = 10')
+    expect(inkyStore.stamps[0].worldX).toBe(100)
+    expect(inkyStore.stamps[0].worldY).toBe(135) // maxY (90) + 45
+    expect(inkyStore.stamps[0].color).toBe('#2563eb')
+  })
+
+  test('Hint stamps below enclosed stamp chars when source is stamp', async () => {
+    inkyStore.strokes = []
+    const stamp = {
+      id: 'stamp-prev-hint',
+      text: '2x^2 = 2',
+      worldX: 100,
+      worldY: 100,
+      color: '#2563eb',
+      fontSize: 24,
+      chars: [
+        { id: 'c0', char: '2', worldX: 100, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c1', char: 'x', worldX: 112, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c2', char: '^', worldX: 124, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c3', char: '2', worldX: 136, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c4', char: '=', worldX: 148, worldY: 100, fontSize: 24, angle: 0 },
+        { id: 'c5', char: '2', worldX: 160, worldY: 100, fontSize: 24, angle: 0 },
+      ],
+    }
+    inkyStore.stamps = [stamp]
+    inkyStore.setMathCapsule({
+      latex: '2x^2 = 2',
+      worldPosition: { x: 130, y: 100 },
+      enclosedStrokeIds: [],
+      enclosedCharIds: stamp.chars.map((c) => c.id),
+      source: 'stamp',
+      mlPending: false,
+    })
+    await mountCapsule()
+
+    const hintBtn = button('Hint')
+    expect(hintBtn).not.toBeNull()
+    hintBtn?.click()
+    await flush()
+
+    // A second stamp was added with the next atomic step x^2 = 1
+    expect(inkyStore.stamps).toHaveLength(2)
+    const nextStamp = inkyStore.stamps[1]
+    expect(nextStamp.text).toBe('x^2 = 1')
+    expect(nextStamp.color).toBe('#2563eb')
+    expect(nextStamp.worldX).toBe(100)
+    // maxY is 100 + 24 * 1.25 = 130; + 45 = 175
+    expect(nextStamp.worldY).toBe(175)
+  })
 })

@@ -4,7 +4,7 @@ import { X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateCapsuleIntegrity } from '../../lib/canvas/capsule-integrity'
 import { toScreen } from '../../lib/canvas/coordinates'
-import { inkyStore } from '../../lib/canvas/store'
+import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
 import {
   getAvailableActions,
   type MathAction,
@@ -12,6 +12,7 @@ import {
   stampedTextFor,
 } from '../../lib/math/math-solver'
 import { getModelStatus, type ModelStatus, onModelStatusChange } from '../../lib/math/ml-recognizer'
+import { generateSocraticHint } from '../../lib/math/step-checker'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
@@ -47,8 +48,8 @@ export function MathActionCapsule() {
   useEffect(() => {
     return inkyStore.subscribe(() => {
       const next = inkyStore.mathCapsule
-      // Stale guard: dismiss when any enclosed stroke was erased/deleted.
-      if (!validateCapsuleIntegrity(next, inkyStore.strokes)) {
+      // Stale guard: dismiss when any enclosed stroke or char was erased/deleted.
+      if (!validateCapsuleIntegrity(next, inkyStore.strokes, inkyStore.stamps)) {
         inkyStore.setMathCapsule(null)
         return
       }
@@ -87,6 +88,11 @@ export function MathActionCapsule() {
   // only be a placeholder, so don't invite a click on it.
   const actions = useMemo(
     () => (display && !display.mlPending ? getAvailableActions(display.latex) : []),
+    [display],
+  )
+
+  const socraticHint = useMemo(
+    () => (display && !display.mlPending ? generateSocraticHint(display.latex) : null),
     [display],
   )
 
@@ -143,27 +149,71 @@ export function MathActionCapsule() {
 
   const [screenX, screenY] = screen
 
-  const handleAction = (e: React.MouseEvent, action: MathAction) => {
+  const handleAction = (e: React.MouseEvent, action: MathAction | 'hint') => {
     e.stopPropagation()
     if (exiting) return
+
+    if (action === 'hint') {
+      if (!socraticHint) return
+      const enclosedStrokes = inkyStore.strokes.filter((s) =>
+        display.enclosedStrokeIds.includes(s.id),
+      )
+      const enclosedChars = display.enclosedCharIds
+        ? inkyStore.stamps
+            .flatMap((s) => s.chars)
+            .filter((c) => display.enclosedCharIds?.includes(c.id))
+        : []
+
+      const strokeBoxes = enclosedStrokes.map((s) => s.boundingBox)
+      const charBoxes = enclosedChars.map(charBoundingBox)
+      const allBoxes = [...strokeBoxes, ...charBoxes]
+
+      const anchorX =
+        allBoxes.length > 0 ? Math.min(...allBoxes.map((b) => b.minX)) : display.worldPosition.x
+      const maxY =
+        allBoxes.length > 0 ? Math.max(...allBoxes.map((b) => b.maxY)) : display.worldPosition.y
+      let fontSize = 36
+      if (allBoxes.length > 0) {
+        const minY = Math.min(...allBoxes.map((b) => b.minY))
+        fontSize = Math.min(96, Math.max(16, (maxY - minY) * 1.6))
+      }
+
+      inkyStore.stampResult({
+        text: socraticHint.expectedNextForm,
+        worldX: anchorX,
+        worldY: maxY + 45,
+        color: '#2563eb',
+        fontSize,
+      })
+      return
+    }
+
     const solution = solveMath(display.latex, action)
     if (!solution?.resultLatex) return
 
-    // The enclosed strokes anchor the stamp to the right of the formula and
+    // The enclosed strokes or chars anchor the stamp to the right of the formula and
     // define the hand it should match: the answer is sized from the height of
     // the user's own glyphs (Caveat digits ≈ 0.6em tall).
     const enclosedStrokes = inkyStore.strokes.filter((s) =>
       display.enclosedStrokeIds.includes(s.id),
     )
+    const enclosedChars = display.enclosedCharIds
+      ? inkyStore.stamps
+          .flatMap((s) => s.chars)
+          .filter((c) => display.enclosedCharIds?.includes(c.id))
+      : []
+
+    const strokeBoxes = enclosedStrokes.map((s) => s.boundingBox)
+    const charBoxes = enclosedChars.map(charBoundingBox)
+    const allBoxes = [...strokeBoxes, ...charBoxes]
+
     const maxX =
-      enclosedStrokes.length > 0
-        ? Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxX))
-        : display.worldPosition.x + 100
+      allBoxes.length > 0 ? Math.max(...allBoxes.map((b) => b.maxX)) : display.worldPosition.x + 100
     let fontSize = 36
     let stampY = display.worldPosition.y - 18
-    if (enclosedStrokes.length > 0) {
-      const minY = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minY))
-      const maxY = Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxY))
+    if (allBoxes.length > 0) {
+      const minY = Math.min(...allBoxes.map((b) => b.minY))
+      const maxY = Math.max(...allBoxes.map((b) => b.maxY))
       const centerY = (minY + maxY) / 2
       fontSize = Math.min(96, Math.max(16, (maxY - minY) * 1.6))
       stampY = centerY - fontSize * 0.6
@@ -236,27 +286,62 @@ export function MathActionCapsule() {
 
         {/* Action buttons — rendered from the availability list; unavailable
             actions stay visible but inert (aria-disabled, dimmed). Solve stays
-            visually primary when available. */}
+            visually primary when available. Hint is offered when a Socratic next step exists. */}
         <div className="flex items-center gap-1 shrink-0">
           {(
             [
-              { action: 'solve' as const, label: 'Solve', primary: true },
-              { action: 'factor' as const, label: 'Factor', primary: false },
-              { action: 'simplify' as const, label: 'Simplify', primary: false },
-            ] satisfies { action: MathAction; label: string; primary: boolean }[]
-          ).map(({ action, label, primary }) => {
-            const available = actions.includes(action)
+              {
+                action: 'solve' as const,
+                label: 'Solve',
+                primary: true,
+                available: actions.includes('solve'),
+                title: undefined,
+              },
+              {
+                action: 'factor' as const,
+                label: 'Factor',
+                primary: false,
+                available: actions.includes('factor'),
+                title: undefined,
+              },
+              {
+                action: 'simplify' as const,
+                label: 'Simplify',
+                primary: false,
+                available: actions.includes('simplify'),
+                title: undefined,
+              },
+              ...(socraticHint
+                ? [
+                    {
+                      action: 'hint' as const,
+                      label: 'Hint',
+                      primary: false,
+                      available: true,
+                      title: socraticHint.operation,
+                    },
+                  ]
+                : []),
+            ] satisfies {
+              action: MathAction | 'hint'
+              label: string
+              primary: boolean
+              available: boolean
+              title?: string
+            }[]
+          ).map(({ action, label, primary, available, title }) => {
             const base =
-              'text-xs px-2 py-1 rounded-lg transition-[transform,background-color,color,opacity] duration-150'
+              'text-xs px-2 py-1 rounded-lg transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#111111]'
             const style = primary
-              ? 'font-semibold px-2.5 bg-white text-[#111111] hover:bg-stone-200 active:scale-95 cursor-pointer'
-              : 'font-medium text-stone-300 hover:text-white hover:bg-white/10 active:scale-95 cursor-pointer'
+              ? 'font-semibold px-2.5 bg-white text-[#111111] hover:bg-stone-200 active:scale-[0.96] cursor-pointer'
+              : 'font-medium text-stone-300 hover:text-white hover:bg-white/10 active:scale-[0.96] cursor-pointer'
+            const defaultTitle = available ? undefined : 'Not applicable to this formula'
             return (
               <button
                 key={action}
                 type="button"
                 aria-disabled={!available}
-                title={available ? undefined : 'Not applicable to this formula'}
+                title={title ?? defaultTitle}
                 onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
                 className={available ? `${base} ${style}` : `${base} opacity-40 cursor-default`}
               >
