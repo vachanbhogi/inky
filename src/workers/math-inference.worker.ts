@@ -9,22 +9,33 @@ import type { TokenVocab } from '../lib/math/ml-decode'
 import { argmaxLastPosition, idsToLatex, shouldStopDecoding } from '../lib/math/ml-decode'
 import { cleanModelLatex, RASTER_SIZE } from '../lib/math/stroke-rasterizer'
 
-ort.env.wasm.wasmPaths = { wasm: ortWasmUrl }
-// Keep inference single-threaded: deterministic and avoids SharedArrayBuffer
-// requirements in browsers without COOP/COEP isolation.
-ort.env.wasm.numThreads = 1
+if (typeof window === 'undefined') {
+  ort.env.wasm.wasmPaths = { wasm: ortWasmUrl }
+  // Keep inference single-threaded: deterministic and avoids SharedArrayBuffer
+  // requirements in browsers without COOP/COEP isolation.
+  ort.env.wasm.numThreads = 1
+}
 
 interface RecognizeMessage {
   id: number
   pixels: Float32Array // 3*384*384 model input (already tiled RGB)
 }
 
+type InMessage = { type: 'prewarm' } | RecognizeMessage
+
 type OutMessage =
   | { status: 'loading' | 'ready' }
+  | { status: 'error'; error: string }
   | { id: number; latex: string }
   | { id: number; error: string }
 
-const ctx = self as unknown as Worker
+const ctx = (typeof self !== 'undefined' ? self : undefined) as unknown as Worker
+
+const post = (msg: OutMessage) => {
+  if (typeof ctx !== 'undefined' && typeof ctx.postMessage === 'function') {
+    ctx.postMessage(msg)
+  }
+}
 
 let sessionsPromise: Promise<{
   enc: ort.InferenceSession
@@ -36,6 +47,7 @@ const MODEL_BASE = `${import.meta.env.BASE_URL}models/`
 
 function loadSessions() {
   if (!sessionsPromise) {
+    post({ status: 'loading' })
     sessionsPromise = (async () => {
       const vocabRes = await fetch(`${MODEL_BASE}formulanet-tokens.json`)
       if (!vocabRes.ok) throw new Error(`vocab fetch failed: ${vocabRes.status}`)
@@ -59,12 +71,15 @@ function loadSessions() {
         ort.InferenceSession.create(encBuf, options),
         ort.InferenceSession.create(decBuf, options),
       ])
+      post({ status: 'ready' })
       return { enc, dec, vocab }
     })()
     // M11: never cache a rejected load — one flaky fetch (offline, cold
     // cache) must not permanently disable recognition for the session.
     sessionsPromise = sessionsPromise.catch((err: unknown) => {
       sessionsPromise = null
+      const message = err instanceof Error ? err.message : String(err)
+      post({ status: 'error', error: message })
       throw err
     })
   }
@@ -93,18 +108,30 @@ async function recognize(pixels: Float32Array): Promise<string> {
   return cleanModelLatex(idsToLatex(ids, vocab))
 }
 
-ctx.addEventListener('message', (event: MessageEvent<RecognizeMessage>) => {
-  const { id, pixels } = event.data
-  const post = (msg: OutMessage) => ctx.postMessage(msg)
+if (typeof ctx !== 'undefined' && typeof ctx.addEventListener === 'function') {
+  ctx.addEventListener('message', (event: MessageEvent<InMessage>) => {
+    const data = event.data
+    if (!data) return
+    if ('type' in data && data.type === 'prewarm') {
+      loadSessions().catch(() => {})
+      return
+    }
+    if ('pixels' in data) {
+      const { id, pixels } = data
+      recognize(pixels)
+        .then((latex) => {
+          post({ id, latex })
+        })
+        .catch((err: unknown) => {
+          post({ id, error: err instanceof Error ? err.message : String(err) })
+        })
+    }
+  })
+}
 
-  post({ status: 'loading' })
-  recognize(pixels)
-    .then((latex) => {
-      post({ id, latex })
-      post({ status: 'ready' })
-    })
-    .catch((err: unknown) => {
-      post({ id, error: err instanceof Error ? err.message : String(err) })
-      post({ status: 'ready' })
-    })
-})
+export default class MathInferenceWorker {
+  onmessage: ((event: MessageEvent) => void) | null = null
+  onerror: ((event: unknown) => void) | null = null
+  postMessage(_msg: unknown, _transfer?: Transferable[]) {}
+  terminate() {}
+}
