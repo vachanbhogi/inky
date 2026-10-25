@@ -12,6 +12,7 @@ import {
   stampedTextFor,
 } from '../../lib/math/math-solver'
 import { getModelStatus, type ModelStatus, onModelStatusChange } from '../../lib/math/ml-recognizer'
+import { generateSocraticHint } from '../../lib/math/step-checker'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
@@ -90,6 +91,11 @@ export function MathActionCapsule() {
     [display],
   )
 
+  const socraticHint = useMemo(
+    () => (display && !display.mlPending ? generateSocraticHint(display.latex) : null),
+    [display],
+  )
+
   // Sparkle resolve pop: when mlPending transitions true→false (ML settled or
   // fell back), flash the one-shot resolve class for 200ms so the dot "pops".
   // Guard on the capsule existing (M3): a dismissal mid-pending must not arm
@@ -143,9 +149,39 @@ export function MathActionCapsule() {
 
   const [screenX, screenY] = screen
 
-  const handleAction = (e: React.MouseEvent, action: MathAction) => {
+  const handleAction = (e: React.MouseEvent, action: MathAction | 'hint') => {
     e.stopPropagation()
     if (exiting) return
+
+    if (action === 'hint') {
+      if (!socraticHint) return
+      const enclosedStrokes = inkyStore.strokes.filter((s) =>
+        display.enclosedStrokeIds.includes(s.id),
+      )
+      const anchorX =
+        enclosedStrokes.length > 0
+          ? Math.min(...enclosedStrokes.map((s) => s.boundingBox.minX))
+          : display.worldPosition.x
+      const maxY =
+        enclosedStrokes.length > 0
+          ? Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxY))
+          : display.worldPosition.y
+      let fontSize = 36
+      if (enclosedStrokes.length > 0) {
+        const minY = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minY))
+        fontSize = Math.min(96, Math.max(16, (maxY - minY) * 1.6))
+      }
+
+      inkyStore.stampResult({
+        text: socraticHint.expectedNextForm,
+        worldX: anchorX,
+        worldY: maxY + 45,
+        color: '#2563eb',
+        fontSize,
+      })
+      return
+    }
+
     const solution = solveMath(display.latex, action)
     if (!solution?.resultLatex) return
 
@@ -236,27 +272,62 @@ export function MathActionCapsule() {
 
         {/* Action buttons — rendered from the availability list; unavailable
             actions stay visible but inert (aria-disabled, dimmed). Solve stays
-            visually primary when available. */}
+            visually primary when available. Hint is offered when a Socratic next step exists. */}
         <div className="flex items-center gap-1 shrink-0">
           {(
             [
-              { action: 'solve' as const, label: 'Solve', primary: true },
-              { action: 'factor' as const, label: 'Factor', primary: false },
-              { action: 'simplify' as const, label: 'Simplify', primary: false },
-            ] satisfies { action: MathAction; label: string; primary: boolean }[]
-          ).map(({ action, label, primary }) => {
-            const available = actions.includes(action)
+              {
+                action: 'solve' as const,
+                label: 'Solve',
+                primary: true,
+                available: actions.includes('solve'),
+                title: undefined,
+              },
+              {
+                action: 'factor' as const,
+                label: 'Factor',
+                primary: false,
+                available: actions.includes('factor'),
+                title: undefined,
+              },
+              {
+                action: 'simplify' as const,
+                label: 'Simplify',
+                primary: false,
+                available: actions.includes('simplify'),
+                title: undefined,
+              },
+              ...(socraticHint
+                ? [
+                    {
+                      action: 'hint' as const,
+                      label: 'Hint',
+                      primary: false,
+                      available: true,
+                      title: socraticHint.operation,
+                    },
+                  ]
+                : []),
+            ] satisfies {
+              action: MathAction | 'hint'
+              label: string
+              primary: boolean
+              available: boolean
+              title?: string
+            }[]
+          ).map(({ action, label, primary, available, title }) => {
             const base =
-              'text-xs px-2 py-1 rounded-lg transition-[transform,background-color,color,opacity] duration-150'
+              'text-xs px-2 py-1 rounded-lg transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#111111]'
             const style = primary
-              ? 'font-semibold px-2.5 bg-white text-[#111111] hover:bg-stone-200 active:scale-95 cursor-pointer'
-              : 'font-medium text-stone-300 hover:text-white hover:bg-white/10 active:scale-95 cursor-pointer'
+              ? 'font-semibold px-2.5 bg-white text-[#111111] hover:bg-stone-200 active:scale-[0.96] cursor-pointer'
+              : 'font-medium text-stone-300 hover:text-white hover:bg-white/10 active:scale-[0.96] cursor-pointer'
+            const defaultTitle = available ? undefined : 'Not applicable to this formula'
             return (
               <button
                 key={action}
                 type="button"
                 aria-disabled={!available}
-                title={available ? undefined : 'Not applicable to this formula'}
+                title={title ?? defaultTitle}
                 onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
                 className={available ? `${base} ${style}` : `${base} opacity-40 cursor-default`}
               >
