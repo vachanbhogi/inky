@@ -102,6 +102,14 @@ describe('GraphSidebar component', () => {
     expect(input.value).toBe('y = x² - 4')
   })
 
+  it('normalizes spaced-out LaTeX braces like 3x ^ { 2 } + 4x to natural math 3x² + 4x', async () => {
+    inkyStore.openGraphSidebar('3x ^ { 2 } + 4x')
+    await mountSidebar()
+
+    const input = document.querySelector('input') as HTMLInputElement
+    expect(input.value).toBe('3x² + 4x')
+  })
+
   it('toggles virtual math keypad on and off', async () => {
     inkyStore.openGraphSidebar('y = 2x + 1')
     await mountSidebar()

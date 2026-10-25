@@ -32,19 +32,19 @@ const SUPERSCRIPT_MAP: Record<string, string> = {
 }
 
 /**
- * Converts raw math expressions with caret exponents (e.g. x^2, x^{2}, \sqrt{x})
+ * Converts raw math expressions with caret exponents (e.g. x^2, x^{2}, 3x ^ { 2 }, \sqrt{x})
  * into clean, natural mathematical typography so the user never sees raw LaTeX syntax.
  */
 function toNaturalMathDisplay(str: string): string {
   if (!str) return ''
   return str
-    .replace(/\^\s*\{([0-9nxy+-]+)\}/g, (_match, group) => {
+    .replace(/\s*\^\s*\{\s*([0-9nxy+-]+)\s*\}/g, (_match, group) => {
       return Array.from(group)
         .map((ch) => SUPERSCRIPT_MAP[ch as string] || ch)
         .join('')
     })
-    .replace(/\^([0-9nxy+-])/g, (_match, ch) => SUPERSCRIPT_MAP[ch] || `^${ch}`)
-    .replace(/\\sqrt\s*\{([^{}]+)\}/g, '√($1)')
+    .replace(/\s*\^\s*([0-9nxy+-])/g, (_match, ch) => SUPERSCRIPT_MAP[ch] || `^${ch}`)
+    .replace(/\\sqrt\s*\{\s*([^{}]+)\s*\}/g, '√($1)')
     .replace(/\\times/g, '×')
     .replace(/\\div/g, '÷')
     .replace(/\\(sin|cos|tan|sec|csc|cot|log|ln|abs)/g, '$1')
