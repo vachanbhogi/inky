@@ -223,9 +223,9 @@ export function GraphSidebar() {
     (targetX: number): { x: number; y: number } | null => {
       if (!plotData || plotData.segments.length === 0) return null
 
-      // Check key points for magnetic snap
+      // Check key points for subtle magnetic snap (gentle ~3.5px window so sliding feels natural)
       for (const kp of keyPoints) {
-        if (Math.abs(kp.x - targetX) < 12 / zoom) {
+        if (Math.abs(kp.x - targetX) < 3.5 / zoom) {
           return { x: kp.x, y: kp.y }
         }
       }
@@ -835,31 +835,19 @@ export function GraphSidebar() {
       </div>
 
       {/* 1. Minimalist Editorial Header */}
-      <div className="flex items-center justify-between px-4 h-[46px] bg-white/95 backdrop-blur-md border-b border-black/6 shrink-0">
+      <div className="flex items-center justify-between px-4 h-[44px] bg-white/95 backdrop-blur-md border-b border-black/6 shrink-0">
         <h2 className="text-[13px] font-medium text-[#111111] tracking-tight">Function Graph</h2>
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setShowKeypad((prev) => !prev)}
-            title={showKeypad ? 'Hide Keypad' : 'Show Keypad'}
-            className={`p-1.5 rounded-lg text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer ${
-              showKeypad ? 'bg-black/5 text-[#111111]' : ''
-            }`}
-          >
-            <Keyboard size={16} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleClose}
-            title="Close Graph (Esc)"
-            className="p-1.5 rounded-lg text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
-            aria-label="Close graph sidebar"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          title="Close Graph (Esc)"
+          className="p-1.5 rounded-md text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-colors cursor-pointer border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20"
+          style={{ outline: 'none' }}
+          aria-label="Close graph sidebar"
+        >
+          <X size={15} />
+        </button>
       </div>
 
       {/* 2. Interactive Cartesian Coordinate Plane (Trace & Drag Points) */}
@@ -909,105 +897,133 @@ export function GraphSidebar() {
         </div>
       </div>
 
-      {/* 3. Desmos-Quality Equation Box (Natural Math Typing, Auto-Parens, Elevated Superscripts) */}
-      <div className="p-3.5 bg-white border-t border-black/6 shrink-0">
-        <div className="flex items-center gap-3 px-3.5 py-2.5 bg-[#fbfbfa] hover:bg-white focus-within:bg-white rounded-xl border border-black/8 focus-within:border-black/25 focus-within:ring-2 focus-within:ring-black/5 transition-all shadow-2xs">
-          {/* Wave Badge */}
-          <div className="w-6 h-6 rounded-full bg-[#c74440] text-white flex items-center justify-center shrink-0 shadow-2xs">
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M2 12c3-8 6-8 10 0s7 8 10 0" />
-            </svg>
-          </div>
+      {/* 3. Flush Full-Width Equation Dock (No floating card, edge-to-edge) */}
+      <div className="flex items-center gap-2.5 px-4 h-13 bg-white border-t border-black/8 shrink-0">
+        {/* Minimal Crimson Curve Dot/Icon */}
+        <div
+          title="Function curve y = f(x)"
+          className="w-5 h-5 rounded-md bg-[#c74440]/10 text-[#c74440] flex items-center justify-center shrink-0"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 12c3-8 6-8 10 0s7 8 10 0" />
+          </svg>
+        </div>
 
-          {/* Natural Math Input: Typing ^ elevates to superscripts, ( auto-closes, etc. */}
-          <input
-            ref={inputRef}
-            id="graph-equation-input"
-            type="text"
-            value={displayInput}
-            onKeyDown={handleKeyDown}
-            onChange={handleInputChange}
-            onInput={handleInput}
-            placeholder="y = x² - 4"
-            className="flex-1 bg-transparent text-[17px] font-serif text-[#111111] focus:outline-none placeholder:text-stone-400 placeholder:font-sans"
-            spellCheck={false}
-            autoCapitalize="off"
-          />
+        {/* Natural Math Input: Completely seamless, zero blue focus boxes */}
+        <input
+          ref={inputRef}
+          id="graph-equation-input"
+          type="text"
+          value={displayInput}
+          onKeyDown={handleKeyDown}
+          onChange={handleInputChange}
+          onInput={handleInput}
+          placeholder="y = x² - 4"
+          className="flex-1 bg-transparent text-[16px] font-serif tracking-normal text-[#111111] border-0 p-0 m-0 outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 placeholder:text-stone-300 placeholder:font-sans selection:bg-black/10"
+          style={{ outline: 'none', boxShadow: 'none' }}
+          spellCheck={false}
+          autoCapitalize="off"
+        />
 
-          {/* Clear Button */}
+        {/* Action Controls on Bottom Bar */}
+        <div className="flex items-center gap-1 shrink-0">
           {displayInput.length > 0 && (
             <button
               type="button"
               onClick={handleClearFormula}
               title="Clear expression"
-              className="p-1 rounded-md text-stone-400 hover:text-stone-700 hover:bg-black/5 transition-all cursor-pointer"
+              className="p-1.5 rounded-md text-stone-400 hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-colors cursor-pointer border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20"
+              style={{ outline: 'none' }}
             >
               <X size={15} />
             </button>
           )}
+
+          {/* Keypad Toggle Button (placed right on the bottom bar) */}
+          <button
+            type="button"
+            onClick={() => setShowKeypad((prev) => !prev)}
+            title={showKeypad ? 'Hide Keypad' : 'Show Keypad'}
+            aria-label={showKeypad ? 'Hide Keypad' : 'Show Keypad'}
+            className={`p-1.5 rounded-md transition-colors cursor-pointer border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 ${
+              showKeypad
+                ? 'bg-black/8 text-[#111111]'
+                : 'text-stone-400 hover:text-[#111111] hover:bg-black/5'
+            }`}
+            style={{ outline: 'none' }}
+          >
+            <Keyboard size={16} />
+          </button>
         </div>
       </div>
 
-      {/* 4. Touch/Mobile Keypad (Minimal, Warm Monochrome) */}
+      {/* 4. Touch/Mobile Keypad (Minimal, Warm Monochrome, Zero Blue Rings) */}
       {showKeypad && (
-        <div className="p-2.5 bg-[#fbfbfa] border-t border-black/6 grid grid-cols-8 gap-1.5 shrink-0">
+        <div className="p-2 bg-[#fafaf9] border-t border-black/6 grid grid-cols-8 gap-1 shrink-0">
           {/* Row 1: Variables, Exponents, Brackets & Backspace */}
           <button
             type="button"
             onClick={() => handleKeypadPress('x')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-serif italic font-bold active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-serif italic font-bold active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             x
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('y')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-serif italic font-bold active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-serif italic font-bold active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             y
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('²')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             x²
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('√(')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             √
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('(')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             (
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress(')')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             )
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('π')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-serif active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-serif active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             π
           </button>
@@ -1015,116 +1031,133 @@ export function GraphSidebar() {
             type="button"
             onClick={handleKeypadBackspace}
             title="Backspace"
-            className="h-9 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+            aria-label="Backspace"
+            className="h-8 rounded-md bg-stone-200/70 hover:bg-stone-300/70 active:bg-stone-300 text-stone-700 active:scale-95 transition-colors flex items-center justify-center cursor-pointer border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20"
+            style={{ outline: 'none' }}
           >
-            <Delete size={15} />
+            <Delete size={14} />
           </button>
 
           {/* Row 2: 7, 8, 9, ÷, sin, cos, tan, ^ */}
           <button
             type="button"
             onClick={() => handleKeypadPress('7')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             7
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('8')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             8
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('9')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             9
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress(' / ')}
-            className="h-9 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-all text-sm cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             ÷
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('sin(')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-stone-700 text-xs active:scale-95 transition-all border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-700 text-xs active:scale-95 transition-colors border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             sin
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('cos(')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-stone-700 text-xs active:scale-95 transition-all border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-700 text-xs active:scale-95 transition-colors border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             cos
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('tan(')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-stone-700 text-xs active:scale-95 transition-all border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-700 text-xs active:scale-95 transition-colors border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             tan
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('^')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             ^
           </button>
 
-          {/* Row 3: 4, 5, 6, ×, <, >, |x|, Clear */}
+          {/* Row 3: 4, 5, 6, ×, <, >, |a|, Clear */}
           <button
             type="button"
             onClick={() => handleKeypadPress('4')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             4
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('5')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             5
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('6')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             6
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress(' * ')}
-            className="h-9 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-all text-sm cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             ×
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('<')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-stone-800 text-xs active:scale-95 transition-all border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 text-xs active:scale-95 transition-colors border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             &lt;
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('>')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-stone-800 text-xs active:scale-95 transition-all border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 text-xs active:scale-95 transition-colors border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             &gt;
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('abs(')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-stone-800 text-xs active:scale-95 transition-all border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 text-xs active:scale-95 transition-colors border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             |a|
           </button>
@@ -1132,7 +1165,9 @@ export function GraphSidebar() {
             type="button"
             onClick={handleClearFormula}
             title="Clear All"
-            className="h-9 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all text-xs cursor-pointer"
+            aria-label="Clear All"
+            className="h-8 rounded-md bg-stone-200/70 hover:bg-stone-300/70 active:bg-stone-300 text-stone-700 active:scale-95 transition-colors text-xs cursor-pointer border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20"
+            style={{ outline: 'none' }}
           >
             C
           </button>
@@ -1141,56 +1176,64 @@ export function GraphSidebar() {
           <button
             type="button"
             onClick={() => handleKeypadPress('1')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             1
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('2')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             2
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('3')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             3
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress(' - ')}
-            className="h-9 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-all text-sm cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             −
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('0')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             0
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress('.')}
-            className="h-9 rounded-lg bg-white hover:bg-stone-100 text-[#111111] font-medium active:scale-95 transition-all text-sm border border-black/6 shadow-2xs cursor-pointer"
+            className="h-8 rounded-md bg-white hover:bg-stone-100 active:bg-stone-200 text-[#111111] font-medium active:scale-95 transition-colors text-xs border border-black/5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             .
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress(' = ')}
-            className="h-9 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-all text-sm cursor-pointer"
+            className="h-8 rounded-md bg-stone-100/70 hover:bg-stone-200/60 active:bg-stone-200 text-stone-800 font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             =
           </button>
           <button
             type="button"
             onClick={() => handleKeypadPress(' + ')}
-            className="h-9 rounded-lg bg-[#111111] hover:bg-[#333333] text-white font-medium active:scale-95 transition-all text-sm cursor-pointer"
+            className="h-8 rounded-md bg-[#111111] hover:bg-[#333333] active:bg-black text-white font-medium active:scale-95 transition-colors text-xs border-0 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-black/20 cursor-pointer"
+            style={{ outline: 'none' }}
           >
             +
           </button>

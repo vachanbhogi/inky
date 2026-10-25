@@ -110,6 +110,7 @@ function sanitizeLatexAndImplicitMath(expr: string): string {
     .replace(/⅔/g, '(2/3)')
     .replace(/¾/g, '(3/4)')
     .replace(/×/g, '*')
+    .replace(/·/g, '*')
     .replace(/÷/g, '/')
     .replace(/−/g, '-')
     .replace(/√\s*([0-9a-zA-Z]+|\([^)]+\))/g, 'sqrt($1)')
