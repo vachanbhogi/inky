@@ -11,6 +11,7 @@ const SHORTCUT_GROUPS = [
       { keys: ['E', '0'], label: 'Eraser (Scrub Delete)' },
       { keys: ['H', '1'], label: 'Hand (Pan Canvas)' },
       { keys: ['G'], label: 'Function Graph' },
+      { keys: ['B'], label: 'Cycle Paper Style' },
       { keys: ['Space'], label: 'Hold Space to Pan' },
     ],
   },

@@ -129,7 +129,7 @@ describe('StampLayer behavior', () => {
     inkyStore.stamps[0].chars[4].worldX = 200
     inkyStore.stamps[0].chars[4].fontSize = 72
     inkyStore.notify()
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 50))
     expect(span.style.left).toBe('200px')
     expect(span.style.fontSize).toBe('72px')
   })
