@@ -304,8 +304,8 @@ describe('inkyStore', () => {
 
     expect(inkyStore.graphSidebar).toEqual({ isOpen: false, equation: '' })
 
-    inkyStore.openGraphSidebar('y = x^2 - 4')
-    expect(inkyStore.graphSidebar).toEqual({ isOpen: true, equation: 'y = x^2 - 4' })
+    inkyStore.openGraphSidebar()
+    expect(inkyStore.graphSidebar).toEqual({ isOpen: true, equation: '' })
     expect(callCount).toBe(1)
 
     // Replacing with another equation

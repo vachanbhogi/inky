@@ -50,6 +50,16 @@ describe('GraphSidebar component', () => {
     expect(input.value).toBe('y = 2x + 1')
   })
 
+  it('renders blank input when openGraphSidebar is called without an equation', async () => {
+    inkyStore.openGraphSidebar()
+    await mountSidebar()
+
+    const input = document.querySelector('input') as HTMLInputElement
+    expect(input).not.toBeNull()
+    expect(input.value).toBe('')
+    expect(inkyStore.graphSidebar.equation).toBe('')
+  })
+
   it('updates when user types a new formula in the input box', async () => {
     inkyStore.openGraphSidebar('y = x^2 - 4')
     await mountSidebar()
