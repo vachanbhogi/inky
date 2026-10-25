@@ -1,6 +1,8 @@
 import {
+  Download,
   Eraser,
   Hand,
+  Home,
   LineChart,
   Minus,
   MousePointer,
@@ -13,8 +15,14 @@ import {
 import { useEffect, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { PALETTE_COLORS, type ToolType } from '../../lib/canvas/types'
+import { boardCatalog } from '../../lib/document/boardCatalog'
+import { downloadBlob, exportToPdf } from '../../lib/pdf/pdfExporter'
 
-export function Toolbar() {
+interface ToolbarProps {
+  onGoHome?: () => void
+}
+
+export function Toolbar({ onGoHome }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState<ToolType>(inkyStore.activeTool)
   const [strokeColor, setStrokeColor] = useState(inkyStore.strokeColor)
   const [strokeSize, setStrokeSize] = useState(inkyStore.strokeSize)
@@ -23,6 +31,9 @@ export function Toolbar() {
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [isGraphOpen, setIsGraphOpen] = useState(inkyStore.graphSidebar.isOpen)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const activeBoard = boardCatalog.getActiveBoard()
 
   useEffect(() => {
     const unsub = inkyStore.subscribe(() => {
@@ -52,6 +63,21 @@ export function Toolbar() {
           animation: 'toolbarSlideDown 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
         }}
       >
+        {/* Home Button */}
+        {onGoHome && (
+          <>
+            <button
+              type="button"
+              title="Home (All Boards)"
+              onClick={onGoHome}
+              className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+            >
+              <Home size={18} />
+            </button>
+            <div className="w-[1px] h-5 bg-black/10 mx-0.5" />
+          </>
+        )}
+
         {/* Core Tools */}
         <div className="flex items-center gap-1">
           <button
@@ -200,6 +226,32 @@ export function Toolbar() {
             )
           })}
         </div>
+        {/* Right Action: Export PDF (if worksheet or has strokes) */}
+        {activeBoard?.type === 'worksheet' && (
+          <>
+            <div className="w-[1px] h-5 bg-black/10 mx-1" />
+            <button
+              type="button"
+              title="Export PDF"
+              disabled={isExporting}
+              onClick={async () => {
+                try {
+                  setIsExporting(true)
+                  const blob = await exportToPdf({
+                    backgroundPages: activeBoard.pdfPages,
+                    title: activeBoard.title,
+                  })
+                  downloadBlob(blob, `${activeBoard.title || 'worksheet'}.pdf`)
+                } finally {
+                  setIsExporting(false)
+                }
+              }}
+              className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+            >
+              <Download size={18} className={isExporting ? 'animate-bounce' : ''} />
+            </button>
+          </>
+        )}
       </nav>
 
       {/* Bottom-Left Navigation & History Cluster */}
