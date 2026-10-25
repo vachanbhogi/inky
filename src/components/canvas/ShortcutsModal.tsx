@@ -10,6 +10,7 @@ const SHORTCUT_GROUPS = [
       { keys: ['P', '3'], label: 'Pen (Freehand Ink)' },
       { keys: ['E', '0'], label: 'Eraser (Scrub Delete)' },
       { keys: ['H', '1'], label: 'Hand (Pan Canvas)' },
+      { keys: ['G'], label: 'Function Graph' },
       { keys: ['Space'], label: 'Hold Space to Pan' },
     ],
   },

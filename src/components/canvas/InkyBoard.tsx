@@ -257,15 +257,19 @@ export function InkyBoard() {
 
       if (e.key === 'Escape') {
         e.preventDefault()
-        if (inkyStore.showShortcuts) {
-          inkyStore.setShowShortcuts(false)
-          return
-        }
         if (inkyStore.mathCapsule) {
           // Dismissal returns the board to a clean pen-ready state (QoL pass).
           inkyStore.setMathCapsule(null)
           inkyStore.clearSelection()
           inkyStore.setActiveTool('draw')
+          return
+        }
+        if (inkyStore.graphSidebar.isOpen) {
+          inkyStore.closeGraphSidebar()
+          return
+        }
+        if (inkyStore.showShortcuts) {
+          inkyStore.setShowShortcuts(false)
           return
         }
         inkyStore.clearSelection()
@@ -304,6 +308,14 @@ export function InkyBoard() {
         case 'e':
         case '0':
           inkyStore.setActiveTool('eraser')
+          break
+        case 'g':
+          e.preventDefault()
+          if (inkyStore.graphSidebar.isOpen) {
+            inkyStore.closeGraphSidebar()
+          } else {
+            inkyStore.openGraphSidebar()
+          }
           break
       }
     }

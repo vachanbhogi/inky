@@ -234,7 +234,7 @@ export class InkyStore {
     this.notify()
   }
 
-  openGraphSidebar(equation: string) {
+  openGraphSidebar(equation: string = this.graphSidebar.equation || 'y = x^2 - 4') {
     this.graphSidebar = { isOpen: true, equation }
     this.notify()
   }

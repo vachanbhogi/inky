@@ -1,5 +1,5 @@
 import { Delete, Keyboard, Minus, Plus, RotateCcw, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { type FunctionPlot, isGraphableExpression, plotFunction } from '../../lib/math/graph-engine'
 
@@ -9,7 +9,9 @@ interface CoordinateCenter {
 }
 
 const DEFAULT_CENTER: CoordinateCenter = { x: 0, y: 0 }
-const DEFAULT_ZOOM = 22 // 22 pixels per unit (standard 1:1 square grid)
+const DEFAULT_ZOOM = 22 // 22 pixels per unit (standard 1:1 isometric grid)
+const DEFAULT_WIDTH = 420
+const MIN_WIDTH = 320
 
 const SUPERSCRIPT_MAP: Record<string, string> = {
   '0': '⁰',
@@ -51,17 +53,20 @@ function toNaturalMathDisplay(str: string): string {
 }
 
 /**
- * Formats user typing in real time: when user types `^2`, it automatically elevates into `²`
- * and adjusts cursor position so typing is completely fluid and requires zero LaTeX knowledge.
+ * Real-time natural math typing formatting:
+ * 1. Automatically turns ^2, ^3 into true mathematical superscripts (², ³, etc.)
+ * 2. Automatically expands function names like sin, cos, tan, sqrt to sin(), cos(), etc.
  */
-function formatMathWithCursor(text: string, cursor: number): { text: string; cursor: number } {
+function formatNaturalMathTyping(text: string, cursor: number): { text: string; cursor: number } {
   let newText = text
   let newCursor = cursor
-  const regex = /\^([0-9nxy+-])/g
+
+  // 1. Convert ^2, ^3, etc. to superscripts
+  const superRegex = /\^([0-9nxy+-])/g
   let match: RegExpExecArray | null
 
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop
-  while ((match = regex.exec(newText)) !== null) {
+  while ((match = superRegex.exec(newText)) !== null) {
     const superChar = SUPERSCRIPT_MAP[match[1]]
     if (superChar) {
       const matchStart = match.index
@@ -69,9 +74,21 @@ function formatMathWithCursor(text: string, cursor: number): { text: string; cur
       if (cursor > matchStart) {
         newCursor = Math.max(matchStart + 1, newCursor - 1)
       }
-      regex.lastIndex = matchStart + 1
+      superRegex.lastIndex = matchStart + 1
     }
   }
+
+  // 2. Auto-expand function names (sin -> sin(), cos -> cos(), sqrt -> sqrt())
+  const beforeCursor = newText.slice(0, newCursor)
+  const fnMatch = beforeCursor.match(/(sin|cos|tan|sqrt|abs|log|ln)$/i)
+  if (fnMatch) {
+    const after = newText.slice(newCursor)
+    if (!after.startsWith('(')) {
+      newText = `${beforeCursor}()${after}`
+      newCursor = newCursor + 1
+    }
+  }
+
   return { text: newText, cursor: newCursor }
 }
 
@@ -85,23 +102,24 @@ export function GraphSidebar() {
   const [displayInput, setDisplayInput] = useState(() =>
     toNaturalMathDisplay(sidebarState.equation),
   )
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
   const [center, setCenter] = useState<CoordinateCenter>(DEFAULT_CENTER)
   const [zoom, setZoom] = useState<number>(DEFAULT_ZOOM)
   const [showKeypad, setShowKeypad] = useState(false)
-  const [activePoint, setActivePoint] = useState<{
+
+  // Interactive probe / point dragged along the curve
+  const [probePoint, setProbePoint] = useState<{
     x: number
     y: number
     label: string
+    isPinned?: boolean
   } | null>(null)
-  const [hoveredPoint, setHoveredPoint] = useState<{
-    x: number
-    y: number
-    label: string
-  } | null>(null)
+  const isTracingRef = useRef(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const isDraggingRef = useRef(false)
+  const isResizingRef = useRef(false)
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -132,6 +150,7 @@ export function GraphSidebar() {
         setCenter(DEFAULT_CENTER)
       }
       setZoom(DEFAULT_ZOOM)
+      setProbePoint(null)
     }
   }, [sidebarState.equation])
 
@@ -139,7 +158,7 @@ export function GraphSidebar() {
 
   // Compute view bounds from isometric zoom and center
   const bounds = useMemo(() => {
-    const width = 420
+    const width = sidebarWidth
     const height = 400
     const halfW = width / 2 / zoom
     const halfH = height / 2 / zoom
@@ -149,7 +168,7 @@ export function GraphSidebar() {
       yMin: center.y - halfH,
       yMax: center.y + halfH,
     }
-  }, [center, zoom])
+  }, [center, zoom, sidebarWidth])
 
   const plotData: FunctionPlot | null = useMemo(() => {
     if (!isValid) return null
@@ -159,10 +178,10 @@ export function GraphSidebar() {
       yMin: bounds.yMin,
       yMax: bounds.yMax,
       samples: 400,
-      width: 420,
+      width: sidebarWidth,
       height: 400,
     })
-  }, [displayInput, isValid, bounds])
+  }, [displayInput, isValid, bounds, sidebarWidth])
 
   const keyPoints = useMemo(() => {
     if (!plotData) return []
@@ -199,6 +218,41 @@ export function GraphSidebar() {
     return pts
   }, [plotData])
 
+  // Curve interpolation helper: evaluates curve y-value for any given x
+  const getCurvePointAtX = useCallback(
+    (targetX: number): { x: number; y: number } | null => {
+      if (!plotData || plotData.segments.length === 0) return null
+
+      // Check key points for magnetic snap
+      for (const kp of keyPoints) {
+        if (Math.abs(kp.x - targetX) < 12 / zoom) {
+          return { x: kp.x, y: kp.y }
+        }
+      }
+
+      for (const seg of plotData.segments) {
+        if (seg.length < 2) continue
+        const first = seg[0]
+        const last = seg[seg.length - 1]
+        if (targetX < Math.min(first.x, last.x) || targetX > Math.max(first.x, last.x)) {
+          continue
+        }
+        for (let i = 0; i < seg.length - 1; i++) {
+          const p1 = seg[i]
+          const p2 = seg[i + 1]
+          if ((targetX >= p1.x && targetX <= p2.x) || (targetX >= p2.x && targetX <= p1.x)) {
+            const dx = p2.x - p1.x
+            const t = Math.abs(dx) > 1e-9 ? (targetX - p1.x) / dx : 0
+            const y = p1.y + t * (p2.y - p1.y)
+            return { x: targetX, y }
+          }
+        }
+      }
+      return null
+    },
+    [plotData, keyPoints, zoom],
+  )
+
   // Desmos-Quality Isometric Canvas Rendering
   useEffect(() => {
     const canvas = canvasRef.current
@@ -207,7 +261,7 @@ export function GraphSidebar() {
     if (!ctx) return
 
     const dpr = window.devicePixelRatio || 1
-    const width = canvas.clientWidth || 420
+    const width = canvas.clientWidth || sidebarWidth
     const height = canvas.clientHeight || 400
 
     if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
@@ -367,17 +421,9 @@ export function GraphSidebar() {
         const sx = toScreenX(pt.x)
         const sy = toScreenY(pt.y)
         if (sx >= -10 && sx <= width + 10 && sy >= -10 && sy <= height + 10) {
-          const isHighlighted =
-            (hoveredPoint &&
-              Math.abs(hoveredPoint.x - pt.x) < 1e-4 &&
-              Math.abs(hoveredPoint.y - pt.y) < 1e-4) ||
-            (activePoint &&
-              Math.abs(activePoint.x - pt.x) < 1e-4 &&
-              Math.abs(activePoint.y - pt.y) < 1e-4)
-
-          ctx.fillStyle = isHighlighted ? '#111111' : '#a0a0a0'
+          ctx.fillStyle = '#a0a0a0'
           ctx.beginPath()
-          ctx.arc(sx, sy, isHighlighted ? 5.5 : 4.5, 0, Math.PI * 2)
+          ctx.arc(sx, sy, 4.5, 0, Math.PI * 2)
           ctx.fill()
           ctx.strokeStyle = '#ffffff'
           ctx.lineWidth = 1.5
@@ -385,25 +431,39 @@ export function GraphSidebar() {
         }
       }
 
-      // 7. Minimal Coordinate Tooltip
-      const targetPoint = activePoint || hoveredPoint
-      if (targetPoint) {
-        const sx = toScreenX(targetPoint.x)
-        const sy = toScreenY(targetPoint.y)
+      // 7. Interactive Probe Point (Slide / Drag along the curve)
+      if (probePoint) {
+        const sx = toScreenX(probePoint.x)
+        const sy = toScreenY(probePoint.y)
 
+        // Halo + Dot
+        ctx.fillStyle = 'rgba(199, 68, 64, 0.2)'
+        ctx.beginPath()
+        ctx.arc(sx, sy, 9, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = '#c74440'
+        ctx.beginPath()
+        ctx.arc(sx, sy, 5.5, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        // Minimal Coordinate Tooltip
         ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-        const textWidth = ctx.measureText(targetPoint.label).width
+        const textWidth = ctx.measureText(probePoint.label).width
         const pillW = textWidth + 14
         const pillH = 22
         const pillX = sx - pillW / 2
-        const pillY = sy - 28
+        const pillY = sy - 30
 
         ctx.fillStyle = '#111111'
         ctx.beginPath()
         ctx.roundRect(pillX, pillY, pillW, pillH, 4)
         ctx.fill()
 
-        // Pointer triangle
+        // Downward pointer triangle
         ctx.beginPath()
         ctx.moveTo(sx - 4, pillY + pillH)
         ctx.lineTo(sx + 4, pillY + pillH)
@@ -415,55 +475,86 @@ export function GraphSidebar() {
         ctx.fillStyle = '#ffffff'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(targetPoint.label, sx, pillY + pillH / 2)
+        ctx.fillText(probePoint.label, sx, pillY + pillH / 2)
       }
     }
 
     ctx.restore()
-  }, [center, zoom, plotData, keyPoints, hoveredPoint, activePoint])
+  }, [center, zoom, plotData, keyPoints, probePoint, sidebarWidth])
 
   if (!sidebarState.isOpen) return null
 
-  const handlePointerDownCanvas = (e: React.PointerEvent) => {
+  // Canvas pointer handlers for interactive tracing & panning
+  const handlePointerDownCanvas = (e: React.PointerEvent | React.MouseEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
-    // Check if clicking a key point
-    const halfW = (canvas.clientWidth || 420) / 2
+    const halfW = (canvas.clientWidth || sidebarWidth) / 2
     const halfH = (canvas.clientHeight || 400) / 2
-    const toScreenX = (wx: number) => halfW + (wx - center.x) * zoom
-    const toScreenY = (wy: number) => halfH - (wy - center.y) * zoom
+    const worldX = center.x + (mouseX - halfW) / zoom
 
-    let clickedPoint: { x: number; y: number; label: string } | null = null
-    for (const pt of keyPoints) {
-      const dist = Math.hypot(toScreenX(pt.x) - mouseX, toScreenY(pt.y) - mouseY)
-      if (dist < 12) {
-        clickedPoint = pt
-        break
+    // Check if clicked near the function curve
+    const curvePt = getCurvePointAtX(worldX)
+    if (curvePt) {
+      const screenY = halfH - (curvePt.y - center.y) * zoom
+      if (Math.abs(screenY - mouseY) < 26) {
+        // Start tracing along curve (pinned point)
+        isTracingRef.current = true
+        setProbePoint({
+          x: curvePt.x,
+          y: curvePt.y,
+          label: `(${formatCoord(curvePt.x)}, ${formatCoord(curvePt.y)})`,
+          isPinned: true,
+        })
+        if ('setPointerCapture' in e.target && 'pointerId' in e) {
+          try {
+            ;(e.target as HTMLElement).setPointerCapture((e as React.PointerEvent).pointerId)
+          } catch {}
+        }
+        return
       }
     }
 
-    if (clickedPoint) {
-      setActivePoint(activePoint?.label === clickedPoint.label ? null : clickedPoint)
-      return
-    }
-
-    // Otherwise start panning
+    // Otherwise dismiss pinned probe and start panning coordinate space
+    setProbePoint(null)
     isDraggingRef.current = true
     lastMousePosRef.current = { x: e.clientX, y: e.clientY }
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    if ('setPointerCapture' in e.target && 'pointerId' in e) {
+      try {
+        ;(e.target as HTMLElement).setPointerCapture((e as React.PointerEvent).pointerId)
+      } catch {}
+    }
   }
 
-  const handlePointerMoveCanvas = (e: React.PointerEvent) => {
+  const handlePointerMoveCanvas = (e: React.PointerEvent | React.MouseEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
+    const halfW = (canvas.clientWidth || sidebarWidth) / 2
+    const halfH = (canvas.clientHeight || 400) / 2
+
+    // 1. If actively tracing along the curve
+    if (isTracingRef.current) {
+      const worldX = center.x + (mouseX - halfW) / zoom
+      const curvePt = getCurvePointAtX(worldX)
+      if (curvePt) {
+        setProbePoint({
+          x: curvePt.x,
+          y: curvePt.y,
+          label: `(${formatCoord(curvePt.x)}, ${formatCoord(curvePt.y)})`,
+          isPinned: true,
+        })
+      }
+      return
+    }
+
+    // 2. If actively panning
     if (isDraggingRef.current && lastMousePosRef.current) {
       const dx = e.clientX - lastMousePosRef.current.x
       const dy = e.clientY - lastMousePosRef.current.y
@@ -476,25 +567,29 @@ export function GraphSidebar() {
       return
     }
 
-    // Hover inspection on key points
-    const halfW = (canvas.clientWidth || 420) / 2
-    const halfH = (canvas.clientHeight || 400) / 2
-    const toScreenX = (wx: number) => halfW + (wx - center.x) * zoom
-    const toScreenY = (wy: number) => halfH - (wy - center.y) * zoom
-
-    let foundPoint: { x: number; y: number; label: string } | null = null
-    for (const pt of keyPoints) {
-      const dist = Math.hypot(toScreenX(pt.x) - mouseX, toScreenY(pt.y) - mouseY)
-      if (dist < 12) {
-        foundPoint = pt
-        break
+    // 3. Hovering near curve: show probe dot
+    const worldX = center.x + (mouseX - halfW) / zoom
+    const curvePt = getCurvePointAtX(worldX)
+    if (curvePt) {
+      const screenY = halfH - (curvePt.y - center.y) * zoom
+      if (Math.abs(screenY - mouseY) < 20) {
+        setProbePoint({
+          x: curvePt.x,
+          y: curvePt.y,
+          label: `(${formatCoord(curvePt.x)}, ${formatCoord(curvePt.y)})`,
+          isPinned: false,
+        })
+        return
       }
     }
 
-    setHoveredPoint(foundPoint)
+    if (probePoint && !probePoint.isPinned) {
+      setProbePoint(null)
+    }
   }
 
-  const handlePointerUpCanvas = (_e: React.PointerEvent) => {
+  const handlePointerUpCanvas = (_e: React.PointerEvent | React.MouseEvent) => {
+    isTracingRef.current = false
     isDraggingRef.current = false
     lastMousePosRef.current = null
   }
@@ -516,17 +611,111 @@ export function GraphSidebar() {
   const handleResetView = () => {
     setCenter(DEFAULT_CENTER)
     setZoom(DEFAULT_ZOOM)
-    setActivePoint(null)
+    setProbePoint(null)
   }
 
   const handleClose = () => {
     inkyStore.closeGraphSidebar()
   }
 
+  // Left-edge drag-to-resize handlers
+  const handleStartResize = (e: React.PointerEvent | React.MouseEvent) => {
+    e.preventDefault()
+    isResizingRef.current = true
+    const startX = e.clientX
+    const startW = sidebarWidth
+
+    const onMove = (ev: PointerEvent | MouseEvent) => {
+      if (!isResizingRef.current) return
+      const dx = ev.clientX - startX
+      const maxW = Math.min(900, Math.floor(window.innerWidth * 0.85))
+      const nextW = Math.max(MIN_WIDTH, Math.min(maxW, startW - dx))
+      setSidebarWidth(nextW)
+    }
+
+    const onUp = () => {
+      isResizingRef.current = false
+      window.removeEventListener('pointermove', onMove as EventListener)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('mousemove', onMove as EventListener)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('pointermove', onMove as EventListener)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('mousemove', onMove as EventListener)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // Natural Math Typing: Auto-parentheses, overtype, backspace pairing, and auto-superscript
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const input = inputRef.current
+    if (!input) return
+
+    const start = input.selectionStart ?? input.value.length
+    const end = input.selectionEnd ?? input.value.length
+    const val = input.value
+
+    // 1. Auto-close parentheses: '(' -> '()' with cursor inside
+    if (e.key === '(') {
+      e.preventDefault()
+      const selectedText = val.substring(start, end)
+      const nextVal = `${val.substring(0, start)}(${selectedText})${val.substring(end)}`
+      const nextCursor = start + 1
+      setDisplayInput(nextVal)
+      inkyStore.updateGraphedEquation(nextVal)
+      requestAnimationFrame(() => {
+        input.setSelectionRange(nextCursor, nextCursor + selectedText.length)
+      })
+      return
+    }
+
+    // 2. Overtype closing parenthesis: ')' steps over existing ')'
+    if (e.key === ')' && start === end && val[start] === ')') {
+      e.preventDefault()
+      input.setSelectionRange(start + 1, start + 1)
+      return
+    }
+
+    // 3. Auto-close absolute value: '|' -> '||' with cursor inside
+    if (e.key === '|') {
+      if (start === end && val[start] === '|') {
+        e.preventDefault()
+        input.setSelectionRange(start + 1, start + 1)
+        return
+      }
+      e.preventDefault()
+      const selectedText = val.substring(start, end)
+      const nextVal = `${val.substring(0, start)}|${selectedText}|${val.substring(end)}`
+      const nextCursor = start + 1
+      setDisplayInput(nextVal)
+      inkyStore.updateGraphedEquation(nextVal)
+      requestAnimationFrame(() => {
+        input.setSelectionRange(nextCursor, nextCursor + selectedText.length)
+      })
+      return
+    }
+
+    // 4. Paired backspace: removes both '(' and ')' or both '|' and '|'
+    if (e.key === 'Backspace' && start === end && start > 0) {
+      const prevChar = val[start - 1]
+      const nextChar = val[start]
+      if ((prevChar === '(' && nextChar === ')') || (prevChar === '|' && nextChar === '|')) {
+        e.preventDefault()
+        const nextVal = val.substring(0, start - 1) + val.substring(start + 1)
+        setDisplayInput(nextVal)
+        inkyStore.updateGraphedEquation(nextVal)
+        requestAnimationFrame(() => {
+          input.setSelectionRange(start - 1, start - 1)
+        })
+      }
+    }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value
     const cursor = e.target.selectionStart ?? rawVal.length
-    const { text, cursor: newCursor } = formatMathWithCursor(rawVal, cursor)
+    const { text, cursor: newCursor } = formatNaturalMathTyping(rawVal, cursor)
 
     setDisplayInput(text)
     inkyStore.updateGraphedEquation(text)
@@ -541,7 +730,7 @@ export function GraphSidebar() {
   const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
     const rawVal = (e.target as HTMLInputElement).value
     const cursor = (e.target as HTMLInputElement).selectionStart ?? rawVal.length
-    const { text, cursor: newCursor } = formatMathWithCursor(rawVal, cursor)
+    const { text, cursor: newCursor } = formatNaturalMathTyping(rawVal, cursor)
 
     setDisplayInput(text)
     inkyStore.updateGraphedEquation(text)
@@ -556,6 +745,7 @@ export function GraphSidebar() {
   const handleClearFormula = () => {
     setDisplayInput('')
     inkyStore.updateGraphedEquation('')
+    setProbePoint(null)
     inputRef.current?.focus()
   }
 
@@ -623,9 +813,27 @@ export function GraphSidebar() {
     <aside
       aria-label="Function Graph Sidebar"
       data-testid="graph-sidebar"
-      className="inky-ui absolute top-0 right-0 h-full w-[400px] max-w-[95vw] bg-white border-l border-black/8 shadow-xl flex flex-col z-40 select-none overflow-hidden"
+      style={{ width: `${sidebarWidth}px` }}
+      className="inky-ui absolute top-0 right-0 h-full max-w-[95vw] bg-white border-l border-black/8 shadow-2xl flex flex-col z-40 select-none overflow-hidden transition-[width] duration-75"
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {/* Resizable Left-Edge Drag Handle */}
+      <div
+        role="slider"
+        aria-orientation="horizontal"
+        aria-label="Resize graph panel"
+        aria-valuenow={sidebarWidth}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={900}
+        tabIndex={0}
+        title="Drag to resize panel"
+        className="absolute left-0 top-0 bottom-0 w-3 -translate-x-1.5 cursor-ew-resize hover:bg-blue-500/10 active:bg-blue-500/25 transition-colors z-50 flex items-center justify-center group touch-none"
+        onPointerDown={handleStartResize}
+        onMouseDown={handleStartResize}
+      >
+        <div className="w-[3px] h-8 rounded-full bg-black/15 group-hover:bg-black/40 group-active:bg-blue-500 transition-colors" />
+      </div>
+
       {/* 1. Minimalist Editorial Header */}
       <div className="flex items-center justify-between px-4 h-[46px] bg-white/95 backdrop-blur-md border-b border-black/6 shrink-0">
         <h2 className="text-[13px] font-medium text-[#111111] tracking-tight">Function Graph</h2>
@@ -654,7 +862,7 @@ export function GraphSidebar() {
         </div>
       </div>
 
-      {/* 2. Interactive Coordinate Plane */}
+      {/* 2. Interactive Cartesian Coordinate Plane (Trace & Drag Points) */}
       <div className="relative flex-1 bg-white min-h-[140px] overflow-hidden">
         <canvas
           ref={canvasRef}
@@ -664,10 +872,13 @@ export function GraphSidebar() {
           onPointerMove={handlePointerMoveCanvas}
           onPointerUp={handlePointerUpCanvas}
           onPointerCancel={handlePointerUpCanvas}
+          onMouseDown={handlePointerDownCanvas}
+          onMouseMove={handlePointerMoveCanvas}
+          onMouseUp={handlePointerUpCanvas}
           onWheel={handleWheelCanvas}
         />
 
-        {/* Quiet, Minimal Floating Controls */}
+        {/* Floating Zoom & Reset Controls */}
         <div className="absolute top-3 right-3 flex flex-col bg-white/95 backdrop-blur-md border border-black/8 rounded-lg shadow-xs overflow-hidden z-20">
           <button
             type="button"
@@ -698,7 +909,7 @@ export function GraphSidebar() {
         </div>
       </div>
 
-      {/* 3. Pure Desmos-Style Equation Box (Lower Stress, Zero Clutter) */}
+      {/* 3. Desmos-Quality Equation Box (Natural Math Typing, Auto-Parens, Elevated Superscripts) */}
       <div className="p-3.5 bg-white border-t border-black/6 shrink-0">
         <div className="flex items-center gap-3 px-3.5 py-2.5 bg-[#fbfbfa] hover:bg-white focus-within:bg-white rounded-xl border border-black/8 focus-within:border-black/25 focus-within:ring-2 focus-within:ring-black/5 transition-all shadow-2xs">
           {/* Wave Badge */}
@@ -718,12 +929,13 @@ export function GraphSidebar() {
             </svg>
           </div>
 
-          {/* Natural Math Input: Typing ^ automatically goes up to superscripts! */}
+          {/* Natural Math Input: Typing ^ elevates to superscripts, ( auto-closes, etc. */}
           <input
             ref={inputRef}
             id="graph-equation-input"
             type="text"
             value={displayInput}
+            onKeyDown={handleKeyDown}
             onChange={handleInputChange}
             onInput={handleInput}
             placeholder="y = x² - 4"

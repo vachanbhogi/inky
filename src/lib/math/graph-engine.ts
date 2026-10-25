@@ -104,6 +104,11 @@ function sanitizeLatexAndImplicitMath(expr: string): string {
         .join('')
       return `^(${mapped})`
     })
+    .replace(/½/g, '(1/2)')
+    .replace(/⅓/g, '(1/3)')
+    .replace(/¼/g, '(1/4)')
+    .replace(/⅔/g, '(2/3)')
+    .replace(/¾/g, '(3/4)')
     .replace(/×/g, '*')
     .replace(/÷/g, '/')
     .replace(/−/g, '-')
