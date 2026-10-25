@@ -1,9 +1,24 @@
-import type { HandleType } from './spatial-index'
+import type { BoundingBox, HandleType } from './spatial-index'
 import { getUnifiedBoundingBox } from './spatial-index'
 import { generateStrokePath } from './svg-utils'
 import type { Marquee, Stroke, ToolType } from './types'
 
 type Listener = () => void
+
+/** Caveat metrics used for per-char layout & boxes (≈0.5em advance, 1.25em line). */
+export const CHAR_ADVANCE_EM = 0.5
+export const CHAR_HEIGHT_EM = 1.25
+
+/** One glyph of a stamped answer as a first-class canvas item: selectable,
+ * draggable, transformable and erasable like a stroke. */
+export interface StampChar {
+  id: string
+  char: string
+  worldX: number
+  worldY: number
+  fontSize: number
+  angle: number
+}
 
 /** A stamped answer: real text in a handwriting face, sized from the user's
  * own writing, living on the world plane like any other ink. */
@@ -14,13 +29,73 @@ export interface Stamp {
   worldY: number
   color: string
   fontSize: number
+  /** Per-char items laid out from the anchor (0.5em advance). Transforms and
+   * the eraser operate on these; `worldX`/`worldY` stay the layout anchor. */
+  chars: StampChar[]
 }
 
-/** Rendered bbox estimate for a text stamp (Caveat advance ≈ 0.5em per char).
- * Used for eraser hit tests and viewport clamping. */
-export function stampBoundingBox(stamp: Stamp) {
-  const width = stamp.text.length * stamp.fontSize * 0.5
-  const height = stamp.fontSize * 1.25
+/** Build the per-char items for a text stamp: one entry per code point
+ * (surrogate-safe) laid along the baseline at 0.5em advance. */
+export function stampCharsFor(
+  text: string,
+  worldX: number,
+  worldY: number,
+  fontSize: number,
+  stampId: string,
+): StampChar[] {
+  return Array.from(text).map((char, i) => ({
+    id: `${stampId}-c${i}`,
+    char,
+    worldX: worldX + i * fontSize * CHAR_ADVANCE_EM,
+    worldY,
+    fontSize,
+    angle: 0,
+  }))
+}
+
+/** Axis-aligned box of one char: its advance box, rotated about its own
+ * center when the char carries an angle. */
+export function charBoundingBox(ch: StampChar): BoundingBox {
+  const w = ch.fontSize * CHAR_ADVANCE_EM
+  const h = ch.fontSize * CHAR_HEIGHT_EM
+  if (!ch.angle) {
+    return { minX: ch.worldX, minY: ch.worldY, maxX: ch.worldX + w, maxY: ch.worldY + h }
+  }
+  const cx = ch.worldX + w / 2
+  const cy = ch.worldY + h / 2
+  const cos = Math.cos(ch.angle)
+  const sin = Math.sin(ch.angle)
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (const [px, py] of [
+    [ch.worldX, ch.worldY],
+    [ch.worldX + w, ch.worldY],
+    [ch.worldX + w, ch.worldY + h],
+    [ch.worldX, ch.worldY + h],
+  ]) {
+    const dx = px - cx
+    const dy = py - cy
+    const rx = cx + dx * cos - dy * sin
+    const ry = cy + dx * sin + dy * cos
+    if (rx < minX) minX = rx
+    if (ry < minY) minY = ry
+    if (rx > maxX) maxX = rx
+    if (ry > maxY) maxY = ry
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+/** Rendered bbox of a text stamp: the union of its char boxes (used for
+ * eraser hit tests, marquee overlap and viewport clamping). */
+export function stampBoundingBox(stamp: Stamp): BoundingBox {
+  if (stamp.chars.length > 0) {
+    return getUnifiedBoundingBox(stamp.chars.map(charBoundingBox)) as BoundingBox
+  }
+  // Fallback for a charless stamp (shouldn't happen — stampResult builds chars).
+  const width = stamp.text.length * stamp.fontSize * CHAR_ADVANCE_EM
+  const height = stamp.fontSize * CHAR_HEIGHT_EM
   return {
     minX: stamp.worldX,
     minY: stamp.worldY,
@@ -44,7 +119,10 @@ export class InkyStore {
 
   // Selection & Transform state
   selectedStrokeIds: string[] = []
+  /** Selected stamp chars — parallel to strokes so glyphs are first-class. */
+  selectedCharIds: string[] = []
   hoveredStrokeId: string | null = null
+  hoveredCharId: string | null = null
   marquee: Marquee | null = null
   activeHandle: HandleType | null = null
   eraserPoint: { x: number; y: number; radius: number } | null = null
@@ -74,6 +152,14 @@ export class InkyStore {
       pathData?: string
       angle?: number
     }[]
+    chars: {
+      id: string
+      stampId: string
+      worldX: number
+      worldY: number
+      fontSize: number
+      angle: number
+    }[]
     selectionBox: { minX: number; minY: number; maxX: number; maxY: number }
   } | null = null
 
@@ -82,7 +168,12 @@ export class InkyStore {
   private listeners: Set<Listener> = new Set()
 
   private snapshot(): UndoSnapshot {
-    return { strokes: [...this.strokes], stamps: [...this.stamps] }
+    return {
+      strokes: [...this.strokes],
+      // Deep-copy stamps + chars: per-char mutations (erase, transform) edit
+      // char objects in place, so a shallow copy would alias them.
+      stamps: this.stamps.map((s) => ({ ...s, chars: s.chars.map((c) => ({ ...c })) })),
+    }
   }
 
   subscribe(listener: Listener): () => void {
@@ -170,6 +261,7 @@ export class InkyStore {
   setActiveTool(tool: ToolType) {
     this.activeTool = tool
     this.hoveredStrokeId = null
+    this.hoveredCharId = null
     this.eraserPoint = null
     this.notify()
   }
@@ -177,6 +269,13 @@ export class InkyStore {
   setHoveredStrokeId(id: string | null) {
     if (this.hoveredStrokeId !== id) {
       this.hoveredStrokeId = id
+      this.notify()
+    }
+  }
+
+  setHoveredCharId(id: string | null) {
+    if (this.hoveredCharId !== id) {
+      this.hoveredCharId = id
       this.notify()
     }
   }
@@ -208,11 +307,12 @@ export class InkyStore {
     this.notify()
   }
 
-  /** Stamp an answer as ONE undo step: append the text stamp, arm the
-   * reveal wipe, dismiss the capsule, clear the selection, and return the
-   * user to the pen. The stamp's x is clamped so it can never land
-   * off-screen (M2) — rendered width ≈ chars × fontSize × 0.5em × zoom. */
-  stampResult(stamp: Omit<Stamp, 'id'>) {
+  /** Stamp an answer as ONE undo step: append the text stamp (one char item
+   * per code point), arm the reveal wipe, dismiss the capsule, clear the
+   * selection, and return the user to the pen. The stamp's x is clamped so it
+   * can never land off-screen (M2) — rendered width ≈ chars × fontSize ×
+   * 0.5em × zoom. */
+  stampResult(stamp: Omit<Stamp, 'id' | 'chars'>) {
     if (!stamp.text.trim()) return
     let worldX = stamp.worldX
     if (typeof window !== 'undefined') {
@@ -227,33 +327,41 @@ export class InkyStore {
     const id = `stamp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     this.undoStack.push(this.snapshot())
     this.redoStack = []
-    this.stamps.push({ ...stamp, id, worldX })
+    this.stamps.push({
+      ...stamp,
+      id,
+      worldX,
+      chars: stampCharsFor(stamp.text, worldX, stamp.worldY, stamp.fontSize, id),
+    })
     this.stampedReveal = { stampId: id, startedAt: performance.now() }
     this.mathCapsule = null
     this.selectedStrokeIds = []
+    this.selectedCharIds = []
     this.activeTool = 'draw'
     this.notify()
   }
 
-  deleteStamp(id: string) {
-    if (!this.stamps.some((s) => s.id === id)) return
+  /** Remove one char by id. The stamp survives while any visible glyph
+   * remains; losing its last visible glyph drops the whole stamp. */
+  deleteChar(id: string) {
+    const rec = this.charRecord(id)
+    if (!rec) return
     this.undoStack.push(this.snapshot())
     this.redoStack = []
-    this.stamps = this.stamps.filter((s) => s.id !== id)
-    if (this.stampedReveal?.stampId === id) this.stampedReveal = null
+    this.stamps = this.stamps
+      .map((s) => (s.id === rec.stampId ? { ...s, chars: s.chars.filter((c) => c.id !== id) } : s))
+      // A stamp with no visible glyphs left is gone (whitespace is layout only).
+      .filter((s) => s.chars.some((c) => !/\s/.test(c.char)))
+    this.selectedCharIds = this.selectedCharIds.filter((cid) => cid !== id)
+    this.dropRevealIfStampGone()
     this.notify()
   }
 
-  /** Eraser hit test in world space: delete the stamp under the point. */
-  deleteStampAt(x: number, y: number, radius: number): boolean {
-    const hit = this.stamps.find((s) => {
-      const b = stampBoundingBox(s)
-      return (
-        x >= b.minX - radius && x <= b.maxX + radius && y >= b.minY - radius && y <= b.maxY + radius
-      )
-    })
+  /** Eraser hit test in world space: delete the char under the point. */
+  deleteCharAt(x: number, y: number, radius: number): boolean {
+    const hit = this.charAt(x, y, radius)
     if (!hit) return false
-    this.deleteStamp(hit.id)
+    this.deleteChar(hit.char.id)
     return true
   }
 
@@ -277,9 +385,11 @@ export class InkyStore {
       this.redoStack.push(this.snapshot())
       this.strokes = prev.strokes
       this.stamps = prev.stamps
-      // Drop selection entries for strokes this undo removed.
+      // Drop selection entries for items this undo removed.
       const existing = new Set(prev.strokes.map((s) => s.id))
       this.selectedStrokeIds = this.selectedStrokeIds.filter((id) => existing.has(id))
+      const existingChars = new Set(prev.stamps.flatMap((s) => s.chars.map((c) => c.id)))
+      this.selectedCharIds = this.selectedCharIds.filter((id) => existingChars.has(id))
       this.dropRevealIfStampGone()
       this.notify()
     }
@@ -310,6 +420,7 @@ export class InkyStore {
     this.stamps = []
     this.stampedReveal = null
     this.selectedStrokeIds = []
+    this.selectedCharIds = []
     this.notify()
   }
 
@@ -322,7 +433,9 @@ export class InkyStore {
         this.selectedStrokeIds.push(id)
       }
     } else {
+      // A plain click replaces the whole selection across kinds.
       this.selectedStrokeIds = [id]
+      this.selectedCharIds = []
     }
     this.notify()
   }
@@ -332,16 +445,41 @@ export class InkyStore {
     this.notify()
   }
 
+  selectChar(id: string, toggle = false) {
+    if (toggle) {
+      if (this.selectedCharIds.includes(id)) {
+        this.selectedCharIds = this.selectedCharIds.filter((cId) => cId !== id)
+      } else {
+        this.selectedCharIds.push(id)
+      }
+    } else {
+      // A plain click replaces the whole selection across kinds.
+      this.selectedCharIds = [id]
+      this.selectedStrokeIds = []
+    }
+    this.notify()
+  }
+
+  selectChars(ids: string[]) {
+    this.selectedCharIds = [...ids]
+    this.notify()
+  }
+
   selectAll() {
-    if (this.strokes.length === 0) return
+    if (this.strokes.length === 0 && this.stamps.length === 0) return
     this.selectedStrokeIds = this.strokes.map((s) => s.id)
+    this.selectedCharIds = this.stamps.flatMap((s) =>
+      s.chars.filter((c) => !/\s/.test(c.char)).map((c) => c.id),
+    )
     this.activeTool = 'select'
     this.notify()
   }
 
   clearSelection() {
-    if (this.selectedStrokeIds.length === 0 && !this.marquee) return
+    if (this.selectedStrokeIds.length === 0 && this.selectedCharIds.length === 0 && !this.marquee)
+      return
     this.selectedStrokeIds = []
+    this.selectedCharIds = []
     this.marquee = null
     this.activeHandle = null
     this.notify()
@@ -357,10 +495,66 @@ export class InkyStore {
     this.notify()
   }
 
+  /** Find one char item by id (across all stamps). */
+  charRecord(charId: string): { stampId: string; char: StampChar } | null {
+    for (const stamp of this.stamps) {
+      const char = stamp.chars.find((c) => c.id === charId)
+      if (char) return { stampId: stamp.id, char }
+    }
+    return null
+  }
+
+  /** Top-most visible (non-whitespace) char under a world point, testing the
+   * char's own rotated space. `tolerance` pads the hit box (eraser radius,
+   * click affordance) — default 0 is an exact box hit. */
+  charAt(
+    worldX: number,
+    worldY: number,
+    tolerance = 0,
+  ): { stampId: string; char: StampChar } | null {
+    for (let si = this.stamps.length - 1; si >= 0; si--) {
+      const stamp = this.stamps[si]
+      for (let ci = stamp.chars.length - 1; ci >= 0; ci--) {
+        const ch = stamp.chars[ci]
+        if (/\s/.test(ch.char)) continue
+        const w = ch.fontSize * CHAR_ADVANCE_EM
+        const h = ch.fontSize * CHAR_HEIGHT_EM
+        let px = worldX
+        let py = worldY
+        if (ch.angle) {
+          const cx = ch.worldX + w / 2
+          const cy = ch.worldY + h / 2
+          const cos = Math.cos(-ch.angle)
+          const sin = Math.sin(-ch.angle)
+          const dx = worldX - cx
+          const dy = worldY - cy
+          px = cx + dx * cos - dy * sin
+          py = cy + dx * sin + dy * cos
+        }
+        if (
+          px >= ch.worldX - tolerance &&
+          px <= ch.worldX + w + tolerance &&
+          py >= ch.worldY - tolerance &&
+          py <= ch.worldY + h + tolerance
+        ) {
+          return { stampId: stamp.id, char: ch }
+        }
+      }
+    }
+    return null
+  }
+
   getSelectionBoundingBox() {
-    const selected = this.strokes.filter((s) => this.selectedStrokeIds.includes(s.id))
-    if (selected.length === 0) return null
-    return getUnifiedBoundingBox(selected.map((s) => s.boundingBox))
+    const boxes = [
+      ...this.strokes
+        .filter((s) => this.selectedStrokeIds.includes(s.id))
+        .map((s) => s.boundingBox),
+      ...this.selectedCharIds
+        .map((id) => this.charRecord(id)?.char)
+        .filter((c): c is StampChar => c !== null)
+        .map(charBoundingBox),
+    ]
+    return getUnifiedBoundingBox(boxes)
   }
 
   deleteStroke(id: string) {
@@ -375,16 +569,62 @@ export class InkyStore {
   }
 
   deleteSelected() {
-    if (this.selectedStrokeIds.length === 0) return
+    if (this.selectedStrokeIds.length === 0 && this.selectedCharIds.length === 0) return
     this.undoStack.push(this.snapshot())
     this.redoStack = []
     this.strokes = this.strokes.filter((s) => !this.selectedStrokeIds.includes(s.id))
+    const charIds = new Set(this.selectedCharIds)
+    this.stamps = this.stamps
+      .map((s) => ({ ...s, chars: s.chars.filter((c) => !charIds.has(c.id)) }))
+      // A stamp with no visible glyphs left is gone (whitespace is layout only).
+      .filter((s) => s.chars.some((c) => !/\s/.test(c.char)))
     this.selectedStrokeIds = []
+    this.selectedCharIds = []
+    this.dropRevealIfStampGone()
     this.notify()
   }
 
+  /** Capture the pre-transform state of the current selection (strokes AND
+   * chars) so drag/handle gestures mutate from a fixed origin and
+   * commitTransform can push a single restoring undo entry. */
+  beginTransform(box?: { minX: number; minY: number; maxX: number; maxY: number }) {
+    const selectionBox = box ?? this.getSelectionBoundingBox()
+    if (!selectionBox) return
+    this.transformInitialState = {
+      strokes: this.strokes
+        .filter((s) => this.selectedStrokeIds.includes(s.id))
+        .map((s) => ({
+          id: s.id,
+          points: s.points.map(([px, py]) => [px, py] as [number, number]),
+          boundingBox: { ...s.boundingBox },
+          pathData: s.pathData,
+          angle: s.angle,
+        })),
+      chars: this.selectedCharIds.flatMap((id) => {
+        const rec = this.charRecord(id)
+        return rec
+          ? [
+              {
+                id,
+                stampId: rec.stampId,
+                worldX: rec.char.worldX,
+                worldY: rec.char.worldY,
+                fontSize: rec.char.fontSize,
+                angle: rec.char.angle,
+              },
+            ]
+          : []
+      }),
+      selectionBox: { ...selectionBox },
+    }
+  }
+
+  private transformHasSelection(): boolean {
+    return this.selectedStrokeIds.length > 0 || this.selectedCharIds.length > 0
+  }
+
   scaleSelected(handle: HandleType, currentWorldX: number, currentWorldY: number) {
-    if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
+    if (!this.transformHasSelection() || !this.transformInitialState) return
 
     const { selectionBox } = this.transformInitialState
     const { minX, minY, maxX, maxY } = selectionBox
@@ -444,11 +684,21 @@ export class InkyStore {
       }
       stroke.boundingBox = { minX: minPtX, minY: minPtY, maxX: maxPtX, maxY: maxPtY }
     }
+
+    // Chars scale around the same anchor; fontSize follows the area scale.
+    const sizeScale = Math.sqrt(Math.abs(safeScaleX * safeScaleY))
+    for (const initChar of this.transformInitialState.chars) {
+      const char = this.charRecord(initChar.id)?.char
+      if (!char) continue
+      char.worldX = anchorX + (initChar.worldX - anchorX) * safeScaleX
+      char.worldY = anchorY + (initChar.worldY - anchorY) * safeScaleY
+      char.fontSize = initChar.fontSize * sizeScale
+    }
     this.notify()
   }
 
   translateSelected(dx: number, dy: number) {
-    if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
+    if (!this.transformHasSelection() || !this.transformInitialState) return
 
     for (const initStroke of this.transformInitialState.strokes) {
       const stroke = this.strokes.find((s) => s.id === initStroke.id)
@@ -463,11 +713,18 @@ export class InkyStore {
         maxY: initStroke.boundingBox.maxY + dy,
       }
     }
+
+    for (const initChar of this.transformInitialState.chars) {
+      const char = this.charRecord(initChar.id)?.char
+      if (!char) continue
+      char.worldX = initChar.worldX + dx
+      char.worldY = initChar.worldY + dy
+    }
     this.notify()
   }
 
   rotateSelected(currentWorldX: number, currentWorldY: number) {
-    if (this.selectedStrokeIds.length === 0 || !this.transformInitialState) return
+    if (!this.transformHasSelection() || !this.transformInitialState) return
 
     const { selectionBox } = this.transformInitialState
     const cx = selectionBox.minX + (selectionBox.maxX - selectionBox.minX) / 2
@@ -484,6 +741,14 @@ export class InkyStore {
 
       const baseAngle = initStroke.angle || 0
       stroke.angle = baseAngle + deltaAngle
+    }
+
+    // Chars spin in place around their own centers (stroke parity: rotate
+    // sets the angle, positions stay put).
+    for (const initChar of this.transformInitialState.chars) {
+      const char = this.charRecord(initChar.id)?.char
+      if (!char) continue
+      char.angle = (initChar.angle || 0) + deltaAngle
     }
     this.notify()
   }
@@ -504,7 +769,28 @@ export class InkyStore {
         }
         return { ...s }
       }),
-      stamps: [...this.stamps],
+      // Capture the PRE-transform char state so one undo reverts the whole
+      // gesture (chars were mutated in place during the drag).
+      stamps: this.stamps.map((s) => {
+        const initChars =
+          this.transformInitialState?.chars.filter((ic) => ic.stampId === s.id) ?? []
+        if (initChars.length === 0) return { ...s }
+        return {
+          ...s,
+          chars: s.chars.map((c) => {
+            const init = initChars.find((ic) => ic.id === c.id)
+            return init
+              ? {
+                  ...c,
+                  worldX: init.worldX,
+                  worldY: init.worldY,
+                  fontSize: init.fontSize,
+                  angle: init.angle,
+                }
+              : { ...c }
+          }),
+        }
+      }),
     })
     this.redoStack = []
     this.transformInitialState = null

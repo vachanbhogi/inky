@@ -2,7 +2,7 @@ import '@fontsource/caveat/600.css'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { prefersReducedMotion, STAMP_WIPE_EDGE_PX, stampWipe } from '../../lib/canvas/motion'
-import { inkyStore, type Stamp } from '../../lib/canvas/store'
+import { inkyStore, type Stamp, stampBoundingBox } from '../../lib/canvas/store'
 
 function StampView({
   stamp,
@@ -13,6 +13,10 @@ function StampView({
 }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [screenX, screenY] = toScreen(stamp.worldX, stamp.worldY, camera)
+  // Container width covers the char extent so the wipe's offsetWidth sweep
+  // measures the real rendered run (children are absolutely positioned and
+  // would otherwise leave the container at width 0).
+  const stampWidthPx = (stampBoundingBox(stamp).maxX - stamp.worldX) * camera.z
 
   // Feathered left-to-right wipe for the freshly stamped answer: a 16px
   // soft-edge mask sweeps across the text over STAMP_WIPE_MS with the locked
@@ -65,16 +69,37 @@ function StampView({
         fontWeight: 600,
         fontSize: `${stamp.fontSize * camera.z}px`,
         lineHeight: 1.25,
+        width: `${stampWidthPx}px`,
       }}
     >
-      {stamp.text}
+      {stamp.chars.map((c) => (
+        <span
+          key={c.id}
+          data-char-id={c.id}
+          className="absolute whitespace-pre"
+          style={{
+            left: `${(c.worldX - stamp.worldX) * camera.z}px`,
+            top: `${(c.worldY - stamp.worldY) * camera.z}px`,
+            fontSize: `${c.fontSize * camera.z}px`,
+            lineHeight: 1.25,
+            transform: c.angle
+              ? `rotate(${Number(((c.angle * 180) / Math.PI).toFixed(4))}deg)`
+              : undefined,
+            transformOrigin: 'center',
+          }}
+        >
+          {c.char}
+        </span>
+      ))}
     </span>
   )
 }
 
 /** DOM overlay for stamped answers: real text in a handwriting face, sized
  * from the user's own writing, living on the world plane (pans and zooms
- * with the canvas) and revealed by the feathered wipe. */
+ * with the canvas) and revealed by the feathered wipe. Each char is its own
+ * span (data-char-id) so single glyphs can be selected, transformed and
+ * erased like strokes. */
 export function StampLayer() {
   const [, setVersion] = useState(0)
   useEffect(() => inkyStore.subscribe(() => setVersion((v) => v + 1)), [])

@@ -7,7 +7,7 @@ import {
   getBoundingBox,
   isPointOnStroke,
 } from '../../lib/canvas/spatial-index'
-import { inkyStore } from '../../lib/canvas/store'
+import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-gesture'
 import type { Stroke } from '../../lib/canvas/types'
@@ -208,7 +208,7 @@ export function InkyBoard() {
       }
 
       if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (inkyStore.selectedStrokeIds.length > 0) {
+        if (inkyStore.selectedStrokeIds.length > 0 || inkyStore.selectedCharIds.length > 0) {
           e.preventDefault()
           inkyStore.deleteSelected()
           return
@@ -353,17 +353,7 @@ export function InkyBoard() {
 
       if (currentBox && hitHandle) {
         inkyStore.setActiveHandle(hitHandle)
-        const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
-        inkyStore.transformInitialState = {
-          strokes: selected.map((s) => ({
-            id: s.id,
-            points: s.points.map(([px, py]) => [px, py]),
-            boundingBox: { ...s.boundingBox },
-            pathData: s.pathData,
-            angle: s.angle,
-          })),
-          selectionBox: { ...currentBox },
-        }
+        inkyStore.beginTransform(currentBox)
         return
       }
 
@@ -374,6 +364,9 @@ export function InkyBoard() {
         worldX <= currentBox.maxX + 4 &&
         worldY >= currentBox.minY - 4 &&
         worldY <= currentBox.maxY + 4
+
+      // Chars are top-most DOM items — hit-test them before ink.
+      const clickedChar = inkyStore.charAt(worldX, worldY, 4 / inkyStore.camera.z)
 
       // Test reverse order so top-most stroke is clicked first
       let clickedStroke: Stroke | null = null
@@ -387,21 +380,20 @@ export function InkyBoard() {
 
       if (
         isInsideSelection &&
-        (!clickedStroke || inkyStore.selectedStrokeIds.includes(clickedStroke.id))
+        (!clickedStroke || inkyStore.selectedStrokeIds.includes(clickedStroke.id)) &&
+        (!clickedChar || inkyStore.selectedCharIds.includes(clickedChar.char.id))
       ) {
         // Dragging existing selection
         isDraggingSelectionRef.current = true
         dragStartWorldRef.current = { x: worldX, y: worldY }
-        const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
-        inkyStore.transformInitialState = {
-          strokes: selected.map((s) => ({
-            id: s.id,
-            points: s.points.map(([px, py]) => [px, py]),
-            boundingBox: { ...s.boundingBox },
-            pathData: s.pathData,
-            angle: s.angle,
-          })),
-          selectionBox: { ...currentBox },
+        inkyStore.beginTransform(currentBox)
+      } else if (clickedChar) {
+        inkyStore.selectChar(clickedChar.char.id, e.shiftKey)
+        const updatedBox = inkyStore.getSelectionBoundingBox()
+        if (updatedBox) {
+          isDraggingSelectionRef.current = true
+          dragStartWorldRef.current = { x: worldX, y: worldY }
+          inkyStore.beginTransform(updatedBox)
         }
       } else if (clickedStroke) {
         inkyStore.selectStroke(clickedStroke.id, e.shiftKey)
@@ -409,19 +401,7 @@ export function InkyBoard() {
         if (updatedBox) {
           isDraggingSelectionRef.current = true
           dragStartWorldRef.current = { x: worldX, y: worldY }
-          const selected = inkyStore.strokes.filter((s) =>
-            inkyStore.selectedStrokeIds.includes(s.id),
-          )
-          inkyStore.transformInitialState = {
-            strokes: selected.map((s) => ({
-              id: s.id,
-              points: s.points.map(([px, py]) => [px, py]),
-              boundingBox: { ...s.boundingBox },
-              pathData: s.pathData,
-              angle: s.angle,
-            })),
-            selectionBox: { ...updatedBox },
-          }
+          inkyStore.beginTransform(updatedBox)
         }
       } else {
         if (!e.shiftKey) {
@@ -476,9 +456,21 @@ export function InkyBoard() {
           break
         }
       }
-      inkyStore.setHoveredStrokeId(hitId)
+      // Chars outrank ink for the eraser highlight (they're hit first too).
+      const hitChar = inkyStore.charAt(worldX, worldY, eraserRadius)
+      inkyStore.setHoveredCharId(hitChar?.char.id ?? null)
+      inkyStore.setHoveredStrokeId(hitChar ? null : hitId)
     } else if (inkyStore.eraserPoint) {
       inkyStore.setEraserPoint(null)
+    }
+
+    // Select tool: hover affordance on glyphs (chars are clickable items).
+    if (activeTool === 'select' && !isPointerDownRef.current) {
+      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      const hoverChar = inkyStore.charAt(worldX, worldY, 4 / inkyStore.camera.z)
+      inkyStore.setHoveredCharId(hoverChar?.char.id ?? null)
+    } else if (inkyStore.hoveredCharId && activeTool !== 'eraser') {
+      inkyStore.setHoveredCharId(null)
     }
 
     if (!isPointerDownRef.current) return
@@ -608,6 +600,14 @@ export function InkyBoard() {
             .filter((s) => checkBoundingBoxOverlap(marqueeBox, s.boundingBox))
             .map((s) => s.id)
           inkyStore.selectStrokes(selectedIds)
+          // Chars are first-class: marquee grabs glyphs too (whitespace is
+          // layout-only and never selectable).
+          const charIds = inkyStore.stamps
+            .flatMap((s) => s.chars)
+            .filter((c) => !/\s/.test(c.char))
+            .filter((c) => checkBoundingBoxOverlap(marqueeBox, charBoundingBox(c)))
+            .map((c) => c.id)
+          inkyStore.selectChars(charIds)
         }
 
         inkyStore.setMarquee(null)
@@ -621,8 +621,8 @@ export function InkyBoard() {
     const eraserRadius = baseRadius / inkyStore.camera.z
 
     // Stamps are DOM text but live on the world plane — the eraser removes
-    // them by world-space bbox hit test, same as ink.
-    if (inkyStore.deleteStampAt(worldPoint[0], worldPoint[1], eraserRadius)) {
+    // their chars by world-space hit test, same as ink.
+    if (inkyStore.deleteCharAt(worldPoint[0], worldPoint[1], eraserRadius)) {
       return
     }
 
