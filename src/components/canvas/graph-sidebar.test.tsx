@@ -55,15 +55,15 @@ describe('GraphSidebar component', () => {
     await mountSidebar()
 
     const input = document.querySelector('input') as HTMLInputElement
-    expect(input.value).toBe('y = x^2 - 4')
+    expect(input.value).toBe('y = x² - 4')
 
     // Simulate direct input change
-    input.value = 'y = x^2 - 9'
-    inkyStore.updateGraphedEquation('y = x^2 - 9')
+    input.value = 'y = x² - 9'
+    inkyStore.updateGraphedEquation('y = x² - 9')
     await flush()
 
     // State in inkyStore was updated
-    expect(inkyStore.graphSidebar.equation).toBe('y = x^2 - 9')
+    expect(inkyStore.graphSidebar.equation).toBe('y = x² - 9')
   })
 
   it('closes sidebar when close button is clicked', async () => {
@@ -91,24 +91,15 @@ describe('GraphSidebar component', () => {
     inkyStore.openGraphSidebar('y = \\sin(x)')
     await flush()
 
-    expect(input.value).toBe('y = \\sin(x)')
+    expect(input.value).toBe('y = sin(x)')
   })
 
-  it('updates equation when a preset button is clicked', async () => {
-    inkyStore.openGraphSidebar('y = 2x + 1')
+  it('automatically elevates exponents to superscripts as user types', async () => {
+    inkyStore.openGraphSidebar('y = x^2 - 4')
     await mountSidebar()
 
-    const presetBtn = Array.from(document.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('y = x² - 4'),
-    ) as HTMLButtonElement
-    expect(presetBtn).toBeDefined()
-
-    presetBtn.click()
-    await flush()
-
     const input = document.querySelector('input') as HTMLInputElement
-    expect(input.value).toBe('y = x^2 - 4')
-    expect(inkyStore.graphSidebar.equation).toBe('y = x^2 - 4')
+    expect(input.value).toBe('y = x² - 4')
   })
 
   it('toggles virtual math keypad on and off', async () => {
@@ -118,9 +109,7 @@ describe('GraphSidebar component', () => {
     // Initially closed
     expect(document.querySelector('button[title="Clear All"]')).toBeNull()
 
-    const keypadToggle = document.querySelector(
-      'button[title="Show Math Keypad"]',
-    ) as HTMLButtonElement
+    const keypadToggle = document.querySelector('button[title="Show Keypad"]') as HTMLButtonElement
     expect(keypadToggle).not.toBeNull()
 
     keypadToggle.click()

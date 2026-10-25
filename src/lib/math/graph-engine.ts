@@ -65,6 +65,50 @@ const VALID_VARIABLES = new Set(['x', 't', 'u', 'v', 'r', 'theta'])
 
 function sanitizeLatexAndImplicitMath(expr: string): string {
   return expr
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿˣ]+/g, (match) => {
+      const mapped = Array.from(match)
+        .map((ch) => {
+          switch (ch) {
+            case '⁰':
+              return '0'
+            case '¹':
+              return '1'
+            case '²':
+              return '2'
+            case '³':
+              return '3'
+            case '⁴':
+              return '4'
+            case '⁵':
+              return '5'
+            case '⁶':
+              return '6'
+            case '⁷':
+              return '7'
+            case '⁸':
+              return '8'
+            case '⁹':
+              return '9'
+            case '⁺':
+              return '+'
+            case '⁻':
+              return '-'
+            case 'ⁿ':
+              return 'n'
+            case 'ˣ':
+              return 'x'
+            default:
+              return ch
+          }
+        })
+        .join('')
+      return `^(${mapped})`
+    })
+    .replace(/×/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/−/g, '-')
+    .replace(/√\s*([0-9a-zA-Z]+|\([^)]+\))/g, 'sqrt($1)')
+    .replace(/√/g, 'sqrt')
     .replace(/\\times/g, '*')
     .replace(/\\cdot/g, '*')
     .replace(/\\div/g, '/')
