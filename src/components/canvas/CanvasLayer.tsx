@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { lassoDissolve, recognizedPulseAlpha } from '../../lib/canvas/motion'
 import { checkBoundingBoxOverlap, getViewportBoundingBox } from '../../lib/canvas/spatial-index'
-import { inkyStore } from '../../lib/canvas/store'
+import { CHAR_ADVANCE_EM, CHAR_HEIGHT_EM, charBoundingBox, inkyStore } from '../../lib/canvas/store'
 
 export function CanvasLayer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,6 +47,74 @@ export function CanvasLayer() {
       ctx.translate(x, y)
       ctx.scale(z, z)
 
+      // Recognition pulse: soft blue wash behind enclosed strokes (decays to 0)
+      const pulse = state.recognizedPulse
+      if (pulse) {
+        const { alpha, done } = recognizedPulseAlpha(performance.now() - pulse.startedAt)
+        if (done) {
+          inkyStore.setRecognizedPulse(null)
+        } else if (alpha > 0) {
+          for (const id of pulse.strokeIds) {
+            const s = state.strokes.find((st) => st.id === id)
+            if (!s) continue
+            const { minX, minY, maxX, maxY } = s.boundingBox
+            const pad = 3 / z
+            ctx.fillStyle = `rgba(37, 99, 235, ${alpha})`
+            ctx.beginPath()
+            ctx.roundRect(
+              minX - pad,
+              minY - pad,
+              maxX - minX + pad * 2,
+              maxY - minY + pad * 2,
+              4 / z,
+            )
+            ctx.fill()
+          }
+        }
+      }
+
+      // Char highlight (hover = soft amber wash, eraser hover = red hairline,
+      // selected = blue wash). Chars render under ink so handwriting stays on
+      // top; these boxes match the DOM spans' world-space advance boxes.
+      const drawCharBox = (
+        ch: { worldX: number; worldY: number; fontSize: number; angle: number },
+        fill: string | null,
+        stroke: string | null,
+      ) => {
+        const w = ch.fontSize * CHAR_ADVANCE_EM
+        const h = ch.fontSize * CHAR_HEIGHT_EM
+        const pad = 2 / z
+        ctx.save()
+        if (ch.angle) {
+          ctx.translate(ch.worldX + w / 2, ch.worldY + h / 2)
+          ctx.rotate(ch.angle)
+          ctx.translate(-(ch.worldX + w / 2), -(ch.worldY + h / 2))
+        }
+        if (fill) {
+          ctx.fillStyle = fill
+          ctx.fillRect(ch.worldX - pad, ch.worldY - pad, w + pad * 2, h + pad * 2)
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke
+          ctx.lineWidth = 1.5 / z
+          ctx.strokeRect(ch.worldX - pad, ch.worldY - pad, w + pad * 2, h + pad * 2)
+        }
+        ctx.restore()
+      }
+      for (const stamp of state.stamps) {
+        for (const ch of stamp.chars) {
+          if (/\s/.test(ch.char)) continue
+          const box = charBoundingBox(ch)
+          if (!checkBoundingBoxOverlap(viewportBox, box)) continue
+          if (state.selectedCharIds.includes(ch.id)) {
+            drawCharBox(ch, 'rgba(37, 99, 235, 0.12)', null)
+          } else if (state.activeTool === 'eraser' && state.hoveredCharId === ch.id) {
+            drawCharBox(ch, null, '#ef4444')
+          } else if (state.hoveredCharId === ch.id) {
+            drawCharBox(ch, 'rgba(245, 158, 11, 0.14)', null)
+          }
+        }
+      }
       // Draw all finalized strokes
       for (const stroke of state.strokes) {
         if (!checkBoundingBoxOverlap(viewportBox, stroke.boundingBox)) {
@@ -77,6 +146,30 @@ export function CanvasLayer() {
             ctx.strokeRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2)
           }
 
+          ctx.restore()
+        }
+      }
+
+      // Lasso dissolve: the circle gesture fades + shrinks toward the capsule
+      // anchor instead of vanishing. Cleared once complete.
+      const dissolve = state.gestureDissolve
+      if (dissolve) {
+        const result = lassoDissolve(
+          performance.now() - dissolve.startedAt,
+          dissolve.anchor,
+          dissolve.stroke,
+        )
+        if (result.done) {
+          inkyStore.setGestureDissolve(null)
+        } else if (dissolve.stroke.pathData) {
+          ctx.save()
+          ctx.globalAlpha = result.opacity
+          const { x: ax, y: ay } = dissolve.anchor
+          ctx.translate(ax, ay)
+          ctx.scale(result.scale, result.scale)
+          ctx.translate(-ax, -ay)
+          ctx.fillStyle = dissolve.stroke.color
+          ctx.fill(new Path2D(dissolve.stroke.pathData))
           ctx.restore()
         }
       }
@@ -120,7 +213,10 @@ export function CanvasLayer() {
       }
 
       // Draw unified selection bounding box + handles
-      if (state.activeTool === 'select' && state.selectedStrokeIds.length > 0) {
+      if (
+        state.activeTool === 'select' &&
+        (state.selectedStrokeIds.length > 0 || state.selectedCharIds.length > 0)
+      ) {
         const bbox = state.getSelectionBoundingBox()
         if (bbox) {
           const { minX, minY, maxX, maxY } = bbox
@@ -174,8 +270,12 @@ export function CanvasLayer() {
       ctx.restore()
       const needsContinuousAnimation =
         (state.activeTool === 'eraser' &&
-          (state.hoveredStrokeId !== null || state.eraserPoint !== null)) ||
-        state.currentStroke !== null
+          (state.hoveredStrokeId !== null ||
+            state.hoveredCharId !== null ||
+            state.eraserPoint !== null)) ||
+        state.currentStroke !== null ||
+        state.gestureDissolve !== null ||
+        state.recognizedPulse !== null
 
       if (needsContinuousAnimation) {
         animationFrameId = requestAnimationFrame(render)

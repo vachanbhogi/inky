@@ -7,16 +7,87 @@ import {
   getBoundingBox,
   isPointOnStroke,
 } from '../../lib/canvas/spatial-index'
-import { inkyStore } from '../../lib/canvas/store'
+import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-gesture'
 import type { Stroke } from '../../lib/canvas/types'
 import { findEnclosedStrokes } from '../../lib/math/enclosure'
 import { isClosedLoop } from '../../lib/math/loop-detection'
+import { recognizeInkML } from '../../lib/math/ml-recognizer'
+import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { CanvasLayer } from './CanvasLayer'
+import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
+import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
+
+/** Open the math capsule for a set of strokes: select them, arm the rule
+ * latex instantly (marked ML-pending), then upgrade in place when inference
+ * lands. The circle path passes its lasso stroke to play the gesture-handoff
+ * animations; the select path (marquee or click) opens without them.
+ * Idempotent for a set that already has a capsule open — the select opener
+ * microtask and the lasso path can both call this safely. */
+function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
+  const ids = enclosedStrokes.map((s) => s.id)
+  const existing = inkyStore.mathCapsule
+  if (
+    existing &&
+    existing.enclosedStrokeIds.length === ids.length &&
+    ids.every((id) => existing.enclosedStrokeIds.includes(id))
+  ) {
+    return
+  }
+
+  const minX = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minX))
+  const maxX = Math.max(...enclosedStrokes.map((s) => s.boundingBox.maxX))
+  const minY = Math.min(...enclosedStrokes.map((s) => s.boundingBox.minY))
+  const anchor = { x: (minX + maxX) / 2, y: minY }
+
+  inkyStore.selectStrokes(ids)
+  inkyStore.setActiveTool('select')
+
+  if (gestureStroke) {
+    // Gesture handoff: the lasso dissolves toward the capsule anchor and the
+    // enclosed strokes pulse once — the circle "becomes" the capsule.
+    inkyStore.setGestureDissolve({
+      stroke: gestureStroke,
+      anchor,
+      startedAt: performance.now(),
+    })
+    inkyStore.setRecognizedPulse({ strokeIds: ids, startedAt: performance.now() })
+  }
+
+  // Rule latex shows instantly, marked pending; ML upgrades it in place.
+  inkyStore.setMathCapsule({
+    latex: recognizeFormulaStrokes(enclosedStrokes),
+    worldPosition: anchor,
+    enclosedStrokeIds: ids,
+    source: 'rule',
+    mlPending: true,
+  })
+  recognizeInkML(enclosedStrokes).then((mlLatex) => {
+    const capsule = inkyStore.mathCapsule
+    if (!capsule) return
+    // Only settle if the capsule is still open for the same strokes.
+    const sameSet =
+      capsule.enclosedStrokeIds.length === ids.length &&
+      ids.every((id) => capsule.enclosedStrokeIds.includes(id))
+    if (!sameSet) return
+    if (!mlLatex) {
+      // ML failed/timed out: keep the rule latex and stop the sparkle — but
+      // with an empty rule fallback there is nothing to act on, so close the
+      // capsule rather than presenting an empty pill (M9).
+      if (capsule.latex) {
+        inkyStore.setMathCapsule({ ...capsule, mlPending: false })
+      } else {
+        inkyStore.setMathCapsule(null)
+      }
+      return
+    }
+    inkyStore.setMathCapsule({ ...capsule, latex: mlLatex, source: 'ml', mlPending: false })
+  })
+}
 
 export function InkyBoard() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -35,9 +106,24 @@ export function InkyBoard() {
   const [camera, setCamera] = useState(inkyStore.camera)
 
   useEffect(() => {
+    let lastSelectionSig = inkyStore.selectedStrokeIds.join(',')
     const unsub = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
       setCamera({ ...inkyStore.camera })
+      // Selecting strokes (marquee or click) opens the capsule — the same
+      // affordance the circle gesture gives. Deferred to a microtask so a
+      // lasso's synchronous open always wins the idempotence check.
+      const sig = inkyStore.selectedStrokeIds.join(',')
+      if (sig === lastSelectionSig) return
+      lastSelectionSig = sig
+      queueMicrotask(() => {
+        const ids = inkyStore.selectedStrokeIds
+        if (inkyStore.activeTool !== 'select' || ids.length === 0) return
+        if (inkyStore.gestureDissolve) return
+        const strokes = inkyStore.strokes.filter((s) => ids.includes(s.id))
+        if (strokes.length === 0) return
+        openMathCapsule(strokes)
+      })
     })
 
     const worker = new PerfectFreehandWorker()
@@ -110,12 +196,19 @@ export function InkyBoard() {
           inkyStore.setShowShortcuts(false)
           return
         }
+        if (inkyStore.mathCapsule) {
+          // Dismissal returns the board to a clean pen-ready state (QoL pass).
+          inkyStore.setMathCapsule(null)
+          inkyStore.clearSelection()
+          inkyStore.setActiveTool('draw')
+          return
+        }
         inkyStore.clearSelection()
         return
       }
 
       if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (inkyStore.selectedStrokeIds.length > 0) {
+        if (inkyStore.selectedStrokeIds.length > 0 || inkyStore.selectedCharIds.length > 0) {
           e.preventDefault()
           inkyStore.deleteSelected()
           return
@@ -174,6 +267,16 @@ export function InkyBoard() {
   // Pointer event handlers
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.inky-ui')) return
+    // Clicking the canvas dismisses an open capsule (clicks inside the
+    // capsule never reach here — its root stops propagation) and returns
+    // the board to the pen. The click is consumed: it must not start a
+    // stray marquee or stroke behind the fading pill.
+    if (inkyStore.mathCapsule) {
+      inkyStore.setMathCapsule(null)
+      inkyStore.clearSelection()
+      inkyStore.setActiveTool('draw')
+      return
+    }
     const container = containerRef.current
     if (!container) return
 
@@ -250,17 +353,7 @@ export function InkyBoard() {
 
       if (currentBox && hitHandle) {
         inkyStore.setActiveHandle(hitHandle)
-        const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
-        inkyStore.transformInitialState = {
-          strokes: selected.map((s) => ({
-            id: s.id,
-            points: s.points.map(([px, py]) => [px, py]),
-            boundingBox: { ...s.boundingBox },
-            pathData: s.pathData,
-            angle: s.angle,
-          })),
-          selectionBox: { ...currentBox },
-        }
+        inkyStore.beginTransform(currentBox)
         return
       }
 
@@ -271,6 +364,9 @@ export function InkyBoard() {
         worldX <= currentBox.maxX + 4 &&
         worldY >= currentBox.minY - 4 &&
         worldY <= currentBox.maxY + 4
+
+      // Chars are top-most DOM items — hit-test them before ink.
+      const clickedChar = inkyStore.charAt(worldX, worldY, 4 / inkyStore.camera.z)
 
       // Test reverse order so top-most stroke is clicked first
       let clickedStroke: Stroke | null = null
@@ -284,21 +380,20 @@ export function InkyBoard() {
 
       if (
         isInsideSelection &&
-        (!clickedStroke || inkyStore.selectedStrokeIds.includes(clickedStroke.id))
+        (!clickedStroke || inkyStore.selectedStrokeIds.includes(clickedStroke.id)) &&
+        (!clickedChar || inkyStore.selectedCharIds.includes(clickedChar.char.id))
       ) {
         // Dragging existing selection
         isDraggingSelectionRef.current = true
         dragStartWorldRef.current = { x: worldX, y: worldY }
-        const selected = inkyStore.strokes.filter((s) => inkyStore.selectedStrokeIds.includes(s.id))
-        inkyStore.transformInitialState = {
-          strokes: selected.map((s) => ({
-            id: s.id,
-            points: s.points.map(([px, py]) => [px, py]),
-            boundingBox: { ...s.boundingBox },
-            pathData: s.pathData,
-            angle: s.angle,
-          })),
-          selectionBox: { ...currentBox },
+        inkyStore.beginTransform(currentBox)
+      } else if (clickedChar) {
+        inkyStore.selectChar(clickedChar.char.id, e.shiftKey)
+        const updatedBox = inkyStore.getSelectionBoundingBox()
+        if (updatedBox) {
+          isDraggingSelectionRef.current = true
+          dragStartWorldRef.current = { x: worldX, y: worldY }
+          inkyStore.beginTransform(updatedBox)
         }
       } else if (clickedStroke) {
         inkyStore.selectStroke(clickedStroke.id, e.shiftKey)
@@ -306,19 +401,7 @@ export function InkyBoard() {
         if (updatedBox) {
           isDraggingSelectionRef.current = true
           dragStartWorldRef.current = { x: worldX, y: worldY }
-          const selected = inkyStore.strokes.filter((s) =>
-            inkyStore.selectedStrokeIds.includes(s.id),
-          )
-          inkyStore.transformInitialState = {
-            strokes: selected.map((s) => ({
-              id: s.id,
-              points: s.points.map(([px, py]) => [px, py]),
-              boundingBox: { ...s.boundingBox },
-              pathData: s.pathData,
-              angle: s.angle,
-            })),
-            selectionBox: { ...updatedBox },
-          }
+          inkyStore.beginTransform(updatedBox)
         }
       } else {
         if (!e.shiftKey) {
@@ -373,9 +456,21 @@ export function InkyBoard() {
           break
         }
       }
-      inkyStore.setHoveredStrokeId(hitId)
+      // Chars outrank ink for the eraser highlight (they're hit first too).
+      const hitChar = inkyStore.charAt(worldX, worldY, eraserRadius)
+      inkyStore.setHoveredCharId(hitChar?.char.id ?? null)
+      inkyStore.setHoveredStrokeId(hitChar ? null : hitId)
     } else if (inkyStore.eraserPoint) {
       inkyStore.setEraserPoint(null)
+    }
+
+    // Select tool: hover affordance on glyphs (chars are clickable items).
+    if (activeTool === 'select' && !isPointerDownRef.current) {
+      const [worldX, worldY] = toWorld(screenX, screenY, inkyStore.camera)
+      const hoverChar = inkyStore.charAt(worldX, worldY, 4 / inkyStore.camera.z)
+      inkyStore.setHoveredCharId(hoverChar?.char.id ?? null)
+    } else if (inkyStore.hoveredCharId && activeTool !== 'eraser') {
+      inkyStore.setHoveredCharId(null)
     }
 
     if (!isPointerDownRef.current) return
@@ -472,8 +567,8 @@ export function InkyBoard() {
       if (loop.isLoop && loop.polygon) {
         const enclosedIds = findEnclosedStrokes(loop.polygon, inkyStore.strokes)
         if (enclosedIds.length > 0) {
-          inkyStore.selectStrokes(enclosedIds)
-          inkyStore.setActiveTool('select')
+          const enclosedStrokes = inkyStore.strokes.filter((s) => enclosedIds.includes(s.id))
+          openMathCapsule(enclosedStrokes, finalStroke)
           return
         }
       }
@@ -505,6 +600,14 @@ export function InkyBoard() {
             .filter((s) => checkBoundingBoxOverlap(marqueeBox, s.boundingBox))
             .map((s) => s.id)
           inkyStore.selectStrokes(selectedIds)
+          // Chars are first-class: marquee grabs glyphs too (whitespace is
+          // layout-only and never selectable).
+          const charIds = inkyStore.stamps
+            .flatMap((s) => s.chars)
+            .filter((c) => !/\s/.test(c.char))
+            .filter((c) => checkBoundingBoxOverlap(marqueeBox, charBoundingBox(c)))
+            .map((c) => c.id)
+          inkyStore.selectChars(charIds)
         }
 
         inkyStore.setMarquee(null)
@@ -516,6 +619,12 @@ export function InkyBoard() {
     const worldPoint = toWorld(screenX, screenY, inkyStore.camera)
     const baseRadius = isTouch ? 28 : 16
     const eraserRadius = baseRadius / inkyStore.camera.z
+
+    // Stamps are DOM text but live on the world plane — the eraser removes
+    // their chars by world-space hit test, same as ink.
+    if (inkyStore.deleteCharAt(worldPoint[0], worldPoint[1], eraserRadius)) {
+      return
+    }
 
     const toDeleteId =
       inkyStore.hoveredStrokeId ||
@@ -584,6 +693,8 @@ export function InkyBoard() {
       }}
     >
       <CanvasLayer />
+      <StampLayer />
+      <MathActionCapsule />
       <Toolbar />
       <ShortcutsModal />
     </div>

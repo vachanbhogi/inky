@@ -34,3 +34,13 @@ training/crohme_data/
 training/*.onnx.data
 training/onnx_exported/*.onnx.data
 training/onnx_exported/*.onnx
+
+# ML model weights (regenerate via training/export; WASM runtime comes from the onnxruntime-web package)
+public/models/
+
+# SDD workspaces (git-ignored scratch)
+.superpowers/
+
+e2e-runs/
+
+training/onnx_exported/
