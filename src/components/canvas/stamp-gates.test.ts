@@ -49,10 +49,16 @@ describe('capsule stamping', () => {
   })
 })
 
-describe('eraser removes stamps', () => {
-  it('hit-tests stamps in world space before strokes', () => {
-    expect(boardSrc).toMatch(/deleteStampAt\(worldPoint\[0\], worldPoint\[1\], eraserRadius\)/)
-    expect(storeSrc).toMatch(/deleteStampAt\(/)
+describe('eraser removes chars', () => {
+  it('hit-tests chars in world space before strokes', () => {
+    expect(boardSrc).toMatch(/deleteCharAt\(worldPoint\[0\], worldPoint\[1\], eraserRadius\)/)
+    expect(storeSrc).toMatch(/deleteCharAt\(/)
+  })
+})
+
+describe('chars render as first-class DOM items', () => {
+  it('StampLayer renders one addressable span per char', () => {
+    expect(stampLayerSrc).toMatch(/data-char-id=/)
   })
 })
 

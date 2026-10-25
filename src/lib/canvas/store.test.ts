@@ -121,6 +121,7 @@ describe('inkyStore', () => {
           boundingBox: { minX: 10, minY: 10, maxX: 20, maxY: 20 },
         },
       ],
+      chars: [],
       selectionBox: { minX: 10, minY: 10, maxX: 20, maxY: 20 },
     }
 
@@ -174,6 +175,7 @@ describe('inkyStore', () => {
           boundingBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
         },
       ],
+      chars: [],
       selectionBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
     }
 
@@ -210,6 +212,7 @@ describe('inkyStore', () => {
           angle: 0,
         },
       ],
+      chars: [],
       selectionBox: { minX: 100, minY: 100, maxX: 200, maxY: 200 },
     }
 

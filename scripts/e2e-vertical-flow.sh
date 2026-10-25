@@ -272,19 +272,26 @@ else
   bad "stamp did not follow the pan (delta ${PAN_DELTA}px, want ~100)"
 fi
 
-section "10c. eraser deletes the stamp (ink stays)"
-# Numeric evals — agent-browser returns strings WITH quotes, numbers bare (safe for $((...))).
-SC_X="$(js '(function(){var el=document.querySelector("[data-stamp-id]"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.left+r.width/2)})()')"
-SC_Y="$(js '(function(){var el=document.querySelector("[data-stamp-id]"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.top+r.height/2)})()')"
-[ -n "$SC_X" ] || SC_X=-1
-[ -n "$SC_Y" ] || SC_Y=-1
+section "10c. eraser deletes stamp chars one at a time (ink stays)"
+# The eraser is per-char now: each visible glyph is its own item. We sweep the
+# eraser across every visible char of the 'x = 3' stamp; whitespace is never
+# targetable, so once the 3 visible glyphs ('x','=','3') are gone the stamp
+# (and its orphaned spaces) is dropped entirely. Ink is untouched.
 agent-browser press e >>"$LOG" 2>&1
 assert_eq "$(js 'window.inkyStore.activeTool')" '"eraser"' "eraser tool active"
-agent-browser mouse move "$SC_X" "$SC_Y" >>"$LOG" 2>&1
-agent-browser mouse down left >>"$LOG" 2>&1
-agent-browser mouse move $((SC_X + 6)) $((SC_Y + 3)) --steps 3 >>"$LOG" 2>&1
-agent-browser mouse up left >>"$LOG" 2>&1
-if poll_js 'window.inkyStore.stamps.length' 0 10; then ok "eraser removed the stamp"; else bad "stamp survived the eraser (stamps=$(js 'window.inkyStore.stamps.length'))"; fi
+for _ci in 1 2 3 4 5 6; do
+  REMAIN="$(js '(function(){var s=window.inkyStore.stamps[0]; return s ? s.chars.filter(function(c){return !/\\s/.test(c.char)}).length : 0})()')"
+  [ "$REMAIN" = "0" ] && break
+  CX="$(js '(function(){var s=window.inkyStore.stamps[0]; if(!s) return -1; var c=s.chars.filter(function(x){return !/\\s/.test(x.char)})[0]; var el=document.querySelector(\"[data-char-id=\\\"\"+c.id+\"\\\"]\"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.left+r.width/2)})()')"
+  CY="$(js '(function(){var s=window.inkyStore.stamps[0]; if(!s) return -1; var c=s.chars.filter(function(x){return !/\\s/.test(x.char)})[0]; var el=document.querySelector(\"[data-char-id=\\\"\"+c.id+\"\\\"]\"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.top+r.height/2)})()')"
+  [ -n "$CX" ] || CX=-1
+  [ -n "$CY" ] || CY=-1
+  agent-browser mouse move "$CX" "$CY" >>"$LOG" 2>&1
+  agent-browser mouse down left >>"$LOG" 2>&1
+  agent-browser mouse move $((CX + 3)) $((CY + 2)) --steps 2 >>"$LOG" 2>&1
+  agent-browser mouse up left >>"$LOG" 2>&1
+done
+if poll_js 'window.inkyStore.stamps.length' 0 10; then ok "per-char eraser dropped the stamp once last glyph went"; else bad "stamp survived per-char eraser (stamps=$(js 'window.inkyStore.stamps.length'))"; fi
 if poll_js 'document.querySelectorAll("[data-stamp-id]").length' 0 10; then ok "stamp DOM element gone"; else bad "[data-stamp-id] still in DOM after erasing"; fi
 assert_eq "$(js 'window.inkyStore.strokes.length')" "9" "ink untouched by stamp erase (9 strokes)"
 agent-browser screenshot "$RUN_DIR/06-erased-stamp.png" >>"$LOG" 2>&1
@@ -412,6 +419,80 @@ else
 fi
 if poll_js 'window.inkyStore.mathCapsule !== null' false 10; then ok "capsule dismissed after quadratic Solve"; else bad "capsule still open after quadratic Solve"; fi
 agent-browser screenshot "$RUN_DIR/07-quadratic-solve.png" >>"$LOG" 2>&1
+
+section "10f. per-char interactions: click, drag, rotate, scale, undo, marquee"
+# Uses the stamp 10e just left on the canvas. Chars are first-class: a plain
+# click selects exactly one char (replacing stroke selection) and must NOT
+# open the capsule (capsules belong to ink only).
+agent-browser press v >>"$LOG" 2>&1
+assert_eq "$(js 'window.inkyStore.activeTool')" '"select"' "select tool active"
+CHAR_ID="$(js '(function(){var s=window.inkyStore.stamps[0]; if(!s) return "none"; var c=s.chars.filter(function(x){return !/\\s/.test(x.char)})[0]; return c ? c.id : "none"})()')"
+if [ "$CHAR_ID" != '"none"' ] && [ "$CHAR_ID" != "none" ]; then ok "target char $CHAR_ID"; else bad "no visible char on the 10e stamp"; fi
+CH_X="$(js '(function(){var s=window.inkyStore.stamps[0]; var c=s.chars.filter(function(x){return !/\\s/.test(x.char)})[0]; var el=document.querySelector(\"[data-char-id=\\\"\"+c.id+\"\\\"]\"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.left+r.width/2)})()')"
+CH_Y="$(js '(function(){var s=window.inkyStore.stamps[0]; var c=s.chars.filter(function(x){return !/\\s/.test(x.char)})[0]; var el=document.querySelector(\"[data-char-id=\\\"\"+c.id+\"\\\"]\"); if(!el) return -1; var r=el.getBoundingClientRect(); return Math.round(r.top+r.height/2)})()')"
+[ -n "$CH_X" ] || CH_X=-1
+[ -n "$CH_Y" ] || CH_Y=-1
+agent-browser mouse move "$CH_X" "$CH_Y" --steps 2 >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+assert_eq "$(js 'window.inkyStore.selectedCharIds.length')" "1" "click selects exactly one char"
+assert_eq "$(js 'window.inkyStore.selectedStrokeIds.length')" "0" "plain char click clears stroke selection"
+assert_eq "$(js 'window.inkyStore.mathCapsule !== null')" "false" "char selection never opens the capsule"
+
+# Drag the char 40px right: translateSelected moves only this glyph.
+WX0="$(js '(function(){var r=window.inkyStore.charRecord(window.inkyStore.selectedCharIds[0]); return r ? Math.round(r.char.worldX) : -1})()')"
+agent-browser mouse move "$CH_X" "$CH_Y" --steps 2 >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse move $((CH_X + 40)) "$CH_Y" --steps 6 >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+WX1="$(js '(function(){var r=window.inkyStore.charRecord(window.inkyStore.selectedCharIds[0]); return r ? Math.round(r.char.worldX) : -1})()')"
+if [ "$WX1" -gt "$WX0" ] 2>/dev/null; then ok "char drag translated the glyph (${WX0} -> ${WX1})"; else bad "char drag did not move (worldX ${WX0} -> ${WX1})"; fi
+
+# Rotate via the top handle (20px above the selection box, world space).
+BOX="$(js '(function(){var b=window.inkyStore.getSelectionBoundingBox(); if(!b) return "0 0 0 0"; var c=window.inkyStore.camera; return [Math.round(b.minX*c.z+c.x), Math.round(b.minY*c.z+c.y), Math.round(b.maxX*c.z+c.x), Math.round(b.maxY*c.z+c.y)].join(" ")})()')"
+BOX="${BOX//\"/}"
+read -r BX0 BY0 BX1 BY1 <<<"$BOX"
+RCX=$(((BX0 + BX1) / 2))
+RCY=$((BY0 - 24))
+agent-browser mouse move "$RCX" "$RCY" --steps 2 >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse move $((RCX + 40)) "$RCY" --steps 6 >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+CH_ANGLE="$(js '(function(){var r=window.inkyStore.charRecord(window.inkyStore.selectedCharIds[0]); return r ? Number(r.char.angle.toFixed(4)) : 0})()')"
+if [ "$CH_ANGLE" != "0" ]; then ok "rotate handle spun the char (angle $CH_ANGLE)"; else bad "char did not rotate (angle 0)"; fi
+
+# Scale via the se corner (box bottom-right): fontSize must grow.
+FS0="$(js '(function(){var r=window.inkyStore.charRecord(window.inkyStore.selectedCharIds[0]); return r ? Math.round(r.char.fontSize) : 0})()')"
+BOX="$(js '(function(){var b=window.inkyStore.getSelectionBoundingBox(); if(!b) return "0 0 0 0"; var c=window.inkyStore.camera; return [Math.round(b.minX*c.z+c.x), Math.round(b.minY*c.z+c.y), Math.round(b.maxX*c.z+c.x), Math.round(b.maxY*c.z+c.y)].join(" ")})()')"
+BOX="${BOX//\"/}"
+read -r BX0 BY0 BX1 BY1 <<<"$BOX"
+agent-browser mouse move "$BX1" "$BY1" --steps 2 >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse move $((BX1 + 30)) $((BY1 + 30)) --steps 6 >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+FS1="$(js '(function(){var r=window.inkyStore.charRecord(window.inkyStore.selectedCharIds[0]); return r ? Math.round(r.char.fontSize) : 0})()')"
+if [ "$FS1" -gt "$FS0" ] 2>/dev/null; then ok "scale handle grew the char (${FS0}px -> ${FS1}px)"; else bad "char did not scale (fontSize ${FS0} -> ${FS1})"; fi
+
+# One undo reverts exactly the last gesture (the scale commit).
+agent-browser press Meta+z >>"$LOG" 2>&1
+FS2="$(js '(function(){var r=window.inkyStore.charRecord(window.inkyStore.selectedCharIds[0] || window.inkyStore.stamps[0].chars.filter(function(x){return !/\\s/.test(x.char)})[0].id); return r ? Math.round(r.char.fontSize) : 0})()')"
+if [ "$FS2" = "$FS0" ]; then ok "undo reverted the scale gesture (fontSize back to $FS0)"; else bad "undo did not revert scale (${FS0} -> ${FS2})"; fi
+
+# Marquee over the char: selects chars (no stroke under it) and opens no capsule.
+agent-browser press Escape >>"$LOG" 2>&1
+BOX="$(js '(function(){var b=window.inkyStore.stamps[0] ? (function(){var s=window.inkyStore.stamps[0]; var vis=s.chars.filter(function(x){return !/\\s/.test(x.char)}); var c=window.inkyStore.camera; var minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9; vis.forEach(function(ch){var w=ch.fontSize*0.5,h=ch.fontSize*1.25; minX=Math.min(minX,ch.worldX); minY=Math.min(minY,ch.worldY); maxX=Math.max(maxX,ch.worldX+w); maxY=Math.max(maxY,ch.worldY+h)}); return [Math.round(minX*c.z+c.x),Math.round(minY*c.z+c.y),Math.round(maxX*c.z+c.x),Math.round(maxY*c.z+c.y)].join(" ")})() : "0 0 0 0"; return b})()')"
+BOX="${BOX//\"/}"
+read -r MX0 MY0 MX1 MY1 <<<"$BOX"
+agent-browser mouse move $((MX0 - 12)) $((MY0 - 12)) --steps 2 >>"$LOG" 2>&1
+agent-browser mouse down left >>"$LOG" 2>&1
+agent-browser mouse move $((MX1 + 12)) $((MY1 + 12)) --steps 6 >>"$LOG" 2>&1
+agent-browser mouse up left >>"$LOG" 2>&1
+MARQUEE_CHARS="$(js 'window.inkyStore.selectedCharIds.length')"
+if [ "$MARQUEE_CHARS" -ge 1 ] 2>/dev/null; then ok "marquee selected $MARQUEE_CHARS char(s)"; else bad "marquee selected no chars"; fi
+assert_eq "$(js 'window.inkyStore.strokes.length')" "20" "marquee over a stamp left all ink unselected"
+assert_eq "$(js 'window.inkyStore.mathCapsule !== null')" "false" "char-only marquee opens no capsule"
+agent-browser screenshot "$RUN_DIR/08-per-char.png" >>"$LOG" 2>&1
+agent-browser press Escape >>"$LOG" 2>&1
 
 section "11. reduced-motion pass"
 agent-browser set media light reduced-motion >>"$LOG" 2>&1

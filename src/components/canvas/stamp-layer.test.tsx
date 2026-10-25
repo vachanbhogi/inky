@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
-import { inkyStore } from '../../lib/canvas/store'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { inkyStore, stampCharsFor } from '../../lib/canvas/store'
 import { StampLayer } from './StampLayer'
 
 // Controllable rAF: the wipe drives itself from animation frames, so the test
@@ -61,7 +61,15 @@ describe('StampLayer behavior', () => {
 
   it('renders each stamp as Caveat text at its world→screen position, scaled by zoom', async () => {
     inkyStore.stamps = [
-      { id: 's1', text: 'x = 3', worldX: 100, worldY: 50, color: '#123456', fontSize: 40 },
+      {
+        id: 's1',
+        text: 'x = 3',
+        worldX: 100,
+        worldY: 50,
+        color: '#123456',
+        fontSize: 40,
+        chars: stampCharsFor('x = 3', 100, 50, 40, 's1'),
+      },
     ]
     inkyStore.camera = { x: 7, y: 9, z: 2 }
     await mount()
@@ -76,9 +84,67 @@ describe('StampLayer behavior', () => {
     expect(el.style.top).toBe('109px') // 50×2 + camera.y9
   })
 
+  it('renders every char as its own span offset from the anchor, rotated about its own center', async () => {
+    const chars = stampCharsFor('x = 3', 100, 50, 40, 's1')
+    chars[2].angle = Math.PI / 2 // the '=' glyph
+    inkyStore.stamps = [
+      { id: 's1', text: 'x = 3', worldX: 100, worldY: 50, color: '#123456', fontSize: 40, chars },
+    ]
+    inkyStore.camera = { x: 7, y: 9, z: 2 }
+    await mount()
+
+    const spans = document.querySelectorAll('[data-char-id]')
+    expect(spans.length).toBe(5)
+    const eq = document.querySelector('[data-char-id="s1-c2"]') as HTMLElement
+    expect(eq).not.toBeNull()
+    expect(eq.textContent).toBe('=')
+    // Char 2 sits at worldX 100 + 2×(40×0.5) = 140 → 40 world units right of
+    // the anchor → 80 screen px at zoom 2. fontSize per char: 40 × 2 = 80px.
+    expect(eq.style.left).toBe('80px')
+    expect(eq.style.top).toBe('0px')
+    expect(eq.style.fontSize).toBe('80px')
+    expect(eq.style.transform).toContain('rotate(90deg)')
+
+    const x = document.querySelector('[data-char-id="s1-c0"]') as HTMLElement
+    expect(x.style.left).toBe('0px')
+    expect(x.style.transform).toBe('')
+  })
+
+  it('re-renders char positions live when the store mutates them', async () => {
+    inkyStore.stamps = [
+      {
+        id: 's1',
+        text: 'x = 3',
+        worldX: 0,
+        worldY: 0,
+        color: '#111111',
+        fontSize: 36,
+        chars: stampCharsFor('x = 3', 0, 0, 36, 's1'),
+      },
+    ]
+    await mount()
+    const span = document.querySelector('[data-char-id="s1-c4"]') as HTMLElement
+    expect(span.style.left).toBe('72px') // 4 × 36 × 0.5
+
+    inkyStore.stamps[0].chars[4].worldX = 200
+    inkyStore.stamps[0].chars[4].fontSize = 72
+    inkyStore.notify()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(span.style.left).toBe('200px')
+    expect(span.style.fontSize).toBe('72px')
+  })
+
   it('wipes a fresh stamp in with a mask, then clears the reveal', async () => {
     inkyStore.stamps = [
-      { id: 's1', text: 'x = 3', worldX: 0, worldY: 0, color: '#111111', fontSize: 36 },
+      {
+        id: 's1',
+        text: 'x = 3',
+        worldX: 0,
+        worldY: 0,
+        color: '#111111',
+        fontSize: 36,
+        chars: stampCharsFor('x = 3', 0, 0, 36, 's1'),
+      },
     ]
     inkyStore.stampedReveal = { stampId: 's1', startedAt: performance.now() }
     await mount()
@@ -100,7 +166,15 @@ describe('StampLayer behavior', () => {
   it('snaps to fully revealed under reduced motion (no wipe at all)', async () => {
     setReducedMotion(true)
     inkyStore.stamps = [
-      { id: 's1', text: 'y', worldX: 0, worldY: 0, color: '#111111', fontSize: 20 },
+      {
+        id: 's1',
+        text: 'y',
+        worldX: 0,
+        worldY: 0,
+        color: '#111111',
+        fontSize: 20,
+        chars: stampCharsFor('y', 0, 0, 20, 's1'),
+      },
     ]
     inkyStore.stampedReveal = { stampId: 's1', startedAt: performance.now() }
     await mount()
