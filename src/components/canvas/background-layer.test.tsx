@@ -74,7 +74,7 @@ describe('InkyStore paperStyle property & cycling', () => {
   })
 })
 
-describe('InkyBoard BackgroundLayer integration & "g" shortcut', () => {
+describe('InkyBoard BackgroundLayer integration & "b" shortcut', () => {
   it('mounts BackgroundLayer underneath CanvasLayer in InkyBoard', () => {
     expect(inkyBoardSrc).toMatch(/import \{ BackgroundLayer \} from '\.\/BackgroundLayer'/)
     const bgIdx = inkyBoardSrc.indexOf('<BackgroundLayer')
@@ -84,8 +84,8 @@ describe('InkyBoard BackgroundLayer integration & "g" shortcut', () => {
     expect(bgIdx).toBeLessThan(canvasIdx)
   })
 
-  it('handles "g" shortcut to cycle paper style', () => {
-    expect(inkyBoardSrc).toMatch(/case 'g':/)
+  it('handles "b" shortcut to cycle paper style', () => {
+    expect(inkyBoardSrc).toMatch(/case 'b':/)
     expect(inkyBoardSrc).toMatch(/cyclePaperStyle\(\)|setPaperStyle\(/)
   })
 })

@@ -131,6 +131,7 @@ export class InkyStore {
   activeHandle: HandleType | null = null
   eraserPoint: { x: number; y: number; radius: number } | null = null
   showShortcuts = false
+  graphSidebar: { isOpen: boolean; equation: string } = { isOpen: false, equation: '' }
   // Transient gesture-handoff animations (circle → capsule). Cleared by
   // CanvasLayer when their progress reports done.
   gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
@@ -247,6 +248,21 @@ export class InkyStore {
     } | null,
   ) {
     this.mathCapsule = capsule
+    this.notify()
+  }
+
+  openGraphSidebar(equation: string = this.graphSidebar.equation || 'y = x^2 - 4') {
+    this.graphSidebar = { isOpen: true, equation }
+    this.notify()
+  }
+
+  updateGraphedEquation(equation: string) {
+    this.graphSidebar = { ...this.graphSidebar, equation }
+    this.notify()
+  }
+
+  closeGraphSidebar() {
+    this.graphSidebar = { isOpen: false, equation: '' }
     this.notify()
   }
 

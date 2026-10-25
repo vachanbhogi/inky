@@ -19,6 +19,7 @@ import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { BackgroundLayer } from './BackgroundLayer'
 import { CanvasLayer } from './CanvasLayer'
+import { GraphSidebar } from './GraphSidebar'
 import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
@@ -257,15 +258,19 @@ export function InkyBoard() {
 
       if (e.key === 'Escape') {
         e.preventDefault()
-        if (inkyStore.showShortcuts) {
-          inkyStore.setShowShortcuts(false)
-          return
-        }
         if (inkyStore.mathCapsule) {
           // Dismissal returns the board to a clean pen-ready state (QoL pass).
           inkyStore.setMathCapsule(null)
           inkyStore.clearSelection()
           inkyStore.setActiveTool('draw')
+          return
+        }
+        if (inkyStore.graphSidebar.isOpen) {
+          inkyStore.closeGraphSidebar()
+          return
+        }
+        if (inkyStore.showShortcuts) {
+          inkyStore.setShowShortcuts(false)
           return
         }
         inkyStore.clearSelection()
@@ -305,8 +310,17 @@ export function InkyBoard() {
         case '0':
           inkyStore.setActiveTool('eraser')
           break
-        case 'g':
+        case 'b':
+          e.preventDefault()
           inkyStore.cyclePaperStyle()
+          break
+        case 'g':
+          e.preventDefault()
+          if (inkyStore.graphSidebar.isOpen) {
+            inkyStore.closeGraphSidebar()
+          } else {
+            inkyStore.openGraphSidebar()
+          }
           break
       }
     }
@@ -770,6 +784,7 @@ export function InkyBoard() {
       <CanvasLayer />
       <StampLayer />
       <MathActionCapsule />
+      <GraphSidebar />
       <Toolbar />
       <ShortcutsModal />
     </div>

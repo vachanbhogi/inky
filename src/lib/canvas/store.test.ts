@@ -294,4 +294,35 @@ describe('inkyStore', () => {
     inkyStore.setEraserPoint(null)
     expect(inkyStore.eraserPoint).toBeNull()
   })
+
+  it('manages graphSidebar state and notifies subscribers', () => {
+    inkyStore.closeGraphSidebar()
+    let callCount = 0
+    const unsub = inkyStore.subscribe(() => {
+      callCount++
+    })
+
+    expect(inkyStore.graphSidebar).toEqual({ isOpen: false, equation: '' })
+
+    inkyStore.openGraphSidebar('y = x^2 - 4')
+    expect(inkyStore.graphSidebar).toEqual({ isOpen: true, equation: 'y = x^2 - 4' })
+    expect(callCount).toBe(1)
+
+    // Replacing with another equation
+    inkyStore.openGraphSidebar('3x = y')
+    expect(inkyStore.graphSidebar).toEqual({ isOpen: true, equation: '3x = y' })
+    expect(callCount).toBe(2)
+
+    // Updating equation directly (e.g. user typed in sidebar)
+    inkyStore.updateGraphedEquation('y = 2x + 1')
+    expect(inkyStore.graphSidebar).toEqual({ isOpen: true, equation: 'y = 2x + 1' })
+    expect(callCount).toBe(3)
+
+    // Closing sidebar
+    inkyStore.closeGraphSidebar()
+    expect(inkyStore.graphSidebar.isOpen).toBe(false)
+    expect(callCount).toBe(4)
+
+    unsub()
+  })
 })

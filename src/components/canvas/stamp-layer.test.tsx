@@ -12,15 +12,17 @@ const realCaf = globalThis.cancelAnimationFrame
 let roots: Root[] = []
 let containers: HTMLDivElement[] = []
 
-function mount() {
+async function mount() {
   const el = document.createElement('div')
   document.body.appendChild(el)
   const root = createRoot(el)
   roots.push(root)
   containers.push(el)
   root.render(<StampLayer />)
-  // React effects flush on a macrotask.
-  return new Promise((r) => setTimeout(r, 0))
+  // Wait until StampLayer's useEffect subscribes to inkyStore
+  while (inkyStore.listeners.size === 0) {
+    await new Promise((r) => setTimeout(r, 1))
+  }
 }
 
 function setReducedMotion(matches: boolean) {
@@ -129,7 +131,9 @@ describe('StampLayer behavior', () => {
     inkyStore.stamps[0].chars[4].worldX = 200
     inkyStore.stamps[0].chars[4].fontSize = 72
     inkyStore.notify()
-    await new Promise((r) => setTimeout(r, 0))
+    while (span.style.left !== '200px') {
+      await new Promise((r) => setTimeout(r, 1))
+    }
     expect(span.style.left).toBe('200px')
     expect(span.style.fontSize).toBe('72px')
   })

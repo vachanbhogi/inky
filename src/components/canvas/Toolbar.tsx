@@ -1,4 +1,15 @@
-import { Eraser, Hand, Minus, MousePointer, Pen, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
+import {
+  Eraser,
+  Hand,
+  LineChart,
+  Minus,
+  MousePointer,
+  Pen,
+  Plus,
+  Redo2,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { PALETTE_COLORS, type ToolType } from '../../lib/canvas/types'
@@ -11,6 +22,7 @@ export function Toolbar() {
   const [camera, setCamera] = useState(inkyStore.camera)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [isGraphOpen, setIsGraphOpen] = useState(inkyStore.graphSidebar.isOpen)
 
   useEffect(() => {
     const unsub = inkyStore.subscribe(() => {
@@ -21,6 +33,7 @@ export function Toolbar() {
       setCamera({ ...inkyStore.camera })
       setCanUndo(inkyStore.canUndo)
       setCanRedo(inkyStore.canRedo)
+      setIsGraphOpen(inkyStore.graphSidebar.isOpen)
     })
     return unsub
   }, [])
@@ -91,6 +104,23 @@ export function Toolbar() {
             }`}
           >
             <Hand size={18} />
+          </button>
+
+          <button
+            type="button"
+            title="Function Graph (G)"
+            onClick={() => {
+              if (isGraphOpen) {
+                inkyStore.closeGraphSidebar()
+              } else {
+                inkyStore.openGraphSidebar()
+              }
+            }}
+            className={`relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+              isGraphOpen ? 'bg-[#111111] text-white shadow-sm' : 'text-[#111111] hover:bg-black/5'
+            }`}
+          >
+            <LineChart size={18} />
           </button>
         </div>
 
