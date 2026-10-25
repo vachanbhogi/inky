@@ -8,6 +8,15 @@
   --text-muted: #787774;
 }
 
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 body {
   margin: 0;
   padding: 0;
