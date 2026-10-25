@@ -93,4 +93,41 @@ describe('GraphSidebar component', () => {
 
     expect(input.value).toBe('y = \\sin(x)')
   })
+
+  it('updates equation when a preset button is clicked', async () => {
+    inkyStore.openGraphSidebar('y = 2x + 1')
+    await mountSidebar()
+
+    const presetBtn = Array.from(document.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('y = x² - 4'),
+    ) as HTMLButtonElement
+    expect(presetBtn).toBeDefined()
+
+    presetBtn.click()
+    await flush()
+
+    const input = document.querySelector('input') as HTMLInputElement
+    expect(input.value).toBe('y = x^2 - 4')
+    expect(inkyStore.graphSidebar.equation).toBe('y = x^2 - 4')
+  })
+
+  it('toggles virtual math keypad on and off', async () => {
+    inkyStore.openGraphSidebar('y = 2x + 1')
+    await mountSidebar()
+
+    // Initially closed
+    expect(document.querySelector('button[title="Clear All"]')).toBeNull()
+
+    const keypadToggle = document.querySelector(
+      'button[title="Show Math Keypad"]',
+    ) as HTMLButtonElement
+    expect(keypadToggle).not.toBeNull()
+
+    keypadToggle.click()
+    await flush()
+
+    // Keypad is now open
+    const clearAllBtn = document.querySelector('button[title="Clear All"]')
+    expect(clearAllBtn).not.toBeNull()
+  })
 })

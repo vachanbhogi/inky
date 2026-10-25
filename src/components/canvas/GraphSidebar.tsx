@@ -1,18 +1,6 @@
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import {
-  ChevronsDown,
-  Folder,
-  Keyboard,
-  Minus,
-  MoreHorizontal,
-  Plus,
-  Redo2,
-  Settings,
-  Undo2,
-  Wrench,
-  X,
-} from 'lucide-react'
+import { Check, Copy, Delete, Keyboard, LineChart, Minus, Plus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { type FunctionPlot, isGraphableExpression, plotFunction } from '../../lib/math/graph-engine'
@@ -23,7 +11,16 @@ interface CoordinateCenter {
 }
 
 const DEFAULT_CENTER: CoordinateCenter = { x: 0, y: 0 }
-const DEFAULT_ZOOM = 20 // 20 pixels per unit -> 10 units = 200px (standard Desmos view)
+const DEFAULT_ZOOM = 22 // 22 pixels per unit -> 10 units = 220px (isometric square grid)
+
+const PRESETS = [
+  { label: 'y = 2x + 1', formula: 'y = 2x + 1' },
+  { label: 'y = x² - 4', formula: 'y = x^2 - 4' },
+  { label: 'y = sin(x)', formula: 'y = sin(x)' },
+  { label: 'y = |x|', formula: 'y = abs(x)' },
+  { label: 'y = 1/x', formula: 'y = 1/x' },
+  { label: 'y = x³ - 3x', formula: 'y = x^3 - 3x' },
+]
 
 function formatCoord(val: number): string {
   if (Math.abs(val) < 1e-9) return '0'
@@ -46,9 +43,10 @@ function renderKatexFormula(formula: string): string {
 export function GraphSidebar() {
   const [sidebarState, setSidebarState] = useState(inkyStore.graphSidebar)
   const [rawInput, setRawInput] = useState(sidebarState.equation)
-  const [isInputFocused, setIsInputFocused] = useState(false)
   const [center, setCenter] = useState<CoordinateCenter>(DEFAULT_CENTER)
   const [zoom, setZoom] = useState<number>(DEFAULT_ZOOM)
+  const [showKeypad, setShowKeypad] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [activePoint, setActivePoint] = useState<{
     x: number
     y: number
@@ -101,7 +99,7 @@ export function GraphSidebar() {
   // Compute view bounds from isometric zoom and center
   const bounds = useMemo(() => {
     const width = 420
-    const height = 460
+    const height = 400
     const halfW = width / 2 / zoom
     const halfH = height / 2 / zoom
     return {
@@ -121,7 +119,7 @@ export function GraphSidebar() {
       yMax: bounds.yMax,
       samples: 400,
       width: 420,
-      height: 460,
+      height: 400,
     })
   }, [rawInput, isValid, bounds])
 
@@ -161,10 +159,10 @@ export function GraphSidebar() {
   }, [plotData])
 
   const renderedKatex = useMemo(() => {
-    return renderKatexFormula(rawInput || '3x + 3 = y')
+    return renderKatexFormula(rawInput || '')
   }, [rawInput])
 
-  // Desmos Canvas Rendering
+  // Desmos-Quality Isometric Canvas Rendering
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -173,7 +171,7 @@ export function GraphSidebar() {
 
     const dpr = window.devicePixelRatio || 1
     const width = canvas.clientWidth || 420
-    const height = canvas.clientHeight || 460
+    const height = canvas.clientHeight || 400
 
     if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
       canvas.width = width * dpr
@@ -184,7 +182,7 @@ export function GraphSidebar() {
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, width, height)
 
-    // Pure Desmos white background
+    // Pure crisp white coordinate plane
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, width, height)
 
@@ -199,8 +197,8 @@ export function GraphSidebar() {
     const yMin = center.y - halfH / zoom
     const yMax = center.y + halfH / zoom
 
-    // Desmos Step Calculation for Square Grids
-    const targetPx = 90
+    // Step calculation for 1:1 isometric grid
+    const targetPx = 80
     const rawStep = targetPx / zoom
     const mag = 10 ** Math.floor(Math.log10(rawStep))
     const norm = rawStep / mag
@@ -222,7 +220,7 @@ export function GraphSidebar() {
     }
     const minorStep = majorStep / minorDivs
 
-    // 1. Minor Grid Lines (Desmos light grey 0.75px)
+    // 1. Minor Grid Lines (0.75px #e6e8eb)
     ctx.strokeStyle = '#e6e8eb'
     ctx.lineWidth = 0.75
     ctx.beginPath()
@@ -242,7 +240,7 @@ export function GraphSidebar() {
     }
     ctx.stroke()
 
-    // 2. Major Grid Lines (Desmos medium grey 1px)
+    // 2. Major Grid Lines (1px #c4c8d0)
     ctx.strokeStyle = '#c4c8d0'
     ctx.lineWidth = 1
     ctx.beginPath()
@@ -279,7 +277,7 @@ export function GraphSidebar() {
     }
     ctx.stroke()
 
-    // 4. Clean Axis Labels
+    // 4. Axis Labels
     ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     ctx.fillStyle = '#111827'
     ctx.textBaseline = 'middle'
@@ -310,7 +308,7 @@ export function GraphSidebar() {
       ctx.fillText('0', sx, sy)
     }
 
-    // 5. Function Curve (Desmos Signature Crimson Red #c74440)
+    // 5. Function Curve (Signature Crimson Red #c74440)
     if (plotData && plotData.segments.length > 0) {
       ctx.strokeStyle = '#c74440'
       ctx.lineWidth = 2.5
@@ -340,7 +338,7 @@ export function GraphSidebar() {
               Math.abs(activePoint.x - pt.x) < 1e-4 &&
               Math.abs(activePoint.y - pt.y) < 1e-4)
 
-          ctx.fillStyle = isHighlighted ? '#4b5563' : '#a0a0a0'
+          ctx.fillStyle = isHighlighted ? '#1e2022' : '#a0a0a0'
           ctx.beginPath()
           ctx.arc(sx, sy, isHighlighted ? 5.5 : 4.5, 0, Math.PI * 2)
           ctx.fill()
@@ -350,7 +348,7 @@ export function GraphSidebar() {
         }
       }
 
-      // 7. Desmos Floating Coordinate Pill Tooltip
+      // 7. Floating Coordinate Pill Tooltip
       const targetPoint = activePoint || hoveredPoint
       if (targetPoint) {
         const sx = toScreenX(targetPoint.x)
@@ -398,7 +396,7 @@ export function GraphSidebar() {
 
     // Check if clicking a key point
     const halfW = (canvas.clientWidth || 420) / 2
-    const halfH = (canvas.clientHeight || 460) / 2
+    const halfH = (canvas.clientHeight || 400) / 2
     const toScreenX = (wx: number) => halfW + (wx - center.x) * zoom
     const toScreenY = (wy: number) => halfH - (wy - center.y) * zoom
 
@@ -443,7 +441,7 @@ export function GraphSidebar() {
 
     // Hover inspection on key points
     const halfW = (canvas.clientWidth || 420) / 2
-    const halfH = (canvas.clientHeight || 460) / 2
+    const halfH = (canvas.clientHeight || 400) / 2
     const toScreenX = (wx: number) => halfW + (wx - center.x) * zoom
     const toScreenY = (wy: number) => halfH - (wy - center.y) * zoom
 
@@ -506,70 +504,153 @@ export function GraphSidebar() {
     inputRef.current?.focus()
   }
 
+  const handleCopyFormula = () => {
+    if (!rawInput) return
+    navigator.clipboard?.writeText(rawInput)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const handleApplyPreset = (formula: string) => {
+    setRawInput(formula)
+    inkyStore.updateGraphedEquation(formula)
+    inputRef.current?.focus()
+  }
+
+  // Virtual Keypad Insertion Helper
+  const handleKeypadPress = (textToInsert: string) => {
+    const input = inputRef.current
+    if (!input) {
+      const nextVal = rawInput + textToInsert
+      setRawInput(nextVal)
+      inkyStore.updateGraphedEquation(nextVal)
+      return
+    }
+
+    const start = input.selectionStart ?? input.value.length
+    const end = input.selectionEnd ?? input.value.length
+    const currentVal = input.value
+    const nextVal = currentVal.substring(0, start) + textToInsert + currentVal.substring(end)
+    const nextCursor = start + textToInsert.length
+
+    setRawInput(nextVal)
+    inkyStore.updateGraphedEquation(nextVal)
+
+    requestAnimationFrame(() => {
+      input.focus()
+      input.setSelectionRange(nextCursor, nextCursor)
+    })
+  }
+
+  const handleKeypadBackspace = () => {
+    const input = inputRef.current
+    if (!input) {
+      const nextVal = rawInput.slice(0, -1)
+      setRawInput(nextVal)
+      inkyStore.updateGraphedEquation(nextVal)
+      return
+    }
+
+    const start = input.selectionStart ?? input.value.length
+    const end = input.selectionEnd ?? input.value.length
+    const currentVal = input.value
+
+    if (start !== end) {
+      const nextVal = currentVal.substring(0, start) + currentVal.substring(end)
+      setRawInput(nextVal)
+      inkyStore.updateGraphedEquation(nextVal)
+      requestAnimationFrame(() => {
+        input.focus()
+        input.setSelectionRange(start, start)
+      })
+      return
+    }
+
+    if (start <= 0) return
+    const nextVal = currentVal.substring(0, start - 1) + currentVal.substring(start)
+    setRawInput(nextVal)
+    inkyStore.updateGraphedEquation(nextVal)
+
+    requestAnimationFrame(() => {
+      input.focus()
+      input.setSelectionRange(start - 1, start - 1)
+    })
+  }
+
+  const handleCenterOnPoint = (pt: { x: number; y: number }) => {
+    setCenter({ x: pt.x, y: pt.y })
+    setActivePoint({
+      x: pt.x,
+      y: pt.y,
+      label: `(${formatCoord(pt.x)}, ${formatCoord(pt.y)})`,
+    })
+  }
+
   return (
     <aside
       aria-label="Function Graph Sidebar"
       data-testid="graph-sidebar"
-      className="inky-ui absolute top-0 right-0 h-full w-[420px] max-w-[90vw] bg-white border-l border-[#d1d5db] shadow-2xl flex flex-col z-40 select-none overflow-hidden"
+      className="inky-ui absolute top-0 right-0 h-full w-[440px] max-w-[95vw] bg-white border-l border-black/10 shadow-2xl flex flex-col z-40 select-none overflow-hidden"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {/* 1. Header Bar: Dark Charcoal, Folder, Title, Save Pill, Menu, Close */}
-      <div className="flex items-center justify-between px-3 h-[42px] bg-[#1e2022] text-white shrink-0 border-b border-[#2d3135]">
-        <div className="flex items-center gap-2">
-          {/* Folder Icon Button with Tooltip */}
-          <button
-            type="button"
-            title="Open File (cmd+o)"
-            className="p-1.5 rounded text-stone-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <Folder size={17} />
-          </button>
-
-          {/* Vertical divider */}
-          <div className="w-[1px] h-4 bg-[#3d4248]" />
-
-          {/* Graph Title */}
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-medium text-white/95 select-none hover:text-white cursor-pointer">
-              Untitled Graph
-            </span>
-            <span className="sr-only">Function Graph</span>
+      {/* 1. Cohesive Header (Unified with Inky Command Bar / Navbar) */}
+      <div className="flex items-center justify-between px-4 h-[52px] bg-white/95 backdrop-blur-xl border-b border-black/8 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200/50 shadow-xs">
+            <LineChart size={18} />
           </div>
-
-          {/* Save Button */}
-          <button
-            type="button"
-            className="px-3 py-1 text-xs font-semibold text-white bg-[#2d70b3] hover:bg-[#3880c9] active:bg-[#25609c] rounded-md transition-colors cursor-pointer shadow-xs ml-1"
-          >
-            Save
-          </button>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-[#111111] tracking-tight">Function Graph</h2>
+            {isValid ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                Active
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                Draft
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Triple-dots menu button */}
+          {/* Keypad Toggle Button */}
           <button
             type="button"
-            title="Graph options"
-            className="p-1 rounded-full text-stone-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            onClick={() => setShowKeypad((prev) => !prev)}
+            title={showKeypad ? 'Hide Math Keypad' : 'Show Math Keypad'}
+            className={`p-2 rounded-xl text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer ${
+              showKeypad ? 'bg-black/8 text-[#111111]' : ''
+            }`}
           >
-            <MoreHorizontal size={18} />
+            <Keyboard size={17} />
           </button>
 
-          {/* Close Sidebar button */}
+          {/* Reset View Button */}
+          <button
+            type="button"
+            onClick={handleResetView}
+            title="Reset View (1:1 Zoom)"
+            className="p-2 rounded-xl text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
+          >
+            <RotateCcw size={16} />
+          </button>
+
+          {/* Close Sidebar Button */}
           <button
             type="button"
             onClick={handleClose}
             title="Close Graph (Esc)"
-            className="p-1 ml-1 rounded-md text-stone-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer ml-1"
             aria-label="Close graph sidebar"
           >
-            <X size={16} />
+            <X size={17} />
           </button>
         </div>
       </div>
 
-      {/* 2. Interactive Coordinate Plane */}
-      <div className="relative flex-1 bg-white min-h-[300px] overflow-hidden">
+      {/* 2. Interactive Cartesian Coordinate Plane */}
+      <div className="relative flex-1 bg-white min-h-[140px] overflow-hidden">
         <canvas
           ref={canvasRef}
           data-testid="graph-canvas"
@@ -581,202 +662,415 @@ export function GraphSidebar() {
           onWheel={handleWheelCanvas}
         />
 
-        {/* Floating Top-Right Controls (Wrench, Zoom In, Zoom Out) */}
-        <div className="absolute top-3 right-3 flex flex-col bg-white border border-[#d1d5db] rounded-lg shadow-sm overflow-hidden z-20">
+        {/* Floating Canvas Controls (All functional!) */}
+        <div className="absolute top-3 right-3 flex flex-col bg-white/95 backdrop-blur-md border border-black/10 rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden z-20">
           <button
             type="button"
-            title="Graph Settings"
-            onClick={handleResetView}
-            className="p-2 text-[#4b5563] hover:text-[#111827] hover:bg-[#f3f4f6] transition-colors cursor-pointer"
-          >
-            <Wrench size={15} />
-          </button>
-          <div className="h-[1px] bg-[#e5e7eb]" />
-          <button
-            type="button"
-            title="Zoom In"
+            title="Zoom In (+)"
             onClick={handleZoomIn}
-            className="p-2 text-[#4b5563] hover:text-[#111827] hover:bg-[#f3f4f6] transition-colors cursor-pointer"
+            className="p-2 text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
           >
-            <Plus size={15} />
+            <Plus size={16} />
           </button>
-          <div className="h-[1px] bg-[#e5e7eb]" />
+          <div className="h-[1px] bg-black/6" />
           <button
             type="button"
-            title="Zoom Out"
+            title="Zoom Out (−)"
             onClick={handleZoomOut}
-            className="p-2 text-[#4b5563] hover:text-[#111827] hover:bg-[#f3f4f6] transition-colors cursor-pointer"
+            className="p-2 text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
           >
-            <Minus size={15} />
+            <Minus size={16} />
+          </button>
+          <div className="h-[1px] bg-black/6" />
+          <button
+            type="button"
+            title="Reset View"
+            onClick={handleResetView}
+            className="p-2 text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
+          >
+            <RotateCcw size={14} />
           </button>
         </div>
       </div>
 
-      {/* 3. Middle Action Toolbar (Between Canvas & Item List) */}
-      <div className="h-[36px] px-3 bg-[#f9fafb] border-t border-b border-[#e5e7eb] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            title="Add Expression"
-            className="p-1.5 text-[#374151] hover:text-[#111827] hover:bg-black/5 rounded cursor-pointer transition-colors"
-          >
-            <Plus size={16} strokeWidth={2.5} />
-          </button>
-          <button
-            type="button"
-            title="Show Keypad"
-            className="p-1.5 text-[#4b5563] hover:text-[#111827] hover:bg-black/5 rounded cursor-pointer transition-colors"
-          >
-            <Keyboard size={15} />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            title="Undo (cmd+z)"
-            className="p-1.5 text-[#4b5563] hover:text-[#111827] hover:bg-black/5 rounded cursor-pointer transition-colors"
-          >
-            <Undo2 size={15} />
-          </button>
-          <button
-            type="button"
-            title="Redo (cmd+shift+z)"
-            className="p-1.5 text-[#9ca3af] hover:text-[#4b5563] hover:bg-black/5 rounded cursor-pointer transition-colors"
-          >
-            <Redo2 size={15} />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            title="Edit List"
-            className="p-1.5 text-[#4b5563] hover:text-[#111827] hover:bg-black/5 rounded cursor-pointer transition-colors"
-          >
-            <Settings size={15} />
-          </button>
-          <button
-            type="button"
-            title="Hide List"
-            className="p-1.5 text-[#4b5563] hover:text-[#111827] hover:bg-black/5 rounded cursor-pointer transition-colors"
-          >
-            <ChevronsDown size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* 4. Expression Item Deck */}
-      <div className="bg-white flex flex-col shrink-0">
-        {/* Row 1: Active Expression */}
-        <div className="relative flex items-center min-h-[50px] bg-white border-b border-[#e5e7eb] px-1 py-1">
-          {/* Left Active Selection Bar */}
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#2d70b3]" />
-
-          {/* Row Number & Color Badge */}
-          <div className="w-[44px] h-full flex flex-col items-center justify-center relative shrink-0">
-            <span className="absolute top-1 left-2 text-[10px] font-sans font-medium text-gray-500">
-              1
-            </span>
-            <div className="w-[26px] h-[26px] rounded-full bg-[#c74440] flex items-center justify-center text-white shadow-xs cursor-pointer hover:opacity-90 transition-opacity mt-1">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M2 12c3-8 6-8 10 0s7 8 10 0" />
-              </svg>
-            </div>
+      {/* 3. Elite Single-Equation Input Deck with Quality of Life Features */}
+      <div className="p-3.5 bg-white border-t border-black/8 flex flex-col gap-2.5 shrink-0">
+        {/* Main Equation Input Box */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-stone-50/80 rounded-xl border border-black/10 focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+          {/* Wave Icon Badge */}
+          <div className="w-6 h-6 rounded-lg bg-[#c74440] text-white flex items-center justify-center shrink-0 shadow-xs">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2 12c3-8 6-8 10 0s7 8 10 0" />
+            </svg>
           </div>
 
-          {/* Math Formula Input & Typeset Display */}
-          <label
-            htmlFor="graph-equation-input"
-            className={`flex-1 flex items-center justify-between ml-1 mr-2 px-3 py-1 bg-white border rounded-[3px] shadow-xs relative min-h-[38px] cursor-text transition-all ${
-              isInputFocused ? 'border-[#2d70b3] ring-1 ring-[#2d70b3]' : 'border-[#2d70b3]'
-            }`}
-          >
-            {/* Always mounted input for tests, typing, and syncing */}
-            <input
-              ref={inputRef}
-              id="graph-equation-input"
-              type="text"
-              value={rawInput}
-              onChange={handleInputChange}
-              onInput={handleInput}
-              onFocus={() => setIsInputFocused(true)}
-              onBlur={() => setIsInputFocused(false)}
-              placeholder="e.g. 3x + 3 = y"
-              className={`flex-1 bg-transparent text-[16px] font-mono text-[#111827] focus:outline-none ${
-                isInputFocused ? 'block' : 'sr-only'
-              }`}
-              spellCheck={false}
-              autoCapitalize="off"
-            />
+          {/* Native Text Input with Monospace/Math Font */}
+          <input
+            ref={inputRef}
+            id="graph-equation-input"
+            type="text"
+            value={rawInput}
+            onChange={handleInputChange}
+            onInput={handleInput}
+            placeholder="e.g. y = 3x + 3 or y = x^2 - 4"
+            className="flex-1 bg-transparent text-[15px] font-mono font-medium text-[#111111] focus:outline-none placeholder:text-stone-400 placeholder:font-sans"
+            spellCheck={false}
+            autoCapitalize="off"
+          />
 
-            {/* KaTeX Typeset Formula (displayed when not actively typing) */}
-            {!isInputFocused && (
-              <div className="flex-1 flex items-center overflow-x-auto text-[17px] text-[#111827] select-none py-0.5">
-                {rawInput.trim() ? (
-                  <span
-                    // biome-ignore lint/security/noDangerouslySetInnerHtml: safe KaTeX math output
-                    dangerouslySetInnerHTML={{ __html: renderedKatex }}
-                  />
-                ) : (
-                  <span className="text-gray-400 font-sans text-sm italic">
-                    Type an equation...
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Clear Button */}
+          {/* Action Buttons: Copy & Clear */}
+          <div className="flex items-center gap-0.5 shrink-0">
             {rawInput.length > 0 && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  handleClearFormula()
-                }}
-                title="Clear Expression"
-                className="ml-2 text-[#9ca3af] hover:text-[#4b5563] p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer"
+                onClick={handleCopyFormula}
+                title={copied ? 'Copied!' : 'Copy formula'}
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-black/5 transition-all cursor-pointer"
+              >
+                {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+              </button>
+            )}
+
+            {rawInput.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearFormula}
+                title="Clear expression"
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-black/5 transition-all cursor-pointer"
               >
                 <X size={15} />
               </button>
             )}
-          </label>
+          </div>
         </div>
 
-        {/* Row 2: Empty placeholder row */}
-        <button
-          type="button"
-          className="relative flex items-center min-h-[44px] w-full bg-white border-b border-[#e5e7eb] px-1 py-1 cursor-pointer hover:bg-gray-50/50 transition-colors text-left"
-          onClick={() => {
-            setIsInputFocused(true)
-            inputRef.current?.focus()
-          }}
-        >
-          <div className="w-[44px] h-full flex flex-col items-center justify-center relative shrink-0">
-            <span className="absolute top-1 left-2 text-[10px] font-sans font-medium text-gray-400">
-              2
+        {/* Live KaTeX Math Preview or Helpful Syntax Guide */}
+        <div className="px-1 min-h-[24px] flex items-center justify-between text-xs">
+          {rawInput.trim() ? (
+            isValid ? (
+              <div className="flex items-center gap-2 overflow-x-auto text-[15px] text-[#111111]">
+                <span className="text-[11px] font-medium text-stone-400 uppercase tracking-wider font-sans">
+                  Formula:
+                </span>
+                <span
+                  // biome-ignore lint/security/noDangerouslySetInnerHtml: safe KaTeX math rendering
+                  dangerouslySetInnerHTML={{ __html: renderedKatex }}
+                />
+              </div>
+            ) : (
+              <span className="text-amber-700 font-medium">
+                Enter an equation in x (e.g. y = 2x - 1)
+              </span>
+            )
+          ) : (
+            <span className="text-stone-400 font-sans">Type a formula or tap a preset below</span>
+          )}
+        </div>
+
+        {/* Quick Function Presets */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-0.5 scrollbar-none">
+          <span className="text-[11px] font-medium text-stone-400 uppercase tracking-wider shrink-0 mr-1">
+            Presets:
+          </span>
+          {PRESETS.map((p) => (
+            <button
+              type="button"
+              key={p.formula}
+              onClick={() => handleApplyPreset(p.formula)}
+              className={`px-2 py-1 text-xs font-mono rounded-lg transition-all active:scale-95 cursor-pointer shrink-0 ${
+                rawInput.trim() === p.formula
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Critical Intercepts & Vertex Points Chips */}
+        {keyPoints.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-0.5">
+            <span className="text-[11px] font-medium text-stone-400 uppercase tracking-wider shrink-0 mr-1">
+              Points:
             </span>
+            {keyPoints.map((pt) => (
+              <button
+                type="button"
+                key={pt.label}
+                onClick={() => handleCenterOnPoint(pt)}
+                title="Click to center on point"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono bg-stone-100 hover:bg-blue-50 hover:text-blue-700 text-stone-700 border border-stone-200/80 transition-colors cursor-pointer shrink-0"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#c74440]" />
+                {pt.label}
+              </button>
+            ))}
           </div>
-          <div className="flex-1" />
-        </button>
+        )}
       </div>
 
-      {/* 5. Bottom Watermark Branding */}
-      <div className="py-2.5 bg-white text-center border-t border-[#f0f0f0] shrink-0">
-        <span className="text-[11px] font-sans text-gray-400 tracking-wider select-none">
-          powered by inky
+      {/* 4. Touch/Mobile Virtual Math Keypad */}
+      {showKeypad && (
+        <div className="p-2.5 bg-stone-100/90 border-t border-black/8 grid grid-cols-8 gap-1.5 shrink-0 shadow-inner">
+          {/* Row 1: Variables, Exponents, Brackets & Backspace */}
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('x')}
+            className="h-9 rounded-lg bg-blue-50 text-blue-700 font-serif italic font-bold hover:bg-blue-100 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-blue-200/60"
+          >
+            x
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('y')}
+            className="h-9 rounded-lg bg-blue-50 text-blue-700 font-serif italic font-bold hover:bg-blue-100 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-blue-200/60"
+          >
+            y
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('^2')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-xs shadow-2xs cursor-pointer border border-black/5"
+          >
+            x²
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('^')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-xs shadow-2xs cursor-pointer border border-black/5"
+          >
+            xʸ
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('sqrt(')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-xs shadow-2xs cursor-pointer border border-black/5"
+          >
+            √
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('(')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            (
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress(')')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            )
+          </button>
+          <button
+            type="button"
+            onClick={handleKeypadBackspace}
+            title="Backspace"
+            className="h-9 rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 active:scale-95 transition-all flex items-center justify-center shadow-2xs cursor-pointer"
+          >
+            <Delete size={15} />
+          </button>
+
+          {/* Row 2: 7, 8, 9, ÷, sin, cos, tan, π */}
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('7')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            7
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('8')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            8
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('9')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            9
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress(' / ')}
+            className="h-9 rounded-lg bg-stone-200/80 text-stone-800 font-semibold hover:bg-stone-300 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer"
+          >
+            ÷
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('sin(')}
+            className="h-9 rounded-lg bg-white text-stone-700 font-mono text-xs hover:bg-stone-50 active:scale-95 transition-all shadow-2xs cursor-pointer border border-black/5"
+          >
+            sin
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('cos(')}
+            className="h-9 rounded-lg bg-white text-stone-700 font-mono text-xs hover:bg-stone-50 active:scale-95 transition-all shadow-2xs cursor-pointer border border-black/5"
+          >
+            cos
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('tan(')}
+            className="h-9 rounded-lg bg-white text-stone-700 font-mono text-xs hover:bg-stone-50 active:scale-95 transition-all shadow-2xs cursor-pointer border border-black/5"
+          >
+            tan
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('pi')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-serif hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            π
+          </button>
+
+          {/* Row 3: 4, 5, 6, ×, <, >, |x|, Clear */}
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('4')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            4
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('5')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            5
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('6')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            6
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress(' * ')}
+            className="h-9 rounded-lg bg-stone-200/80 text-stone-800 font-semibold hover:bg-stone-300 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer"
+          >
+            ×
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('<')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-xs shadow-2xs cursor-pointer border border-black/5"
+          >
+            &lt;
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('>')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-medium hover:bg-stone-50 active:scale-95 transition-all text-xs shadow-2xs cursor-pointer border border-black/5"
+          >
+            &gt;
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('abs(')}
+            className="h-9 rounded-lg bg-white text-stone-800 font-mono text-xs hover:bg-stone-50 active:scale-95 transition-all shadow-2xs cursor-pointer border border-black/5"
+          >
+            |a|
+          </button>
+          <button
+            type="button"
+            onClick={handleClearFormula}
+            title="Clear All"
+            className="h-9 rounded-lg bg-red-50 text-red-600 font-medium hover:bg-red-100 active:scale-95 transition-all text-xs shadow-2xs cursor-pointer border border-red-200/50"
+          >
+            AC
+          </button>
+
+          {/* Row 4: 1, 2, 3, −, 0, ., =, + */}
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('1')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            1
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('2')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            2
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('3')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            3
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress(' - ')}
+            className="h-9 rounded-lg bg-stone-200/80 text-stone-800 font-semibold hover:bg-stone-300 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('0')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-semibold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress('.')}
+            className="h-9 rounded-lg bg-white text-[#111111] font-mono font-bold hover:bg-stone-50 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer border border-black/5"
+          >
+            .
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress(' = ')}
+            className="h-9 rounded-lg bg-stone-200/80 text-stone-800 font-semibold hover:bg-stone-300 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer"
+          >
+            =
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKeypadPress(' + ')}
+            className="h-9 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 active:scale-95 transition-all text-sm shadow-2xs cursor-pointer"
+          >
+            +
+          </button>
+        </div>
+      )}
+
+      {/* 5. Minimal Cohesive Footer */}
+      <div className="py-2 bg-stone-50/80 text-center border-t border-black/6 shrink-0 flex items-center justify-between px-4">
+        <span className="text-[11px] font-sans text-stone-400 select-none">
+          Cartesian 1:1 isometric grid
         </span>
+        <button
+          type="button"
+          onClick={() => setShowKeypad((prev) => !prev)}
+          className="text-[11px] font-sans text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+        >
+          {showKeypad ? 'Hide keypad' : 'Virtual keypad'}
+        </button>
       </div>
     </aside>
   )
