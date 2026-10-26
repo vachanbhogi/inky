@@ -29,6 +29,49 @@ export function shouldStopDecoding(ids: number[], vocab: TokenVocab): boolean {
   return false
 }
 
+/**
+ * Beam candidate for decoding.
+ */
+export interface BeamCandidate {
+  ids: number[]
+  logProb: number
+  done: boolean
+}
+
+/**
+ * Top-K token candidates with log-probabilities from the last position's logits.
+ */
+export function topKTokensFromLogits(
+  logits: Float32Array,
+  seqLength: number,
+  vocabSize: number,
+  k = 3,
+): { id: number; logProb: number }[] {
+  const start = (seqLength - 1) * vocabSize
+
+  // Numerically stable log-softmax
+  let maxLogit = -Infinity
+  for (let i = 0; i < vocabSize; i++) {
+    const v = logits[start + i]
+    if (v > maxLogit) maxLogit = v
+  }
+
+  let sumExp = 0
+  for (let i = 0; i < vocabSize; i++) {
+    sumExp += Math.exp(logits[start + i] - maxLogit)
+  }
+  const logSumExp = maxLogit + Math.log(sumExp)
+
+  const items: { id: number; logProb: number }[] = []
+  for (let i = 0; i < vocabSize; i++) {
+    const logProb = logits[start + i] - logSumExp
+    items.push({ id: i, logProb })
+  }
+
+  items.sort((a, b) => b.logProb - a.logProb)
+  return items.slice(0, k)
+}
+
 /** Greedy argmax over the last position's logits. */
 export function argmaxLastPosition(
   logits: Float32Array,
