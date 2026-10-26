@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateCapsuleIntegrity } from '../../lib/canvas/capsule-integrity'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
+import { boardCatalog } from '../../lib/document/boardCatalog'
 import { isGraphableExpression } from '../../lib/math/graph-engine'
 import {
   getAvailableActions,
@@ -13,7 +14,7 @@ import {
   stampedTextFor,
 } from '../../lib/math/math-solver'
 import { getModelStatus, type ModelStatus, onModelStatusChange } from '../../lib/math/ml-recognizer'
-import { generateSocraticHint } from '../../lib/math/step-checker'
+import { type CoachingMethod, generateSocraticHint } from '../../lib/math/step-checker'
 
 // Render math with KaTeX; fall back to the raw string if the model or rule
 // engine emitted something KaTeX can't parse (never show red error text).
@@ -118,6 +119,9 @@ export function MathActionCapsule() {
   const [capsule, setCapsule] = useState(inkyStore.mathCapsule)
   const [camera, setCamera] = useState(inkyStore.camera)
   const [modelStatus, setModelStatus] = useState<ModelStatus>(getModelStatus)
+  const [activeMethod, setActiveMethod] = useState<CoachingMethod>(
+    () => boardCatalog.getActiveBoard()?.worksheetMethod ?? 'auto',
+  )
   // Keeps the last open capsule mounted (frozen) during the 140ms exit fade.
   const [exiting, setExiting] = useState(false)
   const lastCapsuleRef = useRef(inkyStore.mathCapsule)
@@ -127,6 +131,14 @@ export function MathActionCapsule() {
 
   useEffect(() => {
     return onModelStatusChange(setModelStatus)
+  }, [])
+
+  useEffect(() => {
+    const syncCatalog = () => {
+      setActiveMethod(boardCatalog.getActiveBoard()?.worksheetMethod ?? 'auto')
+    }
+    syncCatalog()
+    return boardCatalog.subscribe(syncCatalog)
   }, [])
 
   useEffect(() => {
@@ -176,8 +188,11 @@ export function MathActionCapsule() {
   )
 
   const socraticHint = useMemo(
-    () => (display && !display.mlPending ? generateSocraticHint(display.latex) : null),
-    [display],
+    () =>
+      display && !display.mlPending
+        ? generateSocraticHint(display.latex, { method: activeMethod })
+        : null,
+    [display, activeMethod],
   )
 
   const isGraphable = useMemo(
@@ -339,132 +354,144 @@ export function MathActionCapsule() {
       <div
         ref={pillRef}
         data-capsule-state={exiting ? 'exiting' : 'open'}
-        className={`${exiting ? 'inky-capsule-out' : 'inky-capsule-in'} bg-white/95 backdrop-blur-xl text-[#111111] border border-black/8 shadow-[0_12px_36px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-1.5 pl-3.5 flex items-center gap-2 max-w-[min(88vw,520px)]`}
+        className={`${exiting ? 'inky-capsule-out' : 'inky-capsule-in'} bg-white/95 backdrop-blur-xl text-[#111111] border border-black/8 shadow-[0_12px_36px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-1.5 pl-3.5 flex flex-col max-w-[min(88vw,520px)]`}
       >
-        {/* Formula — shows "Loading math model…" or "Reading…" while ML is upgrading the rule latex,
-            so the pill never displays a raw placeholder guess.
-            mlPending ? ( <span className="text-xs italic text-[#787774]">Reading… */}
-        <span className="min-w-0 flex-1 truncate py-0.5" aria-live="polite">
-          {display.mlPending ? (
-            <span className="text-xs font-medium text-[#787774]">
-              {modelStatus === 'loading' ? 'Loading math model…' : 'Reading…'}
-            </span>
-          ) : (
-            <span
-              key={display.latex}
-              title={display.latex}
-              className="inky-capsule-swap inline-block max-w-full align-middle text-[#111111]"
-            >
-              {renderFormula(display.latex)}
-            </span>
-          )}
-        </span>
-
-        {/* ML-refinement sparkle: pulses while inference is pending, pops once
-            on settle. Hidden once resolved (dot is a pending affordance). */}
-        {(display.mlPending || sparkleResolved) && (
-          <span
-            aria-hidden="true"
-            className={`inky-capsule-sparkle${sparkleResolved ? ' inky-capsule-sparkle-resolve' : ''}`}
-          />
-        )}
-
-        <div className="w-[1px] h-4 bg-black/8 shrink-0 mx-0.5" />
-
-        {/* Action buttons — rendered from the availability list; unavailable
-            actions stay visible but inert (aria-disabled, dimmed). Solve stays
-            visually primary when available. Hint is offered when a Socratic next step exists. */}
-        <div className="flex items-center gap-1 shrink-0">
-          {(
-            [
-              {
-                action: 'solve' as const,
-                label: 'Solve',
-                primary: true,
-                available: actions.includes('solve'),
-                title: undefined,
-              },
-              {
-                action: 'factor' as const,
-                label: 'Factor',
-                primary: false,
-                available: actions.includes('factor'),
-                title: undefined,
-              },
-              {
-                action: 'simplify' as const,
-                label: 'Simplify',
-                primary: false,
-                available: actions.includes('simplify'),
-                title: undefined,
-              },
-              ...(isGraphable
-                ? [
-                    {
-                      action: 'graph' as const,
-                      label: 'Graph',
-                      primary: false,
-                      available: true,
-                      title: 'Open function graph in side panel',
-                    },
-                  ]
-                : []),
-              ...(socraticHint
-                ? [
-                    {
-                      action: 'hint' as const,
-                      label: 'Hint',
-                      primary: false,
-                      available: true,
-                      title: socraticHint.operation,
-                    },
-                  ]
-                : []),
-            ] satisfies {
-              action: MathAction | 'hint' | 'graph'
-              label: string
-              primary: boolean
-              available: boolean
-              title?: string
-            }[]
-          ).map(({ action, label, primary, available, title }) => {
-            const base =
-              'text-xs px-2.5 py-1.5 rounded-xl transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1'
-            const style = primary
-              ? 'font-semibold bg-[#111111] text-white hover:bg-[#2a2a2a] active:scale-[0.96] cursor-pointer shadow-2xs'
-              : action === 'hint'
-                ? 'font-semibold text-[#2563eb] bg-blue-50/90 hover:bg-blue-100/90 active:scale-[0.96] cursor-pointer'
-                : 'font-medium text-[#111111] bg-black/[0.04] hover:bg-black/[0.08] active:scale-[0.96] cursor-pointer'
-            const defaultTitle = available ? undefined : 'Not applicable to this formula'
-            return (
-              <button
-                key={action}
-                type="button"
-                aria-disabled={!available}
-                title={title ?? defaultTitle}
-                onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
-                className={
-                  available
-                    ? `${base} ${style}`
-                    : `${base} text-[#787774] opacity-40 cursor-default`
-                }
+        <div className="flex items-center gap-2">
+          {/* Formula — shows "Loading math model…" or "Reading…" while ML is upgrading the rule latex,
+              so the pill never displays a raw placeholder guess.
+              mlPending ? ( <span className="text-xs italic text-[#787774]">Reading… */}
+          <span className="min-w-0 flex-1 truncate py-0.5" aria-live="polite">
+            {display.mlPending ? (
+              <span className="text-xs font-medium text-[#787774]">
+                {modelStatus === 'loading' ? 'Loading math model…' : 'Reading…'}
+              </span>
+            ) : (
+              <span
+                key={display.latex}
+                title={display.latex}
+                className="inky-capsule-swap inline-block max-w-full align-middle text-[#111111]"
               >
-                {label}
-              </button>
-            )
-          })}
+                {renderFormula(display.latex)}
+              </span>
+            )}
+          </span>
+
+          {/* ML-refinement sparkle: pulses while inference is pending, pops once
+              on settle. Hidden once resolved (dot is a pending affordance). */}
+          {(display.mlPending || sparkleResolved) && (
+            <span
+              aria-hidden="true"
+              className={`inky-capsule-sparkle${sparkleResolved ? ' inky-capsule-sparkle-resolve' : ''}`}
+            />
+          )}
+
+          <div className="w-[1px] h-4 bg-black/8 shrink-0 mx-0.5" />
+
+          {/* Action buttons — rendered from the availability list; unavailable
+              actions stay visible but inert (aria-disabled, dimmed). Solve stays
+              visually primary when available. Hint is offered when a Socratic next step exists. */}
+          <div className="flex items-center gap-1 shrink-0">
+            {(
+              [
+                {
+                  action: 'solve' as const,
+                  label: 'Solve',
+                  primary: true,
+                  available: actions.includes('solve'),
+                  title: undefined,
+                },
+                {
+                  action: 'factor' as const,
+                  label: 'Factor',
+                  primary: false,
+                  available: actions.includes('factor'),
+                  title: undefined,
+                },
+                {
+                  action: 'simplify' as const,
+                  label: 'Simplify',
+                  primary: false,
+                  available: actions.includes('simplify'),
+                  title: undefined,
+                },
+                ...(isGraphable
+                  ? [
+                      {
+                        action: 'graph' as const,
+                        label: 'Graph',
+                        primary: false,
+                        available: true,
+                        title: 'Open function graph in side panel',
+                      },
+                    ]
+                  : []),
+                ...(socraticHint
+                  ? [
+                      {
+                        action: 'hint' as const,
+                        label: 'Hint',
+                        primary: false,
+                        available: true,
+                        title: socraticHint.operation,
+                      },
+                    ]
+                  : []),
+              ] satisfies {
+                action: MathAction | 'hint' | 'graph'
+                label: string
+                primary: boolean
+                available: boolean
+                title?: string
+              }[]
+            ).map(({ action, label, primary, available, title }) => {
+              const base =
+                'text-xs px-2.5 py-1.5 rounded-xl transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1'
+              const style = primary
+                ? 'font-semibold bg-[#111111] text-white hover:bg-[#2a2a2a] active:scale-[0.96] cursor-pointer shadow-2xs'
+                : action === 'hint'
+                  ? 'font-semibold text-[#2563eb] bg-blue-50/90 hover:bg-blue-100/90 active:scale-[0.96] cursor-pointer'
+                  : 'font-medium text-[#111111] bg-black/[0.04] hover:bg-black/[0.08] active:scale-[0.96] cursor-pointer'
+              const defaultTitle = available ? undefined : 'Not applicable to this formula'
+              return (
+                <button
+                  key={action}
+                  type="button"
+                  aria-disabled={!available}
+                  title={title ?? defaultTitle}
+                  onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
+                  className={
+                    available
+                      ? `${base} ${style}`
+                      : `${base} text-[#787774] opacity-40 cursor-default`
+                  }
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Dismiss Icon */}
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="text-[#787774] hover:text-[#111111] hover:bg-black/5 p-1.5 rounded-xl transition-colors cursor-pointer shrink-0"
+            title="Close"
+            aria-label="Close formula capsule"
+          >
+            <X size={14} strokeWidth={2} />
+          </button>
         </div>
 
-        {/* Dismiss Icon */}
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="text-[#787774] hover:text-[#111111] hover:bg-black/5 p-1.5 rounded-xl transition-colors cursor-pointer shrink-0"
-          title="Close"
-          aria-label="Close formula capsule"
-        >
-          <X size={14} strokeWidth={2} />
-        </button>
+        {socraticHint && !display.mlPending && (
+          <div
+            data-testid="socratic-coach-tray"
+            className="border-t border-black/6 pt-2 mt-1.5 pr-2 pb-0.5 flex items-center justify-between gap-3 text-xs"
+          >
+            <span className="text-[#4b5563] leading-snug">{socraticHint.socraticPrompt}</span>
+            <span className="font-medium text-[#2563eb] shrink-0">{socraticHint.operation}</span>
+          </div>
+        )}
       </div>
     </fieldset>
   )
