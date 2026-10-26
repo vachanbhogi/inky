@@ -345,128 +345,124 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
           />
 
           <div
-            className="relative z-10 w-full max-w-lg h-[240px] bg-white border border-black/8 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.08)] p-6 overflow-hidden flex flex-col justify-center"
+            className="relative z-10 w-full max-w-xl bg-white border border-black/8 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-8 overflow-hidden min-h-[360px] flex flex-col justify-between"
             style={{
               animation: 'modalSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
             }}
           >
-            {/* Step 1: Format (Page vs Pageless) — Back arrow floating absolutely, not in its own row */}
+            {/* Top row: Back button on the left */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                aria-label="Back"
+                onClick={() => {
+                  if (setupStep === 'name') {
+                    setSetupStep('layout')
+                  } else {
+                    setPendingTemplate(null)
+                  }
+                }}
+                className="p-1 -ml-1 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+                style={{ outline: 'none' }}
+              >
+                <ArrowLeft size={16} strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Step 1: Format (Page vs Pageless) */}
             {setupStep === 'layout' ? (
-              <div className="relative w-full flex items-center justify-center">
-                {/* Floating Back Arrow button (top-left, absolute) */}
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-6 my-auto">
+                {/* Left: Page Option (Physical sheet with crisp page geometry) */}
                 <button
                   type="button"
-                  aria-label="Back"
-                  onClick={() => setPendingTemplate(null)}
-                  className="absolute -top-1 -left-1 p-1.5 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer z-20"
+                  onClick={() => handlePickLayout('page')}
+                  className="group flex flex-col items-center p-3.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
                   style={{ outline: 'none' }}
                 >
-                  <ArrowLeft size={16} strokeWidth={2} />
+                  {/* Realistic 8.5x11 Sheet on Warm Desk */}
+                  <div className="w-full aspect-[4/5] bg-[#f2f1ed] rounded-lg flex items-center justify-center p-3.5 mb-3.5 overflow-hidden transition-transform group-hover:scale-[1.02]">
+                    <div className="h-full aspect-[8.5/11] bg-white rounded-[3px] shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-black/10 relative overflow-hidden flex flex-col justify-between">
+                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                      {/* Page margin guideline / subtle stationery rule for blank paper */}
+                      {pendingTemplate.paperStyle === 'blank' && (
+                        <div className="absolute inset-0 p-3 pointer-events-none flex flex-col justify-between opacity-30">
+                          <div className="w-1/3 h-[1.5px] bg-black/20 rounded-full" />
+                          <div className="space-y-1.5 w-full">
+                            <div className="w-full h-[1px] bg-black/10 rounded-full" />
+                            <div className="w-4/5 h-[1px] bg-black/10 rounded-full" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-[#111111]">Page</span>
                 </button>
 
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 w-full max-w-sm">
-                  {/* Left: Page Option (Physical sheet with crisp page geometry) */}
-                  <button
-                    type="button"
-                    onClick={() => handlePickLayout('page')}
-                    className="group flex flex-col items-center p-2 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
-                    style={{ outline: 'none' }}
-                  >
-                    {/* Realistic 8.5x11 Sheet on Warm Desk */}
-                    <div className="w-full aspect-[4/5] bg-[#f2f1ed] rounded-lg flex items-center justify-center p-2.5 mb-2 overflow-hidden transition-transform group-hover:scale-[1.02]">
-                      <div className="h-full aspect-[8.5/11] bg-white rounded-[3px] shadow-[0_3px_10px_rgba(0,0,0,0.08)] border border-black/10 relative overflow-hidden flex flex-col justify-between">
-                        <PaperPatternSurface style={pendingTemplate.paperStyle} />
-                        {/* Page margin guideline / subtle stationery rule for blank paper */}
-                        {pendingTemplate.paperStyle === 'blank' && (
-                          <div className="absolute inset-0 p-2 pointer-events-none flex flex-col justify-between opacity-30">
-                            <div className="w-1/3 h-[1.5px] bg-black/20 rounded-full" />
-                            <div className="space-y-1 w-full">
-                              <div className="w-full h-[1px] bg-black/10 rounded-full" />
-                              <div className="w-4/5 h-[1px] bg-black/10 rounded-full" />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-xs font-medium text-[#111111]">Page</span>
-                  </button>
+                {/* Clean Central Divider */}
+                <div className="w-[1px] h-44 bg-black/[0.08] self-center" />
 
-                  {/* Clean Central Divider */}
-                  <div className="w-[1px] h-32 bg-black/[0.07] self-center" />
-
-                  {/* Right: Pageless Option (Infinite boundless canvas with corner expand/pan markers) */}
-                  <button
-                    type="button"
-                    onClick={() => handlePickLayout('pageless')}
-                    className="group flex flex-col items-center p-2 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
-                    style={{ outline: 'none' }}
-                  >
-                    {/* Boundless Canvas Surface with subtle canvas corner crops */}
-                    <div className="w-full aspect-[4/5] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-2 transition-transform group-hover:scale-[1.02]">
-                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
-                      {/* Technical architectural drafting corner crop marks showing unbounded canvas */}
-                      <div className="absolute inset-2 pointer-events-none opacity-25">
-                        {/* Top-left corner */}
-                        <div className="absolute top-0 left-0 w-2 h-[1px] bg-black" />
-                        <div className="absolute top-0 left-0 w-[1px] h-2 bg-black" />
-                        {/* Top-right corner */}
-                        <div className="absolute top-0 right-0 w-2 h-[1px] bg-black" />
-                        <div className="absolute top-0 right-0 w-[1px] h-2 bg-black" />
-                        {/* Bottom-left corner */}
-                        <div className="absolute bottom-0 left-0 w-2 h-[1px] bg-black" />
-                        <div className="absolute bottom-0 left-0 w-[1px] h-2 bg-black" />
-                        {/* Bottom-right corner */}
-                        <div className="absolute bottom-0 right-0 w-2 h-[1px] bg-black" />
-                        <div className="absolute bottom-0 right-0 w-[1px] h-2 bg-black" />
-                      </div>
+                {/* Right: Pageless Option (Infinite boundless canvas with corner expand/pan markers) */}
+                <button
+                  type="button"
+                  onClick={() => handlePickLayout('pageless')}
+                  className="group flex flex-col items-center p-3.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
+                  style={{ outline: 'none' }}
+                >
+                  {/* Boundless Canvas Surface with subtle canvas corner crops */}
+                  <div className="w-full aspect-[4/5] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-3.5 transition-transform group-hover:scale-[1.02]">
+                    <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                    {/* Technical architectural drafting corner crop marks showing unbounded canvas */}
+                    <div className="absolute inset-2.5 pointer-events-none opacity-25">
+                      {/* Top-left corner */}
+                      <div className="absolute top-0 left-0 w-2.5 h-[1.5px] bg-black" />
+                      <div className="absolute top-0 left-0 w-[1.5px] h-2.5 bg-black" />
+                      {/* Top-right corner */}
+                      <div className="absolute top-0 right-0 w-2.5 h-[1.5px] bg-black" />
+                      <div className="absolute top-0 right-0 w-[1.5px] h-2.5 bg-black" />
+                      {/* Bottom-left corner */}
+                      <div className="absolute bottom-0 left-0 w-2.5 h-[1.5px] bg-black" />
+                      <div className="absolute bottom-0 left-0 w-[1.5px] h-2.5 bg-black" />
+                      {/* Bottom-right corner */}
+                      <div className="absolute bottom-0 right-0 w-2.5 h-[1.5px] bg-black" />
+                      <div className="absolute bottom-0 right-0 w-[1.5px] h-2.5 bg-black" />
                     </div>
-                    <span className="text-xs font-medium text-[#111111]">Pageless</span>
-                  </button>
-                </div>
+                  </div>
+                  <span className="text-sm font-semibold text-[#111111]">Pageless</span>
+                </button>
               </div>
             ) : (
-              /* Step 2: Name Input — Exactly identical h-[240px] modal */
-              <form onSubmit={handleConfirmCreate} className="relative w-full flex items-center justify-center">
-                {/* Floating Back Arrow button (top-left, absolute) */}
-                <button
-                  type="button"
-                  aria-label="Back"
-                  onClick={() => setSetupStep('layout')}
-                  className="absolute -top-1 -left-1 p-1.5 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer z-20"
-                  style={{ outline: 'none' }}
-                >
-                  <ArrowLeft size={16} strokeWidth={2} />
-                </button>
-
-                <div className="w-full max-w-sm px-2">
-                  <div className="flex items-center gap-3 border-b-2 border-black/10 focus-within:border-[#111111] pb-2 transition-colors">
-                    <label htmlFor="inky-title-input" className="sr-only">
-                      Note title
-                    </label>
-                    <input
-                      id="inky-title-input"
-                      ref={nameInputRef}
-                      type="text"
-                      value={docName}
-                      onChange={(e) => setDocName(e.target.value)}
-                      placeholder={pendingTemplate.defaultName}
-                      aria-label="Note name"
-                      style={{ outline: 'none', boxShadow: 'none' }}
-                      className="flex-1 min-w-0 text-xl font-medium tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-none p-0"
-                      spellCheck={false}
-                    />
-                    <button
-                      type="submit"
-                      aria-label="Confirm"
-                      className="p-2 bg-[#111111] hover:bg-[#333333] text-white rounded-lg transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 flex items-center justify-center"
-                      style={{ outline: 'none' }}
-                    >
-                      <ArrowRight size={15} strokeWidth={2.2} />
-                    </button>
-                  </div>
+              /* Step 2: Name Input (Spacious, elegant inline input with arrow submit) */
+              <form onSubmit={handleConfirmCreate} className="flex flex-col my-auto py-12 px-4">
+                <div className="flex items-center gap-3 border-b-2 border-black/10 focus-within:border-[#111111] pb-2.5 transition-colors">
+                  <label htmlFor="inky-title-input" className="sr-only">
+                    Note title
+                  </label>
+                  <input
+                    id="inky-title-input"
+                    ref={nameInputRef}
+                    type="text"
+                    value={docName}
+                    onChange={(e) => setDocName(e.target.value)}
+                    placeholder={pendingTemplate.defaultName}
+                    aria-label="Note name"
+                    style={{ outline: 'none', boxShadow: 'none' }}
+                    className="flex-1 min-w-0 text-2xl font-semibold tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-none p-0"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="submit"
+                    aria-label="Confirm"
+                    className="p-2.5 bg-[#111111] hover:bg-[#333333] text-white rounded-xl transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 flex items-center justify-center"
+                    style={{ outline: 'none' }}
+                  >
+                    <ArrowRight size={16} strokeWidth={2.2} />
+                  </button>
                 </div>
               </form>
             )}
+
+            {/* Bottom spacer to mirror the top row height perfectly for vertical balance */}
+            <div className="h-6" />
           </div>
         </div>
       )}
