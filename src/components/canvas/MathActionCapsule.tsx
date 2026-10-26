@@ -388,19 +388,41 @@ export function MathActionCapsule() {
 
           <div className="w-[1px] h-4 bg-black/8 shrink-0 mx-0.5" />
 
-          {/* Action buttons — rendered from the availability list; unavailable
-              actions stay visible but inert (aria-disabled, dimmed). Solve stays
-              visually primary when available. Hint is offered when a Socratic next step exists. */}
+          {/* Action buttons — rendered from the availability list.
+              "Next Step" (Socratic hint) is prominent when a guided step exists.
+              "Solve", "Factor", "Expand", "Simplify" adapt dynamically to the expression. */}
           <div className="flex items-center gap-1 shrink-0">
             {(
               [
+                ...(socraticHint
+                  ? [
+                      {
+                        action: 'hint' as const,
+                        label: 'Next Step',
+                        primary: true,
+                        available: true,
+                        title: socraticHint.operation,
+                      },
+                    ]
+                  : []),
                 {
                   action: 'solve' as const,
                   label: 'Solve',
-                  primary: true,
+                  primary: !socraticHint && actions.includes('solve'),
                   available: actions.includes('solve'),
                   title: undefined,
                 },
+                ...(actions.includes('expand')
+                  ? [
+                      {
+                        action: 'expand' as const,
+                        label: 'Expand',
+                        primary: !socraticHint && !actions.includes('solve'),
+                        available: true,
+                        title: 'Expand algebraic expression',
+                      },
+                    ]
+                  : []),
                 {
                   action: 'factor' as const,
                   label: 'Factor',
@@ -426,17 +448,6 @@ export function MathActionCapsule() {
                       },
                     ]
                   : []),
-                ...(socraticHint
-                  ? [
-                      {
-                        action: 'hint' as const,
-                        label: 'Hint',
-                        primary: false,
-                        available: true,
-                        title: socraticHint.operation,
-                      },
-                    ]
-                  : []),
               ] satisfies {
                 action: MathAction | 'hint' | 'graph'
                 label: string
@@ -447,16 +458,19 @@ export function MathActionCapsule() {
             ).map(({ action, label, primary, available, title }) => {
               const base =
                 'text-xs px-2.5 py-1.5 rounded-xl transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1'
-              const style = primary
-                ? 'font-semibold bg-[#111111] text-white hover:bg-[#2a2a2a] active:scale-[0.96] cursor-pointer shadow-2xs'
-                : action === 'hint'
-                  ? 'font-semibold text-[#2563eb] bg-blue-50/90 hover:bg-blue-100/90 active:scale-[0.96] cursor-pointer'
-                  : 'font-medium text-[#111111] bg-black/[0.04] hover:bg-black/[0.08] active:scale-[0.96] cursor-pointer'
+              const style =
+                action === 'hint'
+                  ? 'font-semibold text-white bg-[#2563eb] hover:bg-[#1d4ed8] active:scale-[0.96] cursor-pointer shadow-2xs'
+                  : primary
+                    ? 'font-semibold bg-[#111111] text-white hover:bg-[#2a2a2a] active:scale-[0.96] cursor-pointer shadow-2xs'
+                    : 'font-medium text-[#111111] bg-black/[0.04] hover:bg-black/[0.08] active:scale-[0.96] cursor-pointer'
               const defaultTitle = available ? undefined : 'Not applicable to this formula'
               return (
                 <button
                   key={action}
                   type="button"
+                  data-testid={`action-${action}`}
+                  aria-label={label}
                   aria-disabled={!available}
                   title={title ?? defaultTitle}
                   onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}

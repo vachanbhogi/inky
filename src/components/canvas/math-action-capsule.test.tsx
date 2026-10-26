@@ -32,7 +32,14 @@ function setCapsule(latex: string, mlPending = false) {
 }
 
 function button(label: string): HTMLButtonElement | null {
-  return [...document.querySelectorAll('button')].find((b) => b.textContent === label) ?? null
+  return (
+    [...document.querySelectorAll('button')].find(
+      (b) =>
+        b.textContent === label ||
+        b.getAttribute('aria-label') === label ||
+        (label === 'Hint' && (b.textContent === 'Next Step' || b.getAttribute('data-testid') === 'action-hint')),
+    ) ?? null
+  )
 }
 
 describe('MathActionCapsule availability (emitted latex shapes)', () => {
