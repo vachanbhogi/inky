@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf'
 import { ArrowLeft, ArrowRight, FileUp, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
@@ -7,38 +6,9 @@ import {
   boardCatalog,
   type DocumentType,
   type PaperStyle,
-  type WorksheetPage,
 } from '../../lib/document/boardCatalog'
 import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 import { InkyLogo } from '../common/InkyLogo'
-
-export function generateCompletingTheSquareSamplePdfBuffer(): ArrayBuffer {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'pt',
-    format: 'letter',
-  })
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text('Algebra II: Completing the Square Worksheet', 54, 68)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  doc.text('Name: ________________________          Date: ______________', 54, 96)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text('Directions: Solve each quadratic equation by completing the square.', 54, 130)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(14)
-  doc.text('1.  x^2 + 6x - 7 = 0', 54, 180)
-  doc.text('2.  x^2 - 4x - 5 = 0', 54, 380)
-  doc.text('3.  x^2 + 8x + 3 = 0', 54, 580)
-
-  return doc.output('arraybuffer')
-}
 
 interface HomeDashboardProps {
   onOpenBoard: (boardId: string) => void
@@ -334,39 +304,6 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
     }
   }
 
-  const handleLoadSampleCompletingTheSquare = async () => {
-    const sampleTitle = 'Algebra II: Completing the Square Worksheet'
-    const sampleText =
-      'Algebra II: Completing the Square Worksheet Directions: Solve each quadratic equation by completing the square. 1. x^2 + 6x - 7 = 0 2. x^2 - 4x - 5 = 0 3. x^2 + 8x + 3 = 0'
-    try {
-      setIsImportingPdf(true)
-      const buffer = generateCompletingTheSquareSamplePdfBuffer()
-      let pages: WorksheetPage[] = []
-      try {
-        pages = await renderPdfToPages(buffer)
-      } catch {
-        pages = []
-      }
-      if (pages.length === 0) {
-        pages = [
-          {
-            pageNumber: 1,
-            width: 816,
-            height: 1056,
-            dataUrl: '',
-            textContent: sampleText,
-          },
-        ]
-      } else if (!pages[0].textContent) {
-        pages[0].textContent = sampleText
-      }
-      const board = boardCatalog.createBoard('worksheet', sampleTitle, pages, 'blank')
-      onOpenBoard(board.id)
-    } finally {
-      setIsImportingPdf(false)
-    }
-  }
-
   // Also bind window-level dragover/drop so dropping anywhere in the viewport is 100% intercepted
   // and the browser never navigates away to its built-in PDF viewer.
   useEffect(() => {
@@ -636,17 +573,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
 
         {/* Template Gallery */}
         <section className="mb-12 flex flex-col">
-          <div className="flex items-center justify-between mb-3.5">
-            <h2 className="text-xs font-medium text-[#787774]">Templates</h2>
-            <button
-              type="button"
-              data-testid="sample-cts-pdf-button"
-              onClick={handleLoadSampleCompletingTheSquare}
-              className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white hover:bg-[#fafaf9] border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-2xs transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
-            >
-              Try sample PDF: Completing the Square
-            </button>
-          </div>
+          <h2 className="text-xs font-medium text-[#787774] mb-3.5">Templates</h2>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
             {TEMPLATES.map((tmpl) => (

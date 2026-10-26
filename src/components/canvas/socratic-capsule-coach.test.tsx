@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { createRoot, type Root } from 'react-dom/client'
 import { inkyStore } from '../../lib/canvas/store'
 import { boardCatalog } from '../../lib/document/boardCatalog'
-import { generateCompletingTheSquareSamplePdfBuffer, HomeDashboard } from '../home/HomeDashboard'
 import { MathActionCapsule } from './MathActionCapsule'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
 
@@ -149,34 +148,5 @@ describe('Socratic Capsule Coach Tray & Worksheet Method Pill', () => {
     pill?.click()
     await flush()
     expect(boardCatalog.getActiveBoard()?.worksheetMethod).toBe('completing-the-square')
-  })
-
-  test('HomeDashboard generates sample Completing the Square PDF and opens board with auto-detected completing-the-square curriculum', async () => {
-    const buffer = generateCompletingTheSquareSamplePdfBuffer()
-    expect(buffer.byteLength).toBeGreaterThan(500)
-
-    let openedBoardId: string | null = null
-    await mount(
-      <HomeDashboard
-        onOpenBoard={(id) => {
-          openedBoardId = id
-        }}
-      />,
-    )
-
-    const sampleBtn = document.querySelector(
-      '[data-testid="sample-cts-pdf-button"]',
-    ) as HTMLButtonElement | null
-    expect(sampleBtn).not.toBeNull()
-    expect(sampleBtn?.textContent).toContain('Try sample PDF: Completing the Square')
-
-    sampleBtn?.click()
-    await new Promise((r) => setTimeout(r, 50))
-
-    expect(openedBoardId).not.toBeNull()
-    const created = boardCatalog.getActiveBoard()
-    expect(created?.title).toBe('Algebra II: Completing the Square Worksheet')
-    expect(created?.worksheetMethod).toBe('completing-the-square')
-    expect(created?.worksheetTopic).toBe('Completing the Square')
   })
 })
