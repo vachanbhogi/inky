@@ -136,11 +136,16 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
 
       {/* Main container */}
       <div className="w-full max-w-4xl px-8 py-16 flex flex-col">
-        {/* Playful Header */}
+        {/* Header with Editorial Wordmark */}
         <header className="flex items-center justify-between mb-10 pb-4 border-b border-black/[0.06]">
           <div className="flex items-center gap-2.5">
-            <InkyLogo size={28} />
-            <span className="text-xl font-semibold tracking-tight text-neutral-900">Inky</span>
+            <InkyLogo size={24} />
+            <span
+              className="text-2xl font-serif tracking-tight text-[#111111]"
+              style={{ fontFamily: "'Newsreader', 'Instrument Serif', 'Times New Roman', serif" }}
+            >
+              Inky
+            </span>
           </div>
 
           <button
