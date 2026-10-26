@@ -277,7 +277,7 @@ export function WorksheetBackgroundLayer() {
       />
       {isPagedDoc && pages.some((p) => p.dataUrl || p.textContent) && (
         <div
-          className="inky-ui absolute z-20 pointer-events-auto"
+          className="inky-ui absolute z-20 pointer-events-auto flex items-center gap-2"
           style={{
             left: `${pillScreenX}px`,
             top: `${pillScreenY}px`,
@@ -297,10 +297,23 @@ export function WorksheetBackgroundLayer() {
             <span className="text-[#787774]">Curriculum:</span>
             <span className="font-semibold">{activeTopicLabel}</span>
           </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              inkyStore.openPedagogySheet('teach')
+            }}
+            data-testid="teach-method-pill"
+            aria-label="Learn method"
+            title="Open method reference lesson"
+            className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+          >
+            <span>Learn method</span>
+          </button>
         </div>
       )}
       <div
-        className="inky-ui absolute z-20 pointer-events-auto"
+        className="inky-ui absolute z-20 pointer-events-auto flex items-center gap-2"
         style={{
           left: `${btnScreenX}px`,
           top: `${btnScreenY}px`,
@@ -318,6 +331,21 @@ export function WorksheetBackgroundLayer() {
           <Plus size={14} strokeWidth={2.2} />
           <span>Add page</span>
         </button>
+        {isPagedDoc && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              inkyStore.openPedagogySheet('review')
+            }}
+            data-testid="review-session-pill"
+            aria-label="Review session"
+            title="Review your worksheet derivation steps"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#111111] border border-black/10 hover:border-black/20 shadow-[0_4px_14px_rgba(0,0,0,0.06)] text-xs font-medium transition-all active:scale-95 cursor-pointer"
+          >
+            <span>Review session</span>
+          </button>
+        )}
       </div>
     </>
   )

@@ -27,6 +27,7 @@ import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
+import { PedagogySheet } from './PedagogySheet'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference
@@ -989,6 +990,7 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       <StampLayer />
       <MathActionCapsule />
       <GraphSidebar />
+      <PedagogySheet />
       <Toolbar onGoHome={onGoHome} />
       <ShortcutsModal />
     </div>

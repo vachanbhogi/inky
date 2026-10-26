@@ -243,6 +243,7 @@ export class InkyStore {
   eraserPoint: { x: number; y: number; radius: number } | null = null
   showShortcuts = false
   graphSidebar: { isOpen: boolean; equation: string } = { isOpen: false, equation: '' }
+  pedagogySheet: { isOpen: boolean; mode: 'teach' | 'review' } = { isOpen: false, mode: 'teach' }
   // Transient gesture-handoff animations (circle → capsule). Cleared by
   // CanvasLayer when their progress reports done.
   gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
@@ -370,6 +371,16 @@ export class InkyStore {
 
   closeGraphSidebar() {
     this.graphSidebar = { isOpen: false, equation: '' }
+    this.notify()
+  }
+
+  openPedagogySheet(mode: 'teach' | 'review') {
+    this.pedagogySheet = { isOpen: true, mode }
+    this.notify()
+  }
+
+  closePedagogySheet() {
+    this.pedagogySheet = { isOpen: false, mode: 'teach' }
     this.notify()
   }
 

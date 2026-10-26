@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { inkyStore } from '../../lib/canvas/store'
 import { boardCatalog } from '../../lib/document/boardCatalog'
 import { MathActionCapsule } from './MathActionCapsule'
+import { PedagogySheet } from './PedagogySheet'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
 
 let roots: Root[] = []
@@ -42,6 +43,7 @@ describe('Socratic Capsule Coach Tray & Worksheet Method Pill', () => {
     inkyStore.stamps = []
     inkyStore.stampedReveal = null
     inkyStore.setMathCapsule(null)
+    inkyStore.closePedagogySheet()
     inkyStore.camera = { x: 512, y: 40, z: 1 }
     inkyStore.setActiveTool('select')
   })
@@ -148,5 +150,68 @@ describe('Socratic Capsule Coach Tray & Worksheet Method Pill', () => {
     pill?.click()
     await flush()
     expect(boardCatalog.getActiveBoard()?.worksheetMethod).toBe('completing-the-square')
+  })
+
+  test('Worksheet renders Learn method and Review session pills and toggles PedagogySheet', async () => {
+    const board = boardCatalog.createBoard(
+      'worksheet',
+      'Algebra II: Completing the Square Worksheet',
+      [
+        {
+          pageNumber: 1,
+          width: 816,
+          height: 1056,
+          dataUrl: 'data:image/jpeg;base64,fake',
+          textContent: 'Directions: Solve each quadratic equation by completing the square.',
+        },
+      ],
+      'blank',
+    )
+    expect(board.worksheetMethod).toBe('completing-the-square')
+
+    await mount(
+      <div>
+        <WorksheetBackgroundLayer />
+        <PedagogySheet />
+      </div>,
+    )
+
+    const teachPill = document.querySelector(
+      '[data-testid="teach-method-pill"]',
+    ) as HTMLButtonElement | null
+    const reviewPill = document.querySelector(
+      '[data-testid="review-session-pill"]',
+    ) as HTMLButtonElement | null
+
+    expect(teachPill).not.toBeNull()
+    expect(teachPill?.textContent).toContain('Learn method')
+    expect(reviewPill).not.toBeNull()
+    expect(reviewPill?.textContent).toContain('Review session')
+
+    // Click Learn method -> opens PedagogySheet in teach mode
+    teachPill?.click()
+    await flush()
+
+    let sheet = document.querySelector('[data-testid="pedagogy-sheet"]')
+    expect(sheet).not.toBeNull()
+    expect(sheet?.textContent).toContain('Completing the Square')
+    expect(sheet?.textContent).toContain('Isolate variable terms')
+
+    // Close sheet
+    const closeBtn = sheet?.querySelector('button[aria-label="Close sheet"]') as HTMLButtonElement | null
+    closeBtn?.click()
+    await flush()
+
+    sheet = document.querySelector('[data-testid="pedagogy-sheet"]')
+    expect(sheet).toBeNull()
+
+    // Click Review session -> opens PedagogySheet in review mode
+    reviewPill?.click()
+    await flush()
+
+    sheet = document.querySelector('[data-testid="pedagogy-sheet"]')
+    expect(sheet).not.toBeNull()
+    expect(sheet?.textContent).toContain('Session Review')
+    expect(sheet?.textContent).toContain('Key Rule of Thumb')
   })
 })
