@@ -137,8 +137,17 @@ export function groupIntoHorizontalLines(
       const smallerH = Math.min(h1, h2)
       const overlap = Math.max(0, Math.min(g1.maxY, g2.maxY) - Math.max(g1.minY, g2.minY))
       const centerDist = Math.abs(g1.centerY - g2.centerY)
+      const verticalGap = Math.max(0, Math.max(g1.minY, g2.minY) - Math.min(g1.maxY, g2.maxY))
 
-      if (overlap / smallerH >= 0.35 || centerDist <= 0.55 * medianHeight) {
+      // Merge if overlapping, close vertically, or if one group is a short symbol fragment
+      // (like an elevated minus sign, fraction bar, or superscript) near the adjacent line
+      const isFragment = smallerH < 0.65 * medianHeight
+      const shouldMerge =
+        overlap / smallerH >= 0.25 ||
+        centerDist <= 0.65 * medianHeight ||
+        (isFragment && verticalGap <= 0.65 * medianHeight)
+
+      if (shouldMerge) {
         g1.strokeIds.push(...g2.strokeIds)
         g1.charIds.push(...g2.charIds)
         g1.minY = Math.min(g1.minY, g2.minY)
