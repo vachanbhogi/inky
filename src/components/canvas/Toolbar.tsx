@@ -2,7 +2,6 @@ import {
   Download,
   Eraser,
   FilePlus2,
-  FileUp,
   Hand,
   Home,
   LineChart,
@@ -14,12 +13,11 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { PALETTE_COLORS, type ToolType } from '../../lib/canvas/types'
 import { boardCatalog } from '../../lib/document/boardCatalog'
 import { downloadBlob, exportToPdf } from '../../lib/pdf/pdfExporter'
-import { renderPdfToPages } from '../../lib/pdf/pdfImporter'
 
 interface ToolbarProps {
   onGoHome?: () => void
@@ -35,52 +33,7 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
   const [canRedo, setCanRedo] = useState(false)
   const [isGraphOpen, setIsGraphOpen] = useState(inkyStore.graphSidebar.isOpen)
   const [isExporting, setIsExporting] = useState(false)
-  const [isImporting, setIsImporting] = useState(false)
   const [activeBoard, setActiveBoard] = useState(() => boardCatalog.getActiveBoard())
-  const pdfInputRef = useRef<HTMLInputElement>(null)
-
-  const handleImportPdfFromToolbar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (pdfInputRef.current) pdfInputRef.current.value = ''
-    if (!file) return
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    if (!isPdf) return
-    try {
-      setIsImporting(true)
-      const buffer = await file.arrayBuffer()
-      const pages = await renderPdfToPages(buffer)
-      if (pages.length > 0) {
-        const title = file.name.replace(/\.pdf$/i, '') || 'Worksheet'
-        const current = boardCatalog.getActiveBoard()
-        if (
-          current &&
-          inkyStore.strokes.length === 0 &&
-          inkyStore.stamps.length === 0 &&
-          (!current.pdfPages || current.pdfPages.length === 0)
-        ) {
-          boardCatalog.importPdfIntoBoard(current.id, pages, title)
-          inkyStore.setCamera({ x: Math.round(window.innerWidth / 2), y: 40, z: 1 })
-        } else {
-          boardCatalog.updateActiveBoardData(
-            inkyStore.strokes,
-            inkyStore.stamps,
-            inkyStore.camera,
-            inkyStore.paperStyle,
-          )
-          const nextBoard = boardCatalog.createBoard('worksheet', title, pages, 'blank')
-          inkyStore.activateBoard(nextBoard.id, nextBoard.strokes, nextBoard.stamps)
-          inkyStore.setPaperStyle('blank')
-          inkyStore.setCamera(
-            nextBoard.camera ?? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 },
-          )
-        }
-      }
-    } catch (err) {
-      console.error('Failed to import PDF:', err)
-    } finally {
-      setIsImporting(false)
-    }
-  }
 
   useEffect(() => {
     const unsubStore = inkyStore.subscribe(() => {
@@ -280,15 +233,8 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
             )
           })}
         </div>
-        {/* Right Actions: Add Page (if worksheet), Import PDF & Export PDF */}
+        {/* Right Actions: Add Page (if worksheet) & Export PDF */}
         <div className="w-[1px] h-5 bg-black/10 mx-1" />
-        <input
-          ref={pdfInputRef}
-          type="file"
-          accept=".pdf,application/pdf"
-          className="sr-only"
-          onChange={handleImportPdfFromToolbar}
-        />
         {activeBoard?.type === 'worksheet' && (
           <button
             type="button"
@@ -308,16 +254,6 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
             <FilePlus2 size={18} />
           </button>
         )}
-        <button
-          type="button"
-          title="Import PDF"
-          aria-label="Import PDF"
-          disabled={isImporting}
-          onClick={() => pdfInputRef.current?.click()}
-          className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
-        >
-          <FileUp size={18} className={isImporting ? 'animate-bounce' : ''} />
-        </button>
         <button
           type="button"
           title="Export PDF"
