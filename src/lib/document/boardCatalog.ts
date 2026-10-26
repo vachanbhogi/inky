@@ -54,6 +54,8 @@ class BoardCatalogStore {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.boards))
         if (this.activeBoardId) {
           localStorage.setItem(CURRENT_BOARD_KEY, this.activeBoardId)
+        } else {
+          localStorage.removeItem(CURRENT_BOARD_KEY)
         }
       }
     } catch {}
@@ -64,32 +66,32 @@ class BoardCatalogStore {
       if (typeof window !== 'undefined' && window.localStorage) {
         const raw = localStorage.getItem(STORAGE_KEY)
         if (raw) {
-          this.boards = JSON.parse(raw)
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) {
+            // Filter out legacy auto-created 'board-default' if it was never drawn on
+            this.boards = parsed.filter(
+              (b: BoardItem) =>
+                !(
+                  b.id === 'board-default' &&
+                  b.title === 'Scratch Board' &&
+                  (!b.strokes || b.strokes.length === 0) &&
+                  (!b.stamps || b.stamps.length === 0)
+                ),
+            )
+          }
         }
         const activeId = localStorage.getItem(CURRENT_BOARD_KEY)
         if (activeId && this.boards.some((b) => b.id === activeId)) {
           this.activeBoardId = activeId
+        } else if (this.boards.length > 0) {
+          this.activeBoardId = this.boards[0].id
         }
       }
     } catch {}
-
-    if (this.boards.length === 0) {
-      const defaultBoard: BoardItem = {
-        id: 'board-default',
-        title: 'Scratch Board',
-        type: 'infinite',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        strokes: [],
-        stamps: [],
-      }
-      this.boards = [defaultBoard]
-      this.activeBoardId = defaultBoard.id
-      this.save()
-    }
   }
 
   getActiveBoard(): BoardItem | undefined {
+    if (!this.activeBoardId) return this.boards[0]
     return this.boards.find((b) => b.id === this.activeBoardId) ?? this.boards[0]
   }
 
@@ -107,7 +109,7 @@ class BoardCatalogStore {
     paperStyle: PaperStyle = 'blank',
   ): BoardItem {
     const id = `board-${Date.now()}`
-    const name = title ?? (type === 'worksheet' ? 'Homework Worksheet' : 'New Board')
+    const name = title?.trim() || (type === 'worksheet' ? 'Homework' : 'Untitled')
     const newBoard: BoardItem = {
       id,
       title: name,
@@ -135,10 +137,9 @@ class BoardCatalogStore {
   }
 
   deleteBoard(id: string) {
-    if (this.boards.length <= 1) return
     this.boards = this.boards.filter((b) => b.id !== id)
     if (this.activeBoardId === id) {
-      this.activeBoardId = this.boards[0].id
+      this.activeBoardId = this.boards[0]?.id ?? null
     }
     this.notify()
   }
