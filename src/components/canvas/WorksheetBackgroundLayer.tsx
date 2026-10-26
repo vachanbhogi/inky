@@ -291,10 +291,10 @@ export function WorksheetBackgroundLayer() {
           data-method={worksheetMethod}
           aria-label={`Curriculum: ${activeTopicLabel}`}
           title="Click to cycle Socratic coaching method"
-          className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+          className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
         >
           <span className="text-[#787774]">Curriculum:</span>
-          <span>{activeTopicLabel}</span>
+          <span className="font-semibold">{activeTopicLabel}</span>
         </button>
       </div>
       <div
