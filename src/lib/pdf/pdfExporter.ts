@@ -1,11 +1,13 @@
 import { jsPDF } from 'jspdf'
-import { inkyStore } from '../canvas/store'
+import { drawPaperPattern } from '../../components/canvas/WorksheetBackgroundLayer'
+import { inkyStore, type PaperStyle } from '../canvas/store'
 import { generateStrokePath } from '../canvas/svg-utils'
 import type { Stroke } from '../canvas/types'
 
 export interface ExportPdfOptions {
   backgroundPages?: { pageNumber: number; width: number; height: number; dataUrl: string }[]
   pageCount?: number
+  paperStyle?: PaperStyle
   title?: string
 }
 
@@ -39,7 +41,8 @@ export function getWorksheetPageBounds(
 }
 
 /**
- * Exports current strokes and math stamps onto a PDF document.
+ * Exports current strokes, math stamps, and paper background (or PDF background)
+ * onto a PDF document.
  */
 export async function exportToPdf(options?: ExportPdfOptions): Promise<Blob> {
   const pdf = new jsPDF({
@@ -52,6 +55,7 @@ export async function exportToPdf(options?: ExportPdfOptions): Promise<Blob> {
   const pageHeightPt = 792
 
   const bgPages = options?.backgroundPages ?? []
+  const paperStyle: PaperStyle = options?.paperStyle ?? inkyStore.paperStyle ?? 'blank'
   const strokes: Stroke[] = inkyStore.strokes
   const stamps = inkyStore.stamps
   const hasInk = strokes.length > 0 || stamps.length > 0
@@ -64,11 +68,13 @@ export async function exportToPdf(options?: ExportPdfOptions): Promise<Blob> {
     }
 
     const bg = bgPages[pageIdx]
-    if (bg?.dataUrl) {
+    const hasPdfBg = Boolean(bg?.dataUrl)
+    if (hasPdfBg && bg) {
       pdf.addImage(bg.dataUrl, 'JPEG', 0, 0, pageWidthPt, pageHeightPt, undefined, 'FAST')
     }
 
-    if (hasInk) {
+    const needsCanvasOverlay = !hasPdfBg || hasInk
+    if (needsCanvasOverlay) {
       const { pageX, pageY, pageW, pageH } = getWorksheetPageBounds(pageIdx, bgPages)
       const scale = 2
       const canvas = document.createElement('canvas')
@@ -78,6 +84,15 @@ export async function exportToPdf(options?: ExportPdfOptions): Promise<Blob> {
 
       if (ctx) {
         ctx.scale(scale, scale)
+
+        // When this page does not have an imported PDF image, draw the paper background
+        // (white sheet + dotted / graph / lined pattern) so exported PDFs include the paper style.
+        if (!hasPdfBg) {
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pageW, pageH)
+          drawPaperPattern(ctx, paperStyle, 0, 0, pageW, pageH)
+        }
+
         // Translate world space so (pageX, pageY) is at canvas (0, 0)
         ctx.translate(-pageX, -pageY)
 

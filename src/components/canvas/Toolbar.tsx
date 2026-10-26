@@ -233,50 +233,51 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
             )
           })}
         </div>
-        {/* Right Actions: Add Page & Export PDF (for worksheet / page boards) */}
+        {/* Right Actions: Add Page (if worksheet) & Export PDF */}
+        <div className="w-[1px] h-5 bg-black/10 mx-1" />
         {activeBoard?.type === 'worksheet' && (
-          <>
-            <div className="w-[1px] h-5 bg-black/10 mx-1" />
-            <button
-              type="button"
-              title="Add Page"
-              aria-label="Add Page"
-              onClick={() => {
-                const newCount = boardCatalog.addPageToActiveBoard()
-                const pageGap = 40
-                const pageH = 1056
-                const newPageTopY = 80 + (newCount - 1) * (pageH + pageGap)
-                inkyStore.setCamera({
-                  y: Math.round(100 - newPageTopY * inkyStore.camera.z),
-                })
-              }}
-              className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
-            >
-              <FilePlus2 size={18} />
-            </button>
-            <button
-              type="button"
-              title="Export PDF"
-              disabled={isExporting}
-              onClick={async () => {
-                try {
-                  setIsExporting(true)
-                  const blob = await exportToPdf({
-                    backgroundPages: activeBoard.pdfPages,
-                    pageCount: activeBoard.pageCount,
-                    title: activeBoard.title,
-                  })
-                  downloadBlob(blob, `${activeBoard.title || 'worksheet'}.pdf`)
-                } finally {
-                  setIsExporting(false)
-                }
-              }}
-              className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
-            >
-              <Download size={18} className={isExporting ? 'animate-bounce' : ''} />
-            </button>
-          </>
+          <button
+            type="button"
+            title="Add Page"
+            aria-label="Add Page"
+            onClick={() => {
+              const newCount = boardCatalog.addPageToActiveBoard()
+              const pageGap = 40
+              const pageH = 1056
+              const newPageTopY = 80 + (newCount - 1) * (pageH + pageGap)
+              inkyStore.setCamera({
+                y: Math.round(100 - newPageTopY * inkyStore.camera.z),
+              })
+            }}
+            className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+          >
+            <FilePlus2 size={18} />
+          </button>
         )}
+        <button
+          type="button"
+          title="Export PDF"
+          aria-label="Export PDF"
+          disabled={isExporting}
+          onClick={async () => {
+            try {
+              setIsExporting(true)
+              const currentBoard = boardCatalog.getActiveBoard() ?? activeBoard
+              const blob = await exportToPdf({
+                backgroundPages: currentBoard?.pdfPages,
+                pageCount: currentBoard?.pageCount,
+                paperStyle: inkyStore.paperStyle || currentBoard?.paperStyle,
+                title: currentBoard?.title,
+              })
+              downloadBlob(blob, `${currentBoard?.title || 'worksheet'}.pdf`)
+            } finally {
+              setIsExporting(false)
+            }
+          }}
+          className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+        >
+          <Download size={18} className={isExporting ? 'animate-bounce' : ''} />
+        </button>
       </nav>
 
       {/* Bottom-Left Navigation & History Cluster */}

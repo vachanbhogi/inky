@@ -9,7 +9,7 @@ const PAGE_H = 1056
 const PAGE_START_Y = 80
 const PAGE_GAP = 40
 
-function drawPaperPattern(
+export function drawPaperPattern(
   ctx: CanvasRenderingContext2D,
   style: PaperStyle,
   pageX: number,
