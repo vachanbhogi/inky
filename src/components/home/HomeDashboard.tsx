@@ -354,7 +354,6 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
             {setupStep === 'layout' ? (
               <div className="flex flex-col">
                 <div className="flex items-center justify-between pb-3">
-                  <span className="text-xs font-medium text-[#787774]">{pendingTemplate.title} format</span>
                   <button
                     type="button"
                     onClick={() => setPendingTemplate(null)}
@@ -362,10 +361,11 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   >
                     Cancel
                   </button>
+                  <span className="text-xs font-medium text-[#787774]">{pendingTemplate.title} format</span>
                 </div>
 
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-4">
-                  {/* Left: Page Option (Explicit physical sheet with margin/drop shadow) */}
+                  {/* Left: Page Option (Physical sheet with crisp page geometry) */}
                   <button
                     type="button"
                     onClick={() => handlePickLayout('page')}
@@ -378,11 +378,11 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                         <PaperPatternSurface style={pendingTemplate.paperStyle} />
                         {/* Page margin guideline / subtle stationery rule for blank paper */}
                         {pendingTemplate.paperStyle === 'blank' && (
-                          <div className="absolute inset-0 p-3 pointer-events-none flex flex-col justify-between opacity-40">
-                            <div className="w-1/2 h-[1.5px] bg-black/15 rounded-full" />
+                          <div className="absolute inset-0 p-3 pointer-events-none flex flex-col justify-between opacity-30">
+                            <div className="w-1/3 h-[1.5px] bg-black/20 rounded-full" />
                             <div className="space-y-1.5 w-full">
-                              <div className="w-full h-[1px] bg-black/8 rounded-full" />
-                              <div className="w-4/5 h-[1px] bg-black/8 rounded-full" />
+                              <div className="w-full h-[1px] bg-black/10 rounded-full" />
+                              <div className="w-4/5 h-[1px] bg-black/10 rounded-full" />
                             </div>
                           </div>
                         )}
@@ -394,19 +394,31 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   {/* Clean Central Divider */}
                   <div className="w-[1px] h-48 bg-black/[0.08] self-center" />
 
-                  {/* Right: Pageless Option (Infinite boundless canvas with infinity watermark) */}
+                  {/* Right: Pageless Option (Infinite boundless canvas with corner expand/pan markers) */}
                   <button
                     type="button"
                     onClick={() => handlePickLayout('pageless')}
                     className="group flex flex-col items-center p-3.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
                     style={{ outline: 'none' }}
                   >
-                    {/* Boundless Canvas Surface with gentle gradient perimeter & infinity watermark */}
-                    <div className="w-full aspect-[4/5] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-3.5 transition-transform group-hover:scale-[1.02] flex items-center justify-center">
+                    {/* Boundless Canvas Surface with subtle canvas corner crops */}
+                    <div className="w-full aspect-[4/5] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-3.5 transition-transform group-hover:scale-[1.02]">
                       <PaperPatternSurface style={pendingTemplate.paperStyle} />
-                      {/* Subtle center infinity watermark to unmistakably convey unbounded space */}
-                      <span className="text-2xl font-serif text-black/20 select-none z-10">∞</span>
-                      <div className="absolute inset-0 bg-radial from-transparent via-transparent to-black/[0.04] pointer-events-none" />
+                      {/* Technical architectural drafting corner crop marks showing unbounded canvas */}
+                      <div className="absolute inset-2.5 pointer-events-none opacity-25">
+                        {/* Top-left corner */}
+                        <div className="absolute top-0 left-0 w-2.5 h-[1.5px] bg-black" />
+                        <div className="absolute top-0 left-0 w-[1.5px] h-2.5 bg-black" />
+                        {/* Top-right corner */}
+                        <div className="absolute top-0 right-0 w-2.5 h-[1.5px] bg-black" />
+                        <div className="absolute top-0 right-0 w-[1.5px] h-2.5 bg-black" />
+                        {/* Bottom-left corner */}
+                        <div className="absolute bottom-0 left-0 w-2.5 h-[1.5px] bg-black" />
+                        <div className="absolute bottom-0 left-0 w-[1.5px] h-2.5 bg-black" />
+                        {/* Bottom-right corner */}
+                        <div className="absolute bottom-0 right-0 w-2.5 h-[1.5px] bg-black" />
+                        <div className="absolute bottom-0 right-0 w-[1.5px] h-2.5 bg-black" />
+                      </div>
                     </div>
                     <span className="text-sm font-semibold text-[#111111]">Pageless</span>
                   </button>
@@ -415,17 +427,51 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
             ) : (
               /* Step 2: Name Input */
               <form onSubmit={handleConfirmCreate} className="flex flex-col">
+                <div className="flex items-center justify-between pb-3">
+                  <button
+                    type="button"
+                    onClick={() => setSetupStep('layout')}
+                    className="text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <span className="text-xs font-medium text-[#787774]">
+                    {pendingTemplate.title} · {docLayout === 'page' ? 'Page' : 'Pageless'}
+                  </span>
+                </div>
+
                 <div className="flex items-center gap-6 py-6">
                   {/* Contextual Miniature of selected choice */}
-                  <div className="w-18 h-22 rounded-lg bg-[#f2f1ed] border border-black/10 flex items-center justify-center p-2 shrink-0">
-                    <div className="w-full h-full bg-white rounded-[2px] shadow-xs relative overflow-hidden border border-black/6">
-                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                  {docLayout === 'page' ? (
+                    <div className="w-18 h-22 rounded-lg bg-[#f2f1ed] border border-black/10 flex items-center justify-center p-2 shrink-0">
+                      <div className="h-full aspect-[8.5/11] bg-white rounded-[2px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-black/10 relative overflow-hidden flex flex-col justify-between">
+                        <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                        {pendingTemplate.paperStyle === 'blank' && (
+                          <div className="absolute inset-0 p-1.5 pointer-events-none flex flex-col justify-between opacity-30">
+                            <div className="w-1/3 h-[1px] bg-black/25 rounded-full" />
+                            <div className="space-y-1 w-full">
+                              <div className="w-full h-[1px] bg-black/10 rounded-full" />
+                              <div className="w-4/5 h-[1px] bg-black/10 rounded-full" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="w-18 h-22 rounded-lg bg-white border border-black/10 relative overflow-hidden shrink-0">
+                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                      <div className="absolute inset-1.5 pointer-events-none opacity-25">
+                        <div className="absolute top-0 left-0 w-1.5 h-[1px] bg-black" />
+                        <div className="absolute top-0 left-0 w-[1px] h-1.5 bg-black" />
+                        <div className="absolute bottom-0 right-0 w-1.5 h-[1px] bg-black" />
+                        <div className="absolute bottom-0 right-0 w-[1px] h-1.5 bg-black" />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex-1 min-w-0">
-                    <label htmlFor="inky-title-input" className="block text-xs font-medium text-[#787774] mb-1">
-                      {pendingTemplate.title} · {docLayout === 'page' ? 'Page' : 'Pageless'}
+                    <label htmlFor="inky-title-input" className="sr-only">
+                      Note title
                     </label>
                     <input
                       id="inky-title-input"
@@ -443,28 +489,13 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 </div>
 
                 {/* Actions bottom bar */}
-                <div className="flex items-center justify-between pt-6 border-t border-black/6">
-                  <button
-                    type="button"
-                    onClick={() => setSetupStep('layout')}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
-                    style={{ outline: 'none' }}
-                  >
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-[#fbfbfa] border border-black/10 rounded">
-                      Esc
-                    </kbd>
-                    <span>back</span>
-                  </button>
-
+                <div className="flex items-center justify-end pt-4">
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-2 px-5 py-2 bg-[#111111] hover:bg-[#333333] text-white rounded-xl text-xs font-medium transition-all active:scale-95 cursor-pointer shadow-xs"
+                    className="inline-flex items-center px-5 py-2 bg-[#111111] hover:bg-[#333333] text-white rounded-xl text-xs font-medium transition-all active:scale-95 cursor-pointer shadow-xs"
                     style={{ outline: 'none' }}
                   >
-                    <span>Create</span>
-                    <kbd className="px-1 py-0.2 text-[10px] font-mono text-white/80 bg-white/15 rounded">
-                      ↵
-                    </kbd>
+                    <span>Create note</span>
                   </button>
                 </div>
               </form>
