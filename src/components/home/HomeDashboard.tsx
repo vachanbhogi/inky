@@ -1,3 +1,4 @@
+import { jsPDF } from 'jspdf'
 import { ArrowLeft, ArrowRight, FileUp, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
@@ -53,6 +54,12 @@ const TEMPLATES: TemplateOption[] = [
     defaultName: 'Worksheet',
     paperStyle: 'blank',
     isPdfUpload: true,
+  },
+  {
+    id: 'sample-cts-pdf',
+    title: 'Completing the Square PDF',
+    defaultName: 'Completing the Square Worksheet',
+    paperStyle: 'blank',
   },
 ]
 
@@ -254,7 +261,49 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [pendingTemplate, setupStep])
 
+  const handleLoadSampleCtsPdf = async () => {
+    try {
+      setIsImportingPdf(true)
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'letter',
+      })
+      doc.setFontSize(18)
+      doc.text('Algebra II: Completing the Square', 56, 64)
+      doc.setFontSize(11)
+      doc.text(
+        'Name: ______________________   Date: ____________   Solve each equation by completing the square.',
+        56,
+        92,
+      )
+      doc.setFontSize(14)
+      doc.text('1)  x^2 + 6x - 7 = 0', 56, 150)
+      doc.text('2)  x^2 + 4x + 1 = 0', 56, 360)
+      doc.text('3)  x^2 - 8x + 12 = 0', 56, 570)
+      const buffer = doc.output('arraybuffer')
+      const pages = await renderPdfToPages(buffer)
+      if (pages.length > 0) {
+        const board = boardCatalog.createBoard(
+          'worksheet',
+          'Completing the Square Worksheet',
+          pages,
+          'blank',
+        )
+        onOpenBoard(board.id)
+      }
+    } catch (err) {
+      console.error('Failed to generate sample Completing the Square PDF:', err)
+    } finally {
+      setIsImportingPdf(false)
+    }
+  }
+
   const handleSelectTemplate = (template: TemplateOption) => {
+    if (template.id === 'sample-cts-pdf') {
+      void handleLoadSampleCtsPdf()
+      return
+    }
     if (template.isPdfUpload) {
       fileInputRef.current?.click()
       return

@@ -24,6 +24,7 @@ import { CanvasLayer } from './CanvasLayer'
 import { GraphSidebar } from './GraphSidebar'
 import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
+import { SocraticMarginCoach } from './SocraticMarginCoach'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
@@ -988,6 +989,7 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       <CanvasLayer />
       <StampLayer />
       <MathActionCapsule />
+      <SocraticMarginCoach />
       <GraphSidebar />
       <Toolbar onGoHome={onGoHome} />
       <ShortcutsModal />

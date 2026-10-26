@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateCapsuleIntegrity } from '../../lib/canvas/capsule-integrity'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { charBoundingBox, inkyStore } from '../../lib/canvas/store'
+import { boardCatalog } from '../../lib/document/boardCatalog'
 import { isGraphableExpression } from '../../lib/math/graph-engine'
 import {
   getAvailableActions,
@@ -117,6 +118,9 @@ export function computeWritingMetrics(
 export function MathActionCapsule() {
   const [capsule, setCapsule] = useState(inkyStore.mathCapsule)
   const [camera, setCamera] = useState(inkyStore.camera)
+  const [worksheetMethod, setWorksheetMethod] = useState(
+    () => boardCatalog.getActiveBoard()?.worksheetMethod ?? 'auto',
+  )
   const [modelStatus, setModelStatus] = useState<ModelStatus>(getModelStatus)
   // Keeps the last open capsule mounted (frozen) during the 140ms exit fade.
   const [exiting, setExiting] = useState(false)
@@ -127,6 +131,12 @@ export function MathActionCapsule() {
 
   useEffect(() => {
     return onModelStatusChange(setModelStatus)
+  }, [])
+
+  useEffect(() => {
+    return boardCatalog.subscribe(() => {
+      setWorksheetMethod(boardCatalog.getActiveBoard()?.worksheetMethod ?? 'auto')
+    })
   }, [])
 
   useEffect(() => {
@@ -176,8 +186,13 @@ export function MathActionCapsule() {
   )
 
   const socraticHint = useMemo(
-    () => (display && !display.mlPending ? generateSocraticHint(display.latex) : null),
-    [display],
+    () =>
+      display && !display.mlPending
+        ? generateSocraticHint(display.latex, {
+            method: boardCatalog.getActiveBoard()?.worksheetMethod ?? worksheetMethod,
+          })
+        : null,
+    [display, worksheetMethod],
   )
 
   const isGraphable = useMemo(
