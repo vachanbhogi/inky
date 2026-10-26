@@ -25,6 +25,7 @@ export interface BoardItem {
   title: string
   type: DocumentType
   paperStyle?: PaperStyle
+  pageCount?: number
   createdAt: number
   updatedAt: number
   thumbnailUrl?: string
@@ -82,6 +83,7 @@ class BoardCatalogStore {
         updatedAt: board.updatedAt,
         type: board.type,
         paperStyle: board.paperStyle,
+        pageCount: board.pageCount,
       })
       saveDocumentToStorage(doc, window.localStorage, boardStorageKey(board.id))
       if (board.pdfPages && board.pdfPages.length > 0) {
@@ -100,6 +102,7 @@ class BoardCatalogStore {
           title: b.title,
           type: b.type,
           paperStyle: b.paperStyle,
+          pageCount: b.pageCount,
           createdAt: b.createdAt,
           updatedAt: b.updatedAt,
           thumbnailUrl: b.thumbnailUrl,
@@ -145,6 +148,7 @@ class BoardCatalogStore {
               let strokes = Array.isArray(rawBoard.strokes) ? rawBoard.strokes : []
               let stamps = Array.isArray(rawBoard.stamps) ? rawBoard.stamps : []
               let camera = rawBoard.camera
+              let pageCount = rawBoard.pageCount
 
               if (perBoardDoc) {
                 const tempStore = new InkyStore()
@@ -152,6 +156,12 @@ class BoardCatalogStore {
                   strokes = tempStore.strokes
                   stamps = tempStore.stamps
                   camera = { ...tempStore.camera }
+                }
+                if (
+                  typeof perBoardDoc.metadata?.pageCount === 'number' &&
+                  Number.isFinite(perBoardDoc.metadata.pageCount)
+                ) {
+                  pageCount = perBoardDoc.metadata.pageCount
                 }
               } else if (strokes.length > 0 || stamps.length > 0) {
                 // Seamless migration: persist legacy inline board data into its dedicated per-board key
@@ -184,6 +194,11 @@ class BoardCatalogStore {
 
               hydrated.push({
                 ...rawBoard,
+                pageCount:
+                  pageCount ??
+                  (rawBoard.type === 'worksheet'
+                    ? Math.max(1, pdfPages?.length ?? 1)
+                    : undefined),
                 strokes,
                 stamps,
                 camera,
@@ -227,11 +242,13 @@ class BoardCatalogStore {
       typeof window !== 'undefined'
         ? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 }
         : { x: 512, y: 40, z: 1 }
+    const initialPageCount = type === 'worksheet' ? Math.max(1, pdfPages?.length ?? 1) : 1
     const newBoard: BoardItem = {
       id,
       title: name,
       type,
       paperStyle,
+      pageCount: initialPageCount,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       strokes: [],
@@ -284,6 +301,22 @@ class BoardCatalogStore {
     active.updatedAt = Date.now()
     this.saveBoardDocument(active)
     this.notify()
+  }
+
+  addPageToActiveBoard(): number {
+    const active = this.getActiveBoard()
+    if (!active) return 1
+    if (active.type !== 'worksheet') {
+      active.type = 'worksheet'
+      active.pageCount = 1
+    } else {
+      const currentCount = Math.max(active.pageCount ?? 1, active.pdfPages?.length ?? 1)
+      active.pageCount = currentCount + 1
+    }
+    active.updatedAt = Date.now()
+    this.saveBoardDocument(active)
+    this.notify()
+    return active.pageCount ?? 1
   }
 
   deleteBoard(id: string) {

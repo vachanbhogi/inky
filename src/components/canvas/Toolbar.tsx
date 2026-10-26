@@ -1,6 +1,7 @@
 import {
   Download,
   Eraser,
+  FilePlus2,
   Hand,
   Home,
   LineChart,
@@ -32,11 +33,10 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
   const [canRedo, setCanRedo] = useState(false)
   const [isGraphOpen, setIsGraphOpen] = useState(inkyStore.graphSidebar.isOpen)
   const [isExporting, setIsExporting] = useState(false)
-
-  const activeBoard = boardCatalog.getActiveBoard()
+  const [activeBoard, setActiveBoard] = useState(() => boardCatalog.getActiveBoard())
 
   useEffect(() => {
-    const unsub = inkyStore.subscribe(() => {
+    const unsubStore = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
       setStrokeColor(inkyStore.strokeColor)
       setStrokeSize(inkyStore.strokeSize)
@@ -46,7 +46,14 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
       setCanRedo(inkyStore.canRedo)
       setIsGraphOpen(inkyStore.graphSidebar.isOpen)
     })
-    return unsub
+    const unsubCatalog = boardCatalog.subscribe(() => {
+      const b = boardCatalog.getActiveBoard()
+      setActiveBoard(b ? { ...b } : undefined)
+    })
+    return () => {
+      unsubStore()
+      unsubCatalog()
+    }
   }, [])
 
   const zoomIn = () => inkyStore.zoomAt(inkyStore.camera.z + 0.1)
@@ -226,10 +233,27 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
             )
           })}
         </div>
-        {/* Right Action: Export PDF (if worksheet or has strokes) */}
+        {/* Right Actions: Add Page & Export PDF (for worksheet / page boards) */}
         {activeBoard?.type === 'worksheet' && (
           <>
             <div className="w-[1px] h-5 bg-black/10 mx-1" />
+            <button
+              type="button"
+              title="Add Page"
+              aria-label="Add Page"
+              onClick={() => {
+                const newCount = boardCatalog.addPageToActiveBoard()
+                const pageGap = 40
+                const pageH = 1056
+                const newPageTopY = 80 + (newCount - 1) * (pageH + pageGap)
+                inkyStore.setCamera({
+                  y: Math.round(100 - newPageTopY * inkyStore.camera.z),
+                })
+              }}
+              className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+            >
+              <FilePlus2 size={18} />
+            </button>
             <button
               type="button"
               title="Export PDF"
@@ -239,6 +263,7 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
                   setIsExporting(true)
                   const blob = await exportToPdf({
                     backgroundPages: activeBoard.pdfPages,
+                    pageCount: activeBoard.pageCount,
                     title: activeBoard.title,
                   })
                   downloadBlob(blob, `${activeBoard.title || 'worksheet'}.pdf`)

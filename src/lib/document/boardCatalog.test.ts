@@ -115,4 +115,22 @@ describe('boardCatalog per-board localStorage isolation', () => {
     const rawCatalog = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) ?? '[]')
     expect(rawCatalog).toEqual([])
   })
+
+  test('addPageToActiveBoard increments pageCount and persists across reload', () => {
+    const board = boardCatalog.createBoard('worksheet', 'Multi-page Notes', undefined, 'lined')
+    expect(board.pageCount).toBe(1)
+
+    const count2 = boardCatalog.addPageToActiveBoard()
+    expect(count2).toBe(2)
+    expect(boardCatalog.getActiveBoard()?.pageCount).toBe(2)
+
+    const count3 = boardCatalog.addPageToActiveBoard()
+    expect(count3).toBe(3)
+
+    boardCatalog.boards = []
+    boardCatalog.activeBoardId = null
+    boardCatalog.load()
+
+    expect(boardCatalog.getActiveBoard()?.pageCount).toBe(3)
+  })
 })

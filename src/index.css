@@ -112,8 +112,8 @@ body {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: #93c5fd;
-  box-shadow: 0 0 6px rgba(147, 197, 253, 0.9);
+  background: #2563eb;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.55);
   flex-shrink: 0;
   animation: sparklePulse 1400ms ease-in-out infinite alternate;
 }

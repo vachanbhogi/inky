@@ -365,8 +365,71 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       }
     }
 
+    // Native non-passive wheel & Safari gesture listeners:
+    // React's synthetic onWheel is passive in modern browsers, so trackpad pinch
+    // (ctrlKey/metaKey wheel) or Cmd+Scroll otherwise triggers browser page zoom
+    // on the entire tab (scaling toolbars and UI). Intercepting with { passive: false }
+    // ensures zooming ONLY zooms the board camera!
+    const handleNativeWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('.inky-ui')) {
+        // Still block browser page-zoom if user pinches while cursor is over toolbar/UI
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault()
+          const rect = containerRef.current?.getBoundingClientRect()
+          const screenX = rect ? e.clientX - rect.left : e.clientX
+          const screenY = rect ? e.clientY - rect.top : e.clientY
+          const zoomDelta = Math.exp(-e.deltaY * 0.008)
+          inkyStore.zoomAt(inkyStore.camera.z * zoomDelta, screenX, screenY)
+        }
+        return
+      }
+
+      e.preventDefault()
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const screenX = e.clientX - rect.left
+      const screenY = e.clientY - rect.top
+
+      if (e.ctrlKey || e.metaKey) {
+        const zoomDelta = Math.exp(-e.deltaY * 0.008)
+        inkyStore.zoomAt(inkyStore.camera.z * zoomDelta, screenX, screenY)
+      } else {
+        inkyStore.setCamera({
+          x: inkyStore.camera.x - e.deltaX,
+          y: inkyStore.camera.y - e.deltaY,
+        })
+      }
+    }
+
+    let lastGestureScale = 1
+    const handleGestureStart = (e: Event) => {
+      e.preventDefault()
+      lastGestureScale = 1
+    }
+    const handleGestureChange = (e: Event) => {
+      e.preventDefault()
+      const ge = e as Event & { scale?: number; clientX?: number; clientY?: number }
+      const scale = typeof ge.scale === 'number' && ge.scale > 0 ? ge.scale : 1
+      const factor = scale / lastGestureScale
+      lastGestureScale = scale
+      const rect = containerRef.current?.getBoundingClientRect()
+      const screenX =
+        rect && typeof ge.clientX === 'number' ? ge.clientX - rect.left : window.innerWidth / 2
+      const screenY =
+        rect && typeof ge.clientY === 'number' ? ge.clientY - rect.top : window.innerHeight / 2
+      inkyStore.zoomAt(inkyStore.camera.z * factor, screenX, screenY)
+    }
+    const handleGestureEnd = (e: Event) => {
+      e.preventDefault()
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('wheel', handleNativeWheel, { passive: false })
+    window.addEventListener('gesturestart', handleGestureStart, { passive: false })
+    window.addEventListener('gesturechange', handleGestureChange, { passive: false })
+    window.addEventListener('gestureend', handleGestureEnd, { passive: false })
 
     const activeBoard = boardCatalog.getActiveBoard()
     const autosave = initAutosave(inkyStore, {
@@ -382,6 +445,10 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       worker.terminate()
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('wheel', handleNativeWheel)
+      window.removeEventListener('gesturestart', handleGestureStart)
+      window.removeEventListener('gesturechange', handleGestureChange)
+      window.removeEventListener('gestureend', handleGestureEnd)
     }
   }, [])
 
@@ -777,26 +844,6 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
     }
   }
 
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('.inky-ui')) return
-    e.preventDefault()
-
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const screenX = e.clientX - rect.left
-    const screenY = e.clientY - rect.top
-
-    if (e.ctrlKey || e.metaKey) {
-      const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95
-      inkyStore.zoomAt(inkyStore.camera.z * zoomFactor, screenX, screenY)
-    } else {
-      inkyStore.setCamera({
-        x: inkyStore.camera.x - e.deltaX,
-        y: inkyStore.camera.y - e.deltaY,
-      })
-    }
-  }
-
   return (
     <div
       ref={containerRef}
@@ -808,7 +855,6 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      onWheel={handleWheel}
       className={`inky-canvas-root relative w-full h-full touch-none select-none overflow-hidden ${
         activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
       }`}

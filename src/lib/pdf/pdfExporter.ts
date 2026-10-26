@@ -5,6 +5,7 @@ import type { Stroke } from '../canvas/types'
 
 export interface ExportPdfOptions {
   backgroundPages?: { pageNumber: number; width: number; height: number; dataUrl: string }[]
+  pageCount?: number
   title?: string
 }
 
@@ -55,7 +56,7 @@ export async function exportToPdf(options?: ExportPdfOptions): Promise<Blob> {
   const stamps = inkyStore.stamps
   const hasInk = strokes.length > 0 || stamps.length > 0
 
-  const totalPages = Math.max(1, bgPages.length)
+  const totalPages = Math.max(1, options?.pageCount ?? 1, bgPages.length)
 
   for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
     if (pageIdx > 0) {
