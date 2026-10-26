@@ -7,7 +7,7 @@ import {
   type PaperStyle,
 } from '../../lib/document/boardCatalog'
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
-import { renderPdfToPages } from '../../lib/pdf/pdfImporter'
+import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 import { InkyLogo } from '../common/InkyLogo'
 
 interface HomeDashboardProps {
@@ -205,6 +205,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
   const [isImportingPdf, setIsImportingPdf] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const dragDepthRef = useRef(0)
 
   useEffect(() => {
     const unsub = boardCatalog.subscribe(() => {
@@ -290,9 +291,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
   }
 
   const handleProcessPdfFile = async (file: File) => {
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    if (!file || !isPdf) return
+    if (!file) return
     try {
       setIsImportingPdf(true)
       const buffer = await file.arrayBuffer()
@@ -309,10 +308,61 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
     }
   }
 
+  // Also bind window-level dragover/drop so dropping anywhere in the viewport is 100% intercepted
+  // and the browser never navigates away to its built-in PDF viewer.
+  useEffect(() => {
+    const onWinDragEnter = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current += 1
+      setIsDragging(true)
+    }
+    const onWinDragOver = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy'
+      }
+      setIsDragging(true)
+    }
+    const onWinDragLeave = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+      if (dragDepthRef.current === 0 || (e.clientX <= 0 && e.clientY <= 0)) {
+        dragDepthRef.current = 0
+        setIsDragging(false)
+      }
+    }
+    const onWinDrop = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragDepthRef.current = 0
+      setIsDragging(false)
+      const file = extractDroppedPdfFile(e.dataTransfer)
+      if (file) {
+        void handleProcessPdfFile(file)
+      }
+    }
+
+    window.addEventListener('dragenter', onWinDragEnter)
+    window.addEventListener('dragover', onWinDragOver)
+    window.addEventListener('dragleave', onWinDragLeave)
+    window.addEventListener('drop', onWinDrop)
+    return () => {
+      window.removeEventListener('dragenter', onWinDragEnter)
+      window.removeEventListener('dragover', onWinDragOver)
+      window.removeEventListener('dragleave', onWinDragLeave)
+      window.removeEventListener('drop', onWinDrop)
+    }
+  })
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = 0
     setIsDragging(false)
-    const file = e.dataTransfer.files[0]
+    const file = extractDroppedPdfFile(e.dataTransfer)
     if (file) {
       await handleProcessPdfFile(file)
     }
@@ -328,11 +378,23 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
 
   return (
     <div
-      onDragOver={(e) => {
+      onDragEnter={(e) => {
+        if (!hasDraggedFiles(e.dataTransfer)) return
         e.preventDefault()
         setIsDragging(true)
       }}
-      onDragLeave={() => setIsDragging(false)}
+      onDragOver={(e) => {
+        if (!hasDraggedFiles(e.dataTransfer)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setIsDragging(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          dragDepthRef.current = 0
+          setIsDragging(false)
+        }
+      }}
       onDrop={handleDrop}
       className="relative w-screen h-screen overflow-y-auto bg-[#fbfbfa] text-[#111111] flex flex-col items-center select-none"
     >

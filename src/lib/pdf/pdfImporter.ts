@@ -1,8 +1,10 @@
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString()
 }
 
 export interface RenderedPdfPage {
@@ -14,6 +16,72 @@ export interface RenderedPdfPage {
 
 export const LETTER_WIDTH = 816
 export const LETTER_HEIGHT = 1056
+
+/**
+ * Extracts a usable PDF File from a DragEvent's DataTransfer across browsers
+ * (handles Safari, Chrome, Firefox, Finder, and DataTransferItemList fallbacks).
+ */
+export function extractDroppedPdfFile(dataTransfer: DataTransfer | null | undefined): File | null {
+  if (!dataTransfer) return null
+
+  const isPdfFile = (f: File | null | undefined): f is File => {
+    if (!f) return false
+    const type = (f.type || '').toLowerCase()
+    const name = (f.name || '').toLowerCase()
+    // Accept standard PDF MIME, .pdf extension, or generic octet-stream/empty type if dropped as a file
+    if (type === 'application/pdf' || type === 'application/x-pdf' || name.endsWith('.pdf')) {
+      return true
+    }
+    return false
+  }
+
+  if (dataTransfer.files && dataTransfer.files.length > 0) {
+    for (let i = 0; i < dataTransfer.files.length; i++) {
+      const f = dataTransfer.files[i]
+      if (isPdfFile(f)) return f
+    }
+    // If only 1 file was dropped and browser omitted its MIME type, still let PDF.js attempt to parse its header
+    if (dataTransfer.files[0]) return dataTransfer.files[0]
+  }
+
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    for (let i = 0; i < dataTransfer.items.length; i++) {
+      const item = dataTransfer.items[i]
+      if (item.kind === 'file') {
+        const f = item.getAsFile()
+        if (isPdfFile(f)) return f
+      }
+    }
+    for (let i = 0; i < dataTransfer.items.length; i++) {
+      const item = dataTransfer.items[i]
+      if (item.kind === 'file') {
+        const f = item.getAsFile()
+        if (f) return f
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Checks if a DragEvent carries files across browsers (DOMStringList vs Array).
+ */
+export function hasDraggedFiles(dataTransfer: DataTransfer | null | undefined): boolean {
+  if (!dataTransfer) return false
+  if (dataTransfer.files && dataTransfer.files.length > 0) return true
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    for (let i = 0; i < dataTransfer.items.length; i++) {
+      if (dataTransfer.items[i].kind === 'file') return true
+    }
+  }
+  const types = Array.from(dataTransfer.types ?? [])
+  return (
+    types.includes('Files') ||
+    types.includes('application/x-moz-file') ||
+    types.includes('public.file-url')
+  )
+}
 
 /**
  * Extracts all pages of a PDF into high-res images at standard letter width.

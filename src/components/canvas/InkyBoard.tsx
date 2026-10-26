@@ -26,7 +26,7 @@ import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
 import { boardCatalog, boardStorageKey } from '../../lib/document/boardCatalog'
-import { renderPdfToPages } from '../../lib/pdf/pdfImporter'
+import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference
@@ -157,14 +157,9 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [, setCamera] = useState(inkyStore.camera)
   const [isDraggingPdf, setIsDraggingPdf] = useState(false)
+  const dragDepthRef = useRef(0)
 
-  const handleBoardPdfDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDraggingPdf(false)
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    if (!isPdf) return
+  const importDroppedPdfFile = async (file: File) => {
     try {
       const buffer = await file.arrayBuffer()
       const pages = await renderPdfToPages(buffer)
@@ -191,13 +186,73 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
           const nextBoard = boardCatalog.createBoard('worksheet', title, pages, 'blank')
           inkyStore.activateBoard(nextBoard.id, nextBoard.strokes, nextBoard.stamps)
           inkyStore.setPaperStyle('blank')
-          inkyStore.setCamera(nextBoard.camera ?? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 })
+          inkyStore.setCamera(
+            nextBoard.camera ?? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 },
+          )
         }
       }
     } catch (err) {
       console.error('Failed to import dropped PDF:', err)
     }
   }
+
+  const handleBoardPdfDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = 0
+    setIsDraggingPdf(false)
+    const file = extractDroppedPdfFile(e.dataTransfer)
+    if (file) {
+      await importDroppedPdfFile(file)
+    }
+  }
+
+  useEffect(() => {
+    const onWinDragEnter = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current += 1
+      setIsDraggingPdf(true)
+    }
+    const onWinDragOver = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy'
+      }
+      setIsDraggingPdf(true)
+    }
+    const onWinDragLeave = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+      if (dragDepthRef.current === 0 || (e.clientX <= 0 && e.clientY <= 0)) {
+        dragDepthRef.current = 0
+        setIsDraggingPdf(false)
+      }
+    }
+    const onWinDrop = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragDepthRef.current = 0
+      setIsDraggingPdf(false)
+      const file = extractDroppedPdfFile(e.dataTransfer)
+      if (file) {
+        void importDroppedPdfFile(file)
+      }
+    }
+
+    window.addEventListener('dragenter', onWinDragEnter)
+    window.addEventListener('dragover', onWinDragOver)
+    window.addEventListener('dragleave', onWinDragLeave)
+    window.addEventListener('drop', onWinDrop)
+    return () => {
+      window.removeEventListener('dragenter', onWinDragEnter)
+      window.removeEventListener('dragover', onWinDragOver)
+      window.removeEventListener('dragleave', onWinDragLeave)
+      window.removeEventListener('drop', onWinDrop)
+    }
+  })
 
   // Sync only if the catalog is still on the board this canvas represents.
   useEffect(() => {
@@ -894,13 +949,23 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       aria-label="Inky Math Canvas"
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
+      onDragEnter={(e) => {
+        if (!hasDraggedFiles(e.dataTransfer)) return
+        e.preventDefault()
+        setIsDraggingPdf(true)
+      }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault()
-          setIsDraggingPdf(true)
+        if (!hasDraggedFiles(e.dataTransfer)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setIsDraggingPdf(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          dragDepthRef.current = 0
+          setIsDraggingPdf(false)
         }
       }}
-      onDragLeave={() => setIsDraggingPdf(false)}
       onDrop={handleBoardPdfDrop}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
