@@ -6,11 +6,7 @@
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
 import * as ort from 'onnxruntime-web/wasm'
 import type { TokenVocab } from '../lib/math/ml-decode'
-import {
-  idsToLatex,
-  shouldStopDecoding,
-  topKTokensFromLogits,
-} from '../lib/math/ml-decode'
+import { argmaxLastPosition, idsToLatex, shouldStopDecoding } from '../lib/math/ml-decode'
 import { cleanModelLatex, RASTER_SIZE } from '../lib/math/stroke-rasterizer'
 
 if (typeof window === 'undefined') {
@@ -97,57 +93,19 @@ async function recognize(pixels: Float32Array): Promise<string> {
   const encOut = await enc.run({ pixel_values: input })
   const hidden = encOut.last_hidden_state
 
-  // Beam Search Decoding (Width = 3) with mathematical syntax prior
-  const BEAM_WIDTH = 3
-  let beams: Array<{ ids: number[]; logProb: number; done: boolean }> = [
-    { ids: [vocab.bosId], logProb: 0, done: false },
-  ]
-
-  let step = 0
-  const maxSteps = vocab.maxLen || 64
-
-  while (step < maxSteps && beams.some((b) => !b.done)) {
-    const candidates: Array<{ ids: number[]; logProb: number; done: boolean }> = []
-
-    for (const b of beams) {
-      if (b.done) {
-        candidates.push(b)
-        continue
-      }
-
-      const inputIds = new ort.Tensor('int64', BigInt64Array.from(b.ids.map(BigInt)), [1, b.ids.length])
-      const decOut = await dec.run({
-        input_ids: inputIds,
-        encoder_hidden_states: hidden,
-      })
-      const logits = decOut.logits.data as Float32Array
-      const topK = topKTokensFromLogits(logits, b.ids.length, vocab.vocabSize, BEAM_WIDTH)
-
-      for (const tok of topK) {
-        const nextIds = [...b.ids, tok.id]
-        const done = shouldStopDecoding(nextIds, vocab)
-        candidates.push({
-          ids: nextIds,
-          logProb: b.logProb + tok.logProb,
-          done,
-        })
-      }
-    }
-
-    // Sort all candidates by length-normalized log-probability
-    candidates.sort((a, b) => {
-      const scoreA = a.logProb / Math.max(1, a.ids.length)
-      const scoreB = b.logProb / Math.max(1, b.ids.length)
-      return scoreB - scoreA
+  const ids: number[] = [vocab.bosId]
+  while (!shouldStopDecoding(ids, vocab)) {
+    const inputIds = new ort.Tensor('int64', BigInt64Array.from(ids.map(BigInt)), [1, ids.length])
+    const decOut = await dec.run({
+      input_ids: inputIds,
+      encoder_hidden_states: hidden,
     })
-
-    beams = candidates.slice(0, BEAM_WIDTH)
-    step++
+    const logits = decOut.logits.data as Float32Array
+    const next = argmaxLastPosition(logits, ids.length, vocab.vocabSize)
+    ids.push(next)
   }
 
-  // Pick the highest scoring completed beam
-  const bestBeam = beams[0]?.ids ?? [vocab.bosId]
-  return cleanModelLatex(idsToLatex(bestBeam, vocab))
+  return cleanModelLatex(idsToLatex(ids, vocab))
 }
 
 if (typeof ctx !== 'undefined' && typeof ctx.addEventListener === 'function') {
