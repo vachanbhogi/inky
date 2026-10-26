@@ -75,6 +75,8 @@ describe('normalizeLatex (placeholder cleanup)', () => {
     expect(normalizeLatex('x^2 + 6x + q = 16')).toBe('x^2+6x+9=16')
     expect(normalizeLatex('x - 2 = 1o')).toBe('x-2=10')
     expect(normalizeLatex('x + l = 5')).toBe('x+1=5')
+    expect(normalizeLatex('\\int _ { ( X - \\sum ) } ^ { q }')).toBe('(x-3)^{9}')
+    expect(normalizeLatex('(x - \\sum)^q')).toBe('(x-3)^9')
   })
 
   test('idsToLatex emits normalized latex end to end', () => {

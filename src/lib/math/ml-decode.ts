@@ -92,7 +92,12 @@ export function argmaxLastPosition(
 }
 
 /**
- * Disambiguates common visual OCR slips based on mathematical grammar:
+ * Disambiguates common visual OCR slips and model layout biases based on mathematical grammar:
+ * - \int misclassification of large opening parentheses: `\int_{(...)}^q` -> `(...)^9`
+ * - `\sum` misclassification of sharp handwritten 3: `x - \sum` -> `x - 3`
+ * - Exponent `q` -> `9`: `^{q}` -> `^{9}`
+ * - Exponent `o` / `O` -> `0`: `^{o}` -> `^{0}`
+ * - Exponent `z` / `Z` -> `2`: `^{z}` -> `^{2}`
  * - Duplicate exponents from proximity: `(x - 2^3)^3` -> `(x - 2)^3`
  * - `z` / `Z` in coefficient position immediately preceding `x` or `y`: `zx` -> `2x`
  * - `l` / `I` in operator context: `+ l` -> `+ 1`
@@ -102,7 +107,28 @@ export function argmaxLastPosition(
 export function disambiguateMathTokens(latex: string): string {
   let s = latex
 
-  // 1. Duplicate exponent where handwritten exponent was captured twice
+  // 1. Tall parenthesis misclassified as \int subscript/superscript
+  // e.g. \int_{(x-3)}^9 or \int _ { ( X - \sum ) } ^ { q }
+  s = s.replace(
+    /\\int\s*_\s*\{\s*([([][^}]+[)\]])\s*\}\s*\^\s*\{?([^}]+)\}?/g,
+    '$1^{$2}',
+  )
+  s = s.replace(
+    /\\int\s*_\s*([([][^ \^]+[)\]])\s*\^\s*\{?([^}]+)\}?/g,
+    '$1^{$2}',
+  )
+
+  // 2. Sharp handwritten '3' misclassified as \sum (capital Sigma) in arithmetic contexts
+  s = s.replace(/([+\-=*/(,])\s*\\sum\b/g, '$1 3')
+  s = s.replace(/\b\\sum\s*([+\-=*/),^])/g, '3 $1')
+
+  // 3. Exponent digit confusions: ^{q} -> ^{9}, ^{o} -> ^{0}, ^{z} -> ^{2}
+  s = s.replace(/\^\s*\{\s*q\s*\}/gi, '^{9}')
+  s = s.replace(/\^\s*q\b/gi, '^9')
+  s = s.replace(/\^\s*\{\s*o\s*\}/gi, '^{0}')
+  s = s.replace(/\^\s*\{\s*z\s*\}/gi, '^{2}')
+
+  // 4. Duplicate exponent where handwritten exponent was captured twice
   // (e.g. both inside the paren and on the closing paren): (x - 2^3)^3 -> (x - 2)^3
   s = s.replace(
     /\(([a-zA-Z]\s*[+\-]\s*\d+)\^\{?(\d+)\}?\)\^\{?(\d+)\}?/g,
@@ -112,18 +138,18 @@ export function disambiguateMathTokens(latex: string): string {
     },
   )
 
-  // 2. 'z' or 'Z' right in front of another variable (e.g. 'zx' -> '2x')
+  // 5. 'z' or 'Z' right in front of another variable (e.g. 'zx' -> '2x')
   s = s.replace(/\b[zZ]([xyXY])\b/g, (_m, v) => `2${v}`)
 
-  // 3. Isolated 'l' or 'I' after an operator (+, -, =)
+  // 6. Isolated 'l' or 'I' after an operator (+, -, =)
   s = s.replace(/([+\-=])\s*[lI]\b/g, (_m, op) => `${op} 1`)
 
-  // 4. 'q' after an operator when equation already contains 'x'
+  // 7. 'q' after an operator when equation already contains 'x'
   if (/\b[xX]\b/.test(s) || /x\^/.test(s)) {
     s = s.replace(/([+\-=])\s*q\b/g, (_m, op) => `${op} 9`)
   }
 
-  // 5. Letter 'o' or 'O' immediately after digits: e.g. '1o' -> '10'
+  // 8. Letter 'o' or 'O' immediately after digits: e.g. '1o' -> '10'
   s = s.replace(/(\d+)[oO]\b/g, (_m, d) => `${d}0`)
 
   return s
