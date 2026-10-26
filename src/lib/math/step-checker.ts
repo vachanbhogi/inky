@@ -83,8 +83,11 @@ function hasSyntaxError(raw: string): boolean {
   if (parts.length !== 2) return true
   if (!parts[0].trim() || !parts[1].trim()) return true
 
+  // Allow \pm or ± or +- in equations
+  const sanitized = clean.replace(/\\pm|±|\+-/g, '+')
+
   // Check invalid operator repetitions like ++, +*, *+, etc.
-  if (/[+\-*/]{2,}/.test(clean.replace(/\+-|-\+/g, '-'))) return true
+  if (/[+\-*/]{2,}/.test(sanitized.replace(/\+-|-\+/g, '-'))) return true
 
   // Check balanced parentheses
   let depth = 0
@@ -467,6 +470,34 @@ export function checkEquationEquivalence(eq1: string, eq2: string): StepCheckRes
     }
   }
 
+  // Check if eq1 is x + h = ±k and eq2 is the solved roots x = r1, r2
+  const pmMatch1 = clean1.match(
+    /^([a-zA-Z])\s*([+-]\s*\d+(?:\.\d+)?)\s*=\s*(?:\\pm|±|\+-)\s*(\d+(?:\.\d+)?)$/,
+  )
+  if (pmMatch1) {
+    const varName = pmMatch1[1]
+    const h = Number.parseFloat(pmMatch1[2].replace(/\s+/g, ''))
+    const k = Number.parseFloat(pmMatch1[3])
+    const r1 = -h + k
+    const r2 = -h - k
+    const expLo = Math.min(r1, r2)
+    const expHi = Math.max(r1, r2)
+
+    // Check if clean2 is var = r1, r2 or var = r1 or var = r2
+    const roots2 = parseExpandedRoots(clean2)
+    if (roots2) {
+      if (Math.abs(roots2[0] - expLo) < 1e-6 && Math.abs(roots2[1] - expHi) < 1e-6) {
+        return { isValid: true, confidence: 1 }
+      }
+    }
+    if (p2 && p2.varName === varName) {
+      const root2 = (p2.c - p2.b) / p2.a
+      if (Math.abs(root2 - r1) < 1e-6 || Math.abs(root2 - r2) < 1e-6) {
+        return { isValid: true, confidence: 1 }
+      }
+    }
+  }
+
   // General solver comparison
   const sol1 = solveMath(clean1, 'solve')
   const sol2 = solveMath(clean2, 'solve')
@@ -557,6 +588,26 @@ export function generateSocraticHint(
       socraticPrompt:
         'Take the positive and negative square root of both sides to undo the square.',
       expectedNextForm: `${sqBin.varName} ${hSign} = ±${cleanRoot}`,
+    }
+  }
+
+  // Case 3c: Linear equation with ± (Completing the Square Step 5: e.g. x - 1 = ±4)
+  const pmMatch = clean.match(
+    /^([a-zA-Z])\s*([+-]\s*\d+(?:\.\d+)?)\s*=\s*(?:\\pm|±|\+-)\s*(\d+(?:\.\d+)?)$/,
+  )
+  if (pmMatch) {
+    const varName = pmMatch[1]
+    const h = Number.parseFloat(pmMatch[2].replace(/\s+/g, ''))
+    const k = Number.parseFloat(pmMatch[3])
+    const r1 = -h + k
+    const r2 = -h - k
+    const rLo = Math.min(r1, r2)
+    const rHi = Math.max(r1, r2)
+    const op = h < 0 ? `Add ${Math.abs(h)} to both sides` : `Subtract ${h} from both sides`
+    return {
+      operation: op,
+      socraticPrompt: `Split into two cases: ${varName} ${h < 0 ? '-' : '+'} ${Math.abs(h)} = ${k} and ${varName} ${h < 0 ? '-' : '+'} ${Math.abs(h)} = -${k}, then solve for ${varName}.`,
+      expectedNextForm: `${varName} = ${rHi}, ${rLo}`,
     }
   }
 
