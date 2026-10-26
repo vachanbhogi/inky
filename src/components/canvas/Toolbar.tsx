@@ -58,7 +58,7 @@ export function Toolbar({ onGoHome }: ToolbarProps) {
       {/* Top Centered Unified Command Island */}
       <nav
         aria-label="Inky Command Bar"
-        className="inky-ui fixed top-4 inset-x-0 mx-auto w-fit z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-200"
+        className="inky-ui fixed top-4 inset-x-0 mx-auto w-fit max-w-[calc(100vw-24px)] overflow-x-auto z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-200"
         style={{
           animation: 'toolbarSlideDown 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
         }}

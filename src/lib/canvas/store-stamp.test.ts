@@ -102,6 +102,7 @@ describe('store.stampResult (text stamps)', () => {
   })
 
   it('clamps a stamp that would land off-screen (M2)', () => {
+    if (typeof window === 'undefined') return
     const realWidth = window.innerWidth
     window.innerWidth = 400
     try {

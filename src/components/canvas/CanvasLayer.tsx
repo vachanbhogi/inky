@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { lassoDissolve, recognizedPulseAlpha } from '../../lib/canvas/motion'
 import { checkBoundingBoxOverlap, getViewportBoundingBox } from '../../lib/canvas/spatial-index'
 import { CHAR_ADVANCE_EM, CHAR_HEIGHT_EM, charBoundingBox, inkyStore } from '../../lib/canvas/store'
+import { generateStrokePath } from '../../lib/canvas/svg-utils'
 
 export function CanvasLayer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -121,7 +122,9 @@ export function CanvasLayer() {
           continue
         }
 
-        if (stroke.pathData) {
+        const pathData = stroke.pathData || generateStrokePath(stroke.points, stroke.size)
+        if (pathData) {
+          stroke.pathData = pathData
           ctx.save()
           if (stroke.angle) {
             const cx =
@@ -135,7 +138,7 @@ export function CanvasLayer() {
 
           // Draw stroke path
           ctx.fillStyle = stroke.color
-          ctx.fill(new Path2D(stroke.pathData))
+          ctx.fill(new Path2D(pathData))
 
           // Eraser target stroke hover highlight (subtle soft red hairline)
           if (state.activeTool === 'eraser' && state.hoveredStrokeId === stroke.id) {

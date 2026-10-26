@@ -25,7 +25,7 @@ import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
-import { boardCatalog } from '../../lib/document/boardCatalog'
+import { boardCatalog, boardStorageKey } from '../../lib/document/boardCatalog'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference
@@ -156,10 +156,26 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [, setCamera] = useState(inkyStore.camera)
 
-  // Auto-sync strokes and stamps back to active board in catalog
+  // Sync only if the catalog is still on the board this canvas represents.
   useEffect(() => {
+    const board = boardCatalog.getActiveBoard()
+    if (board && inkyStore.activeBoardId !== board.id) {
+      inkyStore.activateBoard(board.id, board.strokes, board.stamps)
+      inkyStore.setPaperStyle(board.paperStyle ?? 'blank')
+      const defaultCam = { x: Math.round(window.innerWidth / 2), y: 40, z: 1 }
+      inkyStore.setCamera(board.camera ?? defaultCam)
+    }
+
     const unsub = inkyStore.subscribe(() => {
-      boardCatalog.updateActiveBoardData(inkyStore.strokes, inkyStore.stamps)
+      const activeBoard = boardCatalog.getActiveBoard()
+      if (activeBoard && activeBoard.id === inkyStore.activeBoardId) {
+        boardCatalog.updateActiveBoardData(
+          inkyStore.strokes,
+          inkyStore.stamps,
+          inkyStore.camera,
+          inkyStore.paperStyle,
+        )
+      }
     })
     return unsub
   }, [])
@@ -352,7 +368,13 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
 
-    const autosave = initAutosave(inkyStore)
+    const activeBoard = boardCatalog.getActiveBoard()
+    const autosave = initAutosave(inkyStore, {
+      storageKey: activeBoard ? boardStorageKey(activeBoard.id) : undefined,
+      // When a board from boardCatalog is active, its strokes/stamps are already hydrated
+      // by boardCatalog. Never restore from the legacy global `inky:document:v1` key.
+      restoreOnStartup: !activeBoard,
+    })
 
     return () => {
       autosave.destroy()

@@ -345,42 +345,40 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
           />
 
           <div
-            className="relative z-10 w-full max-w-xl bg-white border border-black/8 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-8 overflow-hidden min-h-[360px] flex flex-col justify-between"
+            className="relative z-10 w-full max-w-[460px] h-[310px] bg-white border border-black/8 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.08)] px-8 py-6 overflow-hidden flex flex-col justify-center"
             style={{
               animation: 'modalSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
             }}
           >
-            {/* Top row: Back button on the left */}
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                aria-label="Back"
-                onClick={() => {
-                  if (setupStep === 'name') {
-                    setSetupStep('layout')
-                  } else {
-                    setPendingTemplate(null)
-                  }
-                }}
-                className="p-1 -ml-1 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
-                style={{ outline: 'none' }}
-              >
-                <ArrowLeft size={16} strokeWidth={2} />
-              </button>
-            </div>
+            {/* Floating top-left back button (does not occupy its own layout row) */}
+            <button
+              type="button"
+              aria-label="Back"
+              onClick={() => {
+                if (setupStep === 'name') {
+                  setSetupStep('layout')
+                } else {
+                  setPendingTemplate(null)
+                }
+              }}
+              className="absolute top-4 left-4 z-20 p-1.5 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+              style={{ outline: 'none' }}
+            >
+              <ArrowLeft size={16} strokeWidth={2} />
+            </button>
 
             {/* Step 1: Format (Page vs Pageless) */}
             {setupStep === 'layout' ? (
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-6 my-auto">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 pt-3">
                 {/* Left: Page Option (Physical sheet with crisp page geometry) */}
                 <button
                   type="button"
                   onClick={() => handlePickLayout('page')}
-                  className="group flex flex-col items-center p-3.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
+                  className="group flex flex-col items-center p-2.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
                   style={{ outline: 'none' }}
                 >
                   {/* Realistic 8.5x11 Sheet on Warm Desk */}
-                  <div className="w-full aspect-[4/5] bg-[#f2f1ed] rounded-lg flex items-center justify-center p-3.5 mb-3.5 overflow-hidden transition-transform group-hover:scale-[1.02]">
+                  <div className="w-full aspect-[4/4.6] bg-[#f2f1ed] rounded-lg flex items-center justify-center p-3 mb-2.5 overflow-hidden transition-transform group-hover:scale-[1.02]">
                     <div className="h-full aspect-[8.5/11] bg-white rounded-[3px] shadow-[0_4px_14px_rgba(0,0,0,0.08)] border border-black/10 relative overflow-hidden flex flex-col justify-between">
                       <PaperPatternSurface style={pendingTemplate.paperStyle} />
                       {/* Page margin guideline / subtle stationery rule for blank paper */}
@@ -399,17 +397,17 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 </button>
 
                 {/* Clean Central Divider */}
-                <div className="w-[1px] h-44 bg-black/[0.08] self-center" />
+                <div className="w-[1px] h-40 bg-black/[0.08] self-center" />
 
                 {/* Right: Pageless Option (Infinite boundless canvas with corner expand/pan markers) */}
                 <button
                   type="button"
                   onClick={() => handlePickLayout('pageless')}
-                  className="group flex flex-col items-center p-3.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
+                  className="group flex flex-col items-center p-2.5 rounded-xl border border-transparent hover:border-black/10 hover:bg-[#fbfbfa] transition-all cursor-pointer"
                   style={{ outline: 'none' }}
                 >
                   {/* Boundless Canvas Surface with subtle canvas corner crops */}
-                  <div className="w-full aspect-[4/5] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-3.5 transition-transform group-hover:scale-[1.02]">
+                  <div className="w-full aspect-[4/4.6] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-2.5 transition-transform group-hover:scale-[1.02]">
                     <PaperPatternSurface style={pendingTemplate.paperStyle} />
                     {/* Technical architectural drafting corner crop marks showing unbounded canvas */}
                     <div className="absolute inset-2.5 pointer-events-none opacity-25">
@@ -431,8 +429,8 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 </button>
               </div>
             ) : (
-              /* Step 2: Name Input (Spacious, elegant inline input with arrow submit) */
-              <form onSubmit={handleConfirmCreate} className="flex flex-col my-auto py-12 px-4">
+              /* Step 2: Name Input (Inline input + arrow button centered inside the same modal size) */
+              <form onSubmit={handleConfirmCreate} className="flex flex-col px-4">
                 <div className="flex items-center gap-3 border-b-2 border-black/10 focus-within:border-[#111111] pb-2.5 transition-colors">
                   <label htmlFor="inky-title-input" className="sr-only">
                     Note title
@@ -441,6 +439,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                     id="inky-title-input"
                     ref={nameInputRef}
                     type="text"
+                    maxLength={80}
                     value={docName}
                     onChange={(e) => setDocName(e.target.value)}
                     placeholder={pendingTemplate.defaultName}
@@ -460,9 +459,6 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 </div>
               </form>
             )}
-
-            {/* Bottom spacer to mirror the top row height perfectly for vertical balance */}
-            <div className="h-6" />
           </div>
         </div>
       )}
@@ -543,19 +539,23 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   </div>
 
                   {/* Minimal Info row */}
-                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-white">
-                    <span className="text-xs font-medium text-[#111111] truncate pr-2">
+                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-white min-w-0">
+                    <span
+                      title={b.title || 'Untitled'}
+                      className="text-xs font-medium text-[#111111] truncate pr-2 min-w-0"
+                    >
                       {b.title || 'Untitled'}
                     </span>
 
                     <button
                       type="button"
                       title="Delete"
+                      aria-label={`Delete ${b.title || 'Untitled'}`}
                       onClick={(e) => {
                         e.stopPropagation()
                         boardCatalog.deleteBoard(b.id)
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-black/5 text-[#787774] hover:text-red-600 transition-all cursor-pointer shrink-0"
+                      className="opacity-70 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded-md hover:bg-black/5 text-[#787774] hover:text-red-600 transition-all cursor-pointer shrink-0"
                     >
                       <Trash2 size={13} />
                     </button>
