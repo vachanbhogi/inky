@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect } from 'react'
 import { ArrowLeft, ArrowRight, FileUp, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import {
-  boardCatalog,
   type BoardItem,
+  boardCatalog,
   type DocumentType,
   type PaperStyle,
 } from '../../lib/document/boardCatalog'
-import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 import { InkyLogo } from '../common/InkyLogo'
 
@@ -109,7 +109,7 @@ function PaperPatternSurface({ style }: { style: PaperStyle }) {
 function BoardThumbnailPreview({ board }: { board: BoardItem }) {
   const style = board.paperStyle ?? 'blank'
 
-  if (board.pdfPages && board.pdfPages[0]) {
+  if (board.pdfPages?.[0]) {
     const firstPage = board.pdfPages[0]
     const pageW = firstPage.width || 816
     const pageH = firstPage.height || 1056
@@ -117,13 +117,10 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
     return (
       <div className="w-full h-full bg-[#f4f3ef] flex items-center justify-center p-4 overflow-hidden">
         <div className="relative h-full aspect-[8.5/11] bg-white rounded-md shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/8 overflow-hidden">
-          <img
-            src={firstPage.dataUrl}
-            alt=""
-            className="w-full h-full object-cover object-top"
-          />
+          <img src={firstPage.dataUrl} alt="" className="w-full h-full object-cover object-top" />
           {hasStrokesOnPdf && (
             <svg
+              aria-hidden="true"
               viewBox={`${-pageW / 2} 80 ${pageW} ${pageH}`}
               className="absolute inset-0 w-full h-full pointer-events-none"
               preserveAspectRatio="none"
@@ -164,6 +161,7 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
 
   const inkOverlay = hasStrokes ? (
     <svg
+      aria-hidden="true"
       viewBox={viewBox}
       className="absolute inset-0 w-full h-full pointer-events-none p-2"
       preserveAspectRatio="xMidYMid meet"
@@ -377,6 +375,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: root dropzone container
     <div
       onDragEnter={(e) => {
         if (!hasDraggedFiles(e.dataTransfer)) return
@@ -615,6 +614,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
               {boards.map((b) => (
+                // biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: card container with nested delete button
                 <div
                   key={b.id}
                   onClick={() => onOpenBoard(b.id)}

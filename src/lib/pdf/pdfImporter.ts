@@ -124,7 +124,11 @@ export async function renderPdfToPages(data: ArrayBuffer | Uint8Array): Promise<
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (page.render({ canvas: canvas as any, canvasContext: ctx, viewport: renderViewport } as any).promise)
+    await page.render({
+      canvas: canvas as any,
+      canvasContext: ctx,
+      viewport: renderViewport,
+    } as any).promise
 
     const dataUrl = canvas.toDataURL('image/jpeg', jpegQuality)
     pages.push({

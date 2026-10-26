@@ -251,4 +251,65 @@ describe('Step Checker & Socratic Engine', () => {
       expect(report.allValid).toBe(true)
     })
   })
+
+  describe('Completing the Square Socratic Coaching & Step Equivalence', () => {
+    it('coaches Step 1 (isolate constant) when method is completing-the-square', () => {
+      const hint = generateSocraticHint('x^2 + 6x - 7 = 0', {
+        method: 'completing-the-square',
+      })
+      expect(hint).not.toBeNull()
+      expect(hint?.operation).toContain('Add 7')
+      expect(hint?.expectedNextForm).toBe('x^2 + 6x = 7')
+      expect(hint?.socraticPrompt.toLowerCase()).toContain('constant')
+    })
+
+    it('coaches Step 2 (add (b/2)^2 to both sides) even in default auto mode when constant is isolated', () => {
+      const hint = generateSocraticHint('x^2 + 6x = 7')
+      expect(hint).not.toBeNull()
+      expect(hint?.operation).toContain('9')
+      expect(hint?.expectedNextForm).toBe('x^2 + 6x + 9 = 16')
+    })
+
+    it('coaches Step 3 (rewrite left side as squared binomial) when LHS is a perfect square trinomial equal to non-zero RHS', () => {
+      const hint = generateSocraticHint('x^2 + 6x + 9 = 16')
+      expect(hint).not.toBeNull()
+      expect(hint?.operation.toLowerCase()).toContain('binomial')
+      expect(hint?.expectedNextForm).toBe('(x + 3)^2 = 16')
+    })
+
+    it('coaches Step 4 (take square root of both sides) when equation is in squared binomial form (x + h)^2 = k', () => {
+      const hint = generateSocraticHint('(x + 3)^2 = 16')
+      expect(hint).not.toBeNull()
+      expect(hint?.operation.toLowerCase()).toContain('square root')
+      expect(hint?.expectedNextForm).toBe('x + 3 = ±4')
+    })
+
+    it('falls back to Completing the Square in default auto mode for irrational quadratics (x^2 + 4x + 1 = 0)', () => {
+      const hint = generateSocraticHint('x^2 + 4x + 1 = 0')
+      expect(hint).not.toBeNull()
+      expect(hint?.expectedNextForm).toBe('x^2 + 4x = -1')
+      expect(hint?.operation).toContain('Subtract 1')
+    })
+
+    it('catches the classic Completing the Square mistake of forgetting to add (b/2)^2 to the right-hand side', () => {
+      const res = checkEquationEquivalence('x^2 + 6x = 7', '(x + 3)^2 = 7')
+      expect(res.isValid).toBe(false)
+      expect(res.reason).toBe('arithmetic_error')
+      expect(res.hint).toContain('add 9 to the right side')
+      expect(res.hint).toContain('16')
+    })
+
+    it('validates a full Completing the Square derivation chain', () => {
+      const steps = [
+        'x^2 + 6x - 7 = 0',
+        'x^2 + 6x = 7',
+        'x^2 + 6x + 9 = 16',
+        '(x + 3)^2 = 16',
+        'x = 1, -7',
+      ]
+      const report = verifyDerivation(steps)
+      expect(report.allValid).toBe(true)
+      expect(report.firstErrorIndex).toBeUndefined()
+    })
+  })
 })

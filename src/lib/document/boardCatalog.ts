@@ -1,5 +1,3 @@
-import type { Stroke } from '../canvas/types'
-import type { Stamp } from '../canvas/store'
 import {
   clearDocumentFromStorage,
   createDefaultDocument,
@@ -8,12 +6,10 @@ import {
   saveDocumentToStorage,
   serializeDocument,
 } from '../canvas/persistence'
+import type { Stamp } from '../canvas/store'
 import { InkyStore, inkyStore } from '../canvas/store'
-import {
-  deletePdfPagesFromIdb,
-  loadPdfPagesFromIdb,
-  savePdfPagesToIdb,
-} from '../pdf/pdfStorage'
+import type { Stroke } from '../canvas/types'
+import { deletePdfPagesFromIdb, loadPdfPagesFromIdb, savePdfPagesToIdb } from '../pdf/pdfStorage'
 
 export type DocumentType = 'infinite' | 'worksheet'
 export type PaperStyle = 'blank' | 'dot-grid' | 'graph' | 'lined'
@@ -215,9 +211,7 @@ class BoardCatalogStore {
                 ...rawBoard,
                 pageCount:
                   pageCount ??
-                  (rawBoard.type === 'worksheet'
-                    ? Math.max(1, pdfPages?.length ?? 1)
-                    : undefined),
+                  (rawBoard.type === 'worksheet' ? Math.max(1, pdfPages?.length ?? 1) : undefined),
                 strokes,
                 stamps,
                 camera,
@@ -353,13 +347,20 @@ class BoardCatalogStore {
     return active.pageCount ?? 1
   }
 
-  importPdfIntoBoard(boardId: string, pdfPages: WorksheetPage[], title?: string): BoardItem | undefined {
+  importPdfIntoBoard(
+    boardId: string,
+    pdfPages: WorksheetPage[],
+    title?: string,
+  ): BoardItem | undefined {
     const board = this.boards.find((b) => b.id === boardId)
     if (!board || pdfPages.length === 0) return board
     board.type = 'worksheet'
     board.pdfPages = pdfPages
     board.pageCount = Math.max(board.pageCount ?? 1, pdfPages.length)
-    if (title && (board.title === 'Untitled' || board.title === 'Homework' || board.title === 'Blank Note')) {
+    if (
+      title &&
+      (board.title === 'Untitled' || board.title === 'Homework' || board.title === 'Blank Note')
+    ) {
       board.title = title
     }
     board.updatedAt = Date.now()
