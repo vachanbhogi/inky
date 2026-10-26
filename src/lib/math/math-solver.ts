@@ -13,8 +13,27 @@ function comb(n: number, r: number): number {
 
 /** Expand binomial power: (ax + b)^n for n in [1, 10] */
 export function expandBinomialPower(clean: string): string | null {
-  const m = clean
-    .replace(/\s+/g, '')
+  let targetClean = clean.replace(/\s+/g, '')
+
+  // Preprocess any numeric sub-expressions in the constant term: e.g. (x - 2^3)^3 -> (x - 8)^3
+  const innerSubExpr = targetClean.match(
+    /^\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-].*)\)\^\{?(\d+)\}?$/,
+  )
+  if (innerSubExpr) {
+    const aLead = innerSubExpr[1]
+    const vName = innerSubExpr[2]
+    const constSub = innerSubExpr[3]
+    const nPow = innerSubExpr[4]
+    try {
+      const val = evaluate(cleanEquationForMathjs(constSub))
+      if (typeof val === 'number' && Number.isFinite(val)) {
+        const sign = val >= 0 ? '+' : '-'
+        targetClean = `(${aLead ?? ''}${vName}${sign}${Math.abs(val)})^${nPow}`
+      }
+    } catch {}
+  }
+
+  const m = targetClean
     .match(
       /^\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)\^\{?(\d+)\}?$/,
     )

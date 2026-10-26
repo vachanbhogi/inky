@@ -68,6 +68,15 @@ describe('normalizeLatex (placeholder cleanup)', () => {
     expect(normalizeLatex('x ^ { 2 } - 1 = 0')).toBe('x^{ 2 }-1=0')
   })
 
+  test('disambiguates visual confusions (z->2 before x, q->9, l->1, duplicate exponents)', () => {
+    expect(normalizeLatex('(x - 2^3)^3')).toBe('(x-2)^3')
+    expect(normalizeLatex('(x - 4^5)^5')).toBe('(x-4)^5')
+    expect(normalizeLatex('zx + 5 = 15')).toBe('2x+5=15')
+    expect(normalizeLatex('x^2 + 6x + q = 16')).toBe('x^2+6x+9=16')
+    expect(normalizeLatex('x - 2 = 1o')).toBe('x-2=10')
+    expect(normalizeLatex('x + l = 5')).toBe('x+1=5')
+  })
+
   test('idsToLatex emits normalized latex end to end', () => {
     const v: TokenVocab = {
       model: 't',

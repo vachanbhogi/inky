@@ -49,12 +49,51 @@ export function argmaxLastPosition(
 }
 
 /**
+ * Disambiguates common visual OCR slips based on mathematical grammar:
+ * - Duplicate exponents from proximity: `(x - 2^3)^3` -> `(x - 2)^3`
+ * - `z` / `Z` in coefficient position immediately preceding `x` or `y`: `zx` -> `2x`
+ * - `l` / `I` in operator context: `+ l` -> `+ 1`
+ * - `q` in constant term position when working with `x`: `+ q` -> `+ 9`
+ * - `o` / `O` immediately after digits: `1o` -> `10`
+ */
+export function disambiguateMathTokens(latex: string): string {
+  let s = latex
+
+  // 1. Duplicate exponent where handwritten exponent was captured twice
+  // (e.g. both inside the paren and on the closing paren): (x - 2^3)^3 -> (x - 2)^3
+  s = s.replace(
+    /\(([a-zA-Z]\s*[+\-]\s*\d+)\^\{?(\d+)\}?\)\^\{?(\d+)\}?/g,
+    (_match, inner, exp1, exp2) => {
+      if (exp1 === exp2) return `(${inner})^${exp2}`
+      return _match
+    },
+  )
+
+  // 2. 'z' or 'Z' right in front of another variable (e.g. 'zx' -> '2x')
+  s = s.replace(/\b[zZ]([xyXY])\b/g, (_m, v) => `2${v}`)
+
+  // 3. Isolated 'l' or 'I' after an operator (+, -, =)
+  s = s.replace(/([+\-=])\s*[lI]\b/g, (_m, op) => `${op} 1`)
+
+  // 4. 'q' after an operator when equation already contains 'x'
+  if (/\b[xX]\b/.test(s) || /x\^/.test(s)) {
+    s = s.replace(/([+\-=])\s*q\b/g, (_m, op) => `${op} 9`)
+  }
+
+  // 5. Letter 'o' or 'O' immediately after digits: e.g. '1o' -> '10'
+  s = s.replace(/(\d+)[oO]\b/g, (_m, d) => `${d}0`)
+
+  return s
+}
+
+/**
  * Tighten decoded latex for display: the tokenizer joins atoms with single
  * spaces and the model emits capitalized single-letter variables — both read
  * as placeholder noise in the capsule, so the formula lands clean.
  */
 export function normalizeLatex(latex: string): string {
-  return latex
+  const disambiguated = disambiguateMathTokens(latex)
+  return disambiguated
     .replace(/(?<!\\)\b[XY]\b/g, (m) => m.toLowerCase())
     .replace(/\s*([+\-^=(),])\s*/g, '$1')
     .replace(/([0-9a-zA-Z])\s+([0-9a-zA-Z])/g, '$1$2')
