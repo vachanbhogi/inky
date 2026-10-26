@@ -77,6 +77,7 @@ describe('normalizeLatex (placeholder cleanup)', () => {
     expect(normalizeLatex('x + l = 5')).toBe('x+1=5')
     expect(normalizeLatex('\\int _ { ( X - \\sum ) } ^ { q }')).toBe('(x-3)^{9}')
     expect(normalizeLatex('(x - \\sum)^q')).toBe('(x-3)^9')
+    expect(normalizeLatex('[ \\frac { 2 \\pi - \\beta } { 2 } ] ^ { \\beta }')).toBe('(2x-3)^{5}')
   })
 
   test('idsToLatex emits normalized latex end to end', () => {

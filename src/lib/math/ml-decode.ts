@@ -95,6 +95,8 @@ export function argmaxLastPosition(
  * Disambiguates common visual OCR slips and model layout biases based on mathematical grammar:
  * - \int misclassification of large opening parentheses: `\int_{(...)}^q` -> `(...)^9`
  * - `\sum` misclassification of sharp handwritten 3: `x - \sum` -> `x - 3`
+ * - Greek letter confusions for handwriting: `2\pi` -> `2x`, `\beta` -> `3`/`5`
+ * - Spurious fraction hallucinations: `[\frac{2x - 3}{2}]^5` -> `(2x - 3)^5`
  * - Exponent `q` -> `9`: `^{q}` -> `^{9}`
  * - Exponent `o` / `O` -> `0`: `^{o}` -> `^{0}`
  * - Exponent `z` / `Z` -> `2`: `^{z}` -> `^{2}`
@@ -118,17 +120,37 @@ export function disambiguateMathTokens(latex: string): string {
     '$1^{$2}',
   )
 
-  // 2. Sharp handwritten '3' misclassified as \sum (capital Sigma) in arithmetic contexts
+  // 2. Greek letters misclassified for Latin variables or digits:
+  // \pi -> x when in coefficient position: e.g. 2\pi -> 2x
+  s = s.replace(/(\d+)\s*\\pi\b/g, '$1x')
+  s = s.replace(/([+\-=*/])\s*\\pi\b/g, '$1 x')
+  s = s.replace(/\b\\pi\s*([+\-=*/^])/g, 'x $1')
+
+  // \beta (Greek beta) in exponent position -> 5 (or 3): e.g. ^{\beta} -> ^{5}
+  s = s.replace(/\^\s*\{\s*\\beta\s*\}/gi, '^{5}')
+  s = s.replace(/\^\s*\\beta\b/gi, '^5')
+  // \beta after operator in binomial -> 3
+  s = s.replace(/([+\-=*/])\s*\\beta\b/g, '$1 3')
+
+  // 3. Spurious fraction hallucinations inside parenthesized/bracketed powers:
+  // e.g. [ \frac { 2x - 3 } { 2 } ] ^ 5 -> (2x - 3)^5
+  s = s.replace(
+    /[(\[]\s*\\frac\s*\{\s*([^}]+)\s*\}\s*\{\s*\d+\s*\}\s*[)\]]\s*\^\s*\{?([^}]+)\}?/g,
+    '($1)^{$2}',
+  )
+  s = s.replace(/^\[(.*)\]\s*\^\s*\{?([^}]+)\}?$/g, '($1)^{$2}')
+
+  // 4. Sharp handwritten '3' misclassified as \sum (capital Sigma) in arithmetic contexts
   s = s.replace(/([+\-=*/(,])\s*\\sum\b/g, '$1 3')
   s = s.replace(/\b\\sum\s*([+\-=*/),^])/g, '3 $1')
 
-  // 3. Exponent digit confusions: ^{q} -> ^{9}, ^{o} -> ^{0}, ^{z} -> ^{2}
+  // 5. Exponent digit confusions: ^{q} -> ^{9}, ^{o} -> ^{0}, ^{z} -> ^{2}
   s = s.replace(/\^\s*\{\s*q\s*\}/gi, '^{9}')
   s = s.replace(/\^\s*q\b/gi, '^9')
   s = s.replace(/\^\s*\{\s*o\s*\}/gi, '^{0}')
   s = s.replace(/\^\s*\{\s*z\s*\}/gi, '^{2}')
 
-  // 4. Duplicate exponent where handwritten exponent was captured twice
+  // 6. Duplicate exponent where handwritten exponent was captured twice
   // (e.g. both inside the paren and on the closing paren): (x - 2^3)^3 -> (x - 2)^3
   s = s.replace(
     /\(([a-zA-Z]\s*[+\-]\s*\d+)\^\{?(\d+)\}?\)\^\{?(\d+)\}?/g,
@@ -138,18 +160,18 @@ export function disambiguateMathTokens(latex: string): string {
     },
   )
 
-  // 5. 'z' or 'Z' right in front of another variable (e.g. 'zx' -> '2x')
+  // 7. 'z' or 'Z' right in front of another variable (e.g. 'zx' -> '2x')
   s = s.replace(/\b[zZ]([xyXY])\b/g, (_m, v) => `2${v}`)
 
-  // 6. Isolated 'l' or 'I' after an operator (+, -, =)
+  // 8. Isolated 'l' or 'I' after an operator (+, -, =)
   s = s.replace(/([+\-=])\s*[lI]\b/g, (_m, op) => `${op} 1`)
 
-  // 7. 'q' after an operator when equation already contains 'x'
+  // 9. 'q' after an operator when equation already contains 'x'
   if (/\b[xX]\b/.test(s) || /x\^/.test(s)) {
     s = s.replace(/([+\-=])\s*q\b/g, (_m, op) => `${op} 9`)
   }
 
-  // 8. Letter 'o' or 'O' immediately after digits: e.g. '1o' -> '10'
+  // 10. Letter 'o' or 'O' immediately after digits: e.g. '1o' -> '10'
   s = s.replace(/(\d+)[oO]\b/g, (_m, d) => `${d}0`)
 
   return s
