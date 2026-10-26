@@ -179,6 +179,10 @@ export function disambiguateMathTokens(latex: string): string {
   s = s.replace(/([a-zA-Z0-9])\s*\^\s*\{\s*[-–—]\s*\}\s*/g, '$1 - ')
   s = s.replace(/([a-zA-Z0-9])\s*\^\s*[-–—]\s*/g, '$1 - ')
 
+  // 12. Accidental double minus or minus dash repetition:
+  // e.g. x^2 + 6x - - 7 -> x^2 + 6x - 7
+  s = s.replace(/\s*[-–—]\s*[-–—]\s*/g, ' - ')
+
   return s
 }
 

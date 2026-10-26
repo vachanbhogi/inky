@@ -97,8 +97,15 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
 
       const cleanLines = recognizedLines.filter((l) => l && l.trim().length > 0)
       if (cleanLines.length >= 2) {
-        const diagnostics = checkMultiLineWork(cleanLines)
-        const primaryLatex = cleanLines[diagnostics.errorLineIndex ?? 0] || cleanLines[0]
+        // If the first line doesn't end with = 0 (e.g. model clipped the '= 0'), but subsequent lines have '=', append '= 0'
+        const processedLines = cleanLines.map((line, idx) => {
+          if (idx === 0 && !line.includes('=') && cleanLines.some((l, i) => i > 0 && l.includes('='))) {
+            return `${line} = 0`
+          }
+          return line
+        })
+        const diagnostics = checkMultiLineWork(processedLines)
+        const primaryLatex = processedLines[diagnostics.errorLineIndex ?? 0] || processedLines[0]
         inkyStore.setMathCapsule({
           ...capsule,
           latex: primaryLatex,
@@ -108,7 +115,7 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
             allValid: diagnostics.allValid,
             errorLineIndex: diagnostics.errorLineIndex,
             diagnosticMessage: diagnostics.diagnosticMessage,
-            linesCount: cleanLines.length,
+            linesCount: processedLines.length,
           },
         })
         return
