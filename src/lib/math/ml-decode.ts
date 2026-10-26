@@ -12,20 +12,37 @@ export interface TokenVocab {
 
 /** True when decoding should stop, given `ids` *including* the token just
  * appended. Guards: end-of-sequence, pad, length cap, and runaway
- * repetition (the observed failure mode where the model emits `~`
- * forever). The run guard counts identical tokens at the tail — ≥6 is
- * never valid LaTeX output. */
+ * repetition (e.g. model emitting `~` forever or repeating 2-token cycles like `{}`). */
 export function shouldStopDecoding(ids: number[], vocab: TokenVocab): boolean {
   const n = ids.length
   if (n === 0) return false
   const last = ids[n - 1]
   if (last === vocab.eosId || last === vocab.padId) return true
   if (n >= vocab.maxLen) return true
+
+  // Single-token runaway repetition: ≥6 identical tokens in a row
   if (n >= 6) {
     let run = 1
     for (let i = n - 2; i >= 0 && ids[i] === last; i--) run++
     if (run >= 6) return true
   }
+
+  // Runaway empty brace cycle: e.g. { } { } { } (repeating 3+ times)
+  if (n >= 6) {
+    const p0 = ids[n - 2]
+    const p1 = ids[n - 1]
+    const tok0 = vocab.id2token[p0]
+    const tok1 = vocab.id2token[p1]
+    if (tok0 === '{' && tok1 === '}') {
+      let cycle = 1
+      for (let i = n - 4; i >= 0; i -= 2) {
+        if (ids[i] === p0 && ids[i + 1] === p1) cycle++
+        else break
+      }
+      if (cycle >= 3) return true
+    }
+  }
+
   return false
 }
 
@@ -182,6 +199,10 @@ export function disambiguateMathTokens(latex: string): string {
   // 12. Accidental double minus or minus dash repetition:
   // e.g. x^2 + 6x - - 7 -> x^2 + 6x - 7
   s = s.replace(/\s*[-–—]\s*[-–—]\s*/g, ' - ')
+
+  // 13. Empty brace hallucinations or trailing bracket spam:
+  // e.g. {}{}{}{}{} or { } { } { }
+  s = s.replace(/(?:\{\s*\}\s*){2,}/g, ' ')
 
   return s
 }

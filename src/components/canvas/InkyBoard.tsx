@@ -82,9 +82,12 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
     // Process each line in parallel through the ML recognizer
     const linePromises = lineGroups.map((g) => {
       const lineStrokes = enclosedStrokes.filter((s) => g.strokeIds.includes(s.id))
-      return recognizeInkML(lineStrokes).then(
-        (latex) => latex || recognizeFormulaStrokes(lineStrokes),
-      )
+      const ruleFallback = recognizeFormulaStrokes(lineStrokes)
+      return recognizeInkML(lineStrokes).then((latex) => {
+        // Strip empty brace hallucinations: e.g. {}{}{}{}{}
+        const sanitized = latex ? latex.replace(/(?:\{\s*\}){2,}/g, '').trim() : ''
+        return sanitized || ruleFallback
+      })
     })
 
     Promise.all(linePromises).then((recognizedLines) => {
@@ -105,7 +108,11 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
           return line
         })
         const diagnostics = checkMultiLineWork(processedLines)
-        const primaryLatex = processedLines[diagnostics.errorLineIndex ?? 0] || processedLines[0]
+        // For multi-line work, show the problematic step in the formula display if there is an error,
+        // or show line 1 / line 0 cleanly.
+        const primaryLatex =
+          (diagnostics.errorLineIndex !== undefined ? processedLines[diagnostics.errorLineIndex] : null) ||
+          processedLines[0]
         inkyStore.setMathCapsule({
           ...capsule,
           latex: primaryLatex,
