@@ -1,4 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist'
+import { extractCurriculumFromPages } from './pdfCurriculum'
+
+export { extractCurriculumFromPages }
 
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -12,6 +15,7 @@ export interface RenderedPdfPage {
   width: number
   height: number
   dataUrl: string
+  textContent?: string
 }
 
 export const LETTER_WIDTH = 816
@@ -124,7 +128,25 @@ export async function renderPdfToPages(data: ArrayBuffer | Uint8Array): Promise<
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (page.render({ canvas: canvas as any, canvasContext: ctx, viewport: renderViewport } as any).promise)
+    await page.render({
+      canvas: canvas as any,
+      canvasContext: ctx,
+      viewport: renderViewport,
+    } as any).promise
+
+    let textContent = ''
+    try {
+      const content = await page.getTextContent()
+      if (content && Array.isArray(content.items)) {
+        textContent = content.items
+          .map((item) => ('str' in item && typeof item.str === 'string' ? item.str : ''))
+          .filter((s) => s.length > 0)
+          .join(' ')
+          .trim()
+      }
+    } catch {
+      textContent = ''
+    }
 
     const dataUrl = canvas.toDataURL('image/jpeg', jpegQuality)
     pages.push({
@@ -132,6 +154,7 @@ export async function renderPdfToPages(data: ArrayBuffer | Uint8Array): Promise<
       width: targetWidth,
       height: targetHeight,
       dataUrl,
+      textContent,
     })
   }
 

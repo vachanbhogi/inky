@@ -1,5 +1,3 @@
-import type { Stroke } from '../canvas/types'
-import type { Stamp } from '../canvas/store'
 import {
   clearDocumentFromStorage,
   createDefaultDocument,
@@ -8,12 +6,12 @@ import {
   saveDocumentToStorage,
   serializeDocument,
 } from '../canvas/persistence'
+import type { Stamp } from '../canvas/store'
 import { InkyStore, inkyStore } from '../canvas/store'
-import {
-  deletePdfPagesFromIdb,
-  loadPdfPagesFromIdb,
-  savePdfPagesToIdb,
-} from '../pdf/pdfStorage'
+import type { Stroke } from '../canvas/types'
+import type { WorksheetMethod } from '../pdf/pdfCurriculum'
+import { extractCurriculumFromPages } from '../pdf/pdfImporter'
+import { deletePdfPagesFromIdb, loadPdfPagesFromIdb, savePdfPagesToIdb } from '../pdf/pdfStorage'
 
 export type DocumentType = 'infinite' | 'worksheet'
 export type PaperStyle = 'blank' | 'dot-grid' | 'graph' | 'lined'
@@ -23,6 +21,7 @@ export interface WorksheetPage {
   width: number
   height: number
   dataUrl: string
+  textContent?: string
 }
 
 export interface BoardItem {
@@ -31,6 +30,8 @@ export interface BoardItem {
   type: DocumentType
   paperStyle?: PaperStyle
   pageCount?: number
+  worksheetMethod?: WorksheetMethod
+  worksheetTopic?: string
   createdAt: number
   updatedAt: number
   thumbnailUrl?: string
@@ -89,6 +90,8 @@ class BoardCatalogStore {
         type: board.type,
         paperStyle: board.paperStyle,
         pageCount: board.pageCount,
+        worksheetMethod: board.worksheetMethod,
+        worksheetTopic: board.worksheetTopic,
       })
       saveDocumentToStorage(doc, window.localStorage, boardStorageKey(board.id))
       if (!skipPdf && board.pdfPages && board.pdfPages.length > 0) {
@@ -127,6 +130,8 @@ class BoardCatalogStore {
           type: b.type,
           paperStyle: b.paperStyle,
           pageCount: b.pageCount,
+          worksheetMethod: b.worksheetMethod,
+          worksheetTopic: b.worksheetTopic,
           createdAt: b.createdAt,
           updatedAt: b.updatedAt,
           thumbnailUrl: b.thumbnailUrl,
@@ -173,6 +178,8 @@ class BoardCatalogStore {
               let stamps = Array.isArray(rawBoard.stamps) ? rawBoard.stamps : []
               let camera = rawBoard.camera
               let pageCount = rawBoard.pageCount
+              let worksheetMethod = rawBoard.worksheetMethod
+              let worksheetTopic = rawBoard.worksheetTopic
 
               if (perBoardDoc) {
                 const tempStore = new InkyStore()
@@ -186,6 +193,12 @@ class BoardCatalogStore {
                   Number.isFinite(perBoardDoc.metadata.pageCount)
                 ) {
                   pageCount = perBoardDoc.metadata.pageCount
+                }
+                if (typeof perBoardDoc.metadata?.worksheetMethod === 'string') {
+                  worksheetMethod = perBoardDoc.metadata.worksheetMethod as WorksheetMethod
+                }
+                if (typeof perBoardDoc.metadata?.worksheetTopic === 'string') {
+                  worksheetTopic = perBoardDoc.metadata.worksheetTopic
                 }
               } else if (strokes.length > 0 || stamps.length > 0) {
                 // Seamless migration: persist legacy inline board data into its dedicated per-board key
@@ -215,9 +228,9 @@ class BoardCatalogStore {
                 ...rawBoard,
                 pageCount:
                   pageCount ??
-                  (rawBoard.type === 'worksheet'
-                    ? Math.max(1, pdfPages?.length ?? 1)
-                    : undefined),
+                  (rawBoard.type === 'worksheet' ? Math.max(1, pdfPages?.length ?? 1) : undefined),
+                worksheetMethod,
+                worksheetTopic,
                 strokes,
                 stamps,
                 camera,
@@ -278,12 +291,16 @@ class BoardCatalogStore {
         ? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 }
         : { x: 512, y: 40, z: 1 }
     const initialPageCount = type === 'worksheet' ? Math.max(1, pdfPages?.length ?? 1) : 1
+    const curriculum =
+      pdfPages && pdfPages.length > 0 ? extractCurriculumFromPages(pdfPages, name) : undefined
     const newBoard: BoardItem = {
       id,
       title: name,
       type,
       paperStyle,
       pageCount: initialPageCount,
+      worksheetMethod: curriculum?.method,
+      worksheetTopic: curriculum?.topicLabel,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       strokes: [],
@@ -301,6 +318,9 @@ class BoardCatalogStore {
         updatedAt: newBoard.updatedAt,
         type: newBoard.type,
         paperStyle: newBoard.paperStyle,
+        pageCount: newBoard.pageCount,
+        worksheetMethod: newBoard.worksheetMethod,
+        worksheetTopic: newBoard.worksheetTopic,
       })
       blankDoc.camera = { ...defaultCam }
       saveDocumentToStorage(blankDoc, window.localStorage, boardStorageKey(newBoard.id))
@@ -353,19 +373,41 @@ class BoardCatalogStore {
     return active.pageCount ?? 1
   }
 
-  importPdfIntoBoard(boardId: string, pdfPages: WorksheetPage[], title?: string): BoardItem | undefined {
+  importPdfIntoBoard(
+    boardId: string,
+    pdfPages: WorksheetPage[],
+    title?: string,
+  ): BoardItem | undefined {
     const board = this.boards.find((b) => b.id === boardId)
     if (!board || pdfPages.length === 0) return board
     board.type = 'worksheet'
     board.pdfPages = pdfPages
     board.pageCount = Math.max(board.pageCount ?? 1, pdfPages.length)
-    if (title && (board.title === 'Untitled' || board.title === 'Homework' || board.title === 'Blank Note')) {
+    if (
+      title &&
+      (board.title === 'Untitled' || board.title === 'Homework' || board.title === 'Blank Note')
+    ) {
       board.title = title
     }
+    const curriculum = extractCurriculumFromPages(pdfPages, title ?? board.title)
+    board.worksheetMethod = curriculum.method
+    board.worksheetTopic = curriculum.topicLabel
     board.updatedAt = Date.now()
     this.saveBoardDocument(board, false)
     this.notify()
     return board
+  }
+
+  setActiveBoardMethod(method: WorksheetMethod, topicLabel?: string) {
+    const active = this.getActiveBoard()
+    if (!active) return
+    active.worksheetMethod = method
+    if (topicLabel !== undefined) {
+      active.worksheetTopic = topicLabel
+    }
+    active.updatedAt = Date.now()
+    this.saveBoardDocument(active, true)
+    this.notify()
   }
 
   deleteBoard(id: string) {
