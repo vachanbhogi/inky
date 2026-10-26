@@ -6,7 +6,8 @@ interface InkyLogoProps {
 /**
  * Inky Squid Mascot (Concept A: Dumbo Squid)
  * Playful Duolingo-style baby squid with floppy ear-fins, oversized expressive eyes,
- * a cheerful grin, and bouncy curly tentacles. Built on a 256x256 grid with evenodd cutouts.
+ * a cheerful grin, and bouncy curly tentacles (with a plump center tentacle).
+ * Built on a 256x256 grid with evenodd cutouts.
  */
 export function InkyLogo({ className = '', size = 28 }: InkyLogoProps) {
   return (
@@ -33,11 +34,11 @@ export function InkyLogo({ className = '', size = 28 }: InkyLogoProps) {
           C218 172 224 178 222 186
           C220 198 206 206 192 206
           C176 206 164 196 158 184
-          L144 184
-          L144 204
-          C144 216 136 224 128 224
-          C120 224 112 216 112 204
-          L112 184
+          L152 184
+          L152 212
+          C152 228 141.3 238 128 238
+          C114.7 238 104 228 104 212
+          L104 184
           L98 184
           C92 196 80 206 64 206
           C50 206 36 198 34 186
