@@ -142,7 +142,7 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(inkyStore.stamps[0].text).toBe('2x = 10')
     expect(inkyStore.stamps[0].color).toBe('#2563eb')
     expect(inkyStore.stamps[0].worldX).toBe(200)
-    expect(inkyStore.stamps[0].worldY).toBe(245)
+    expect(inkyStore.stamps[0].worldY).toBe(222)
     expect(inkyStore.mathCapsule).toBeNull()
     expect(inkyStore.activeTool).toBe('draw')
   })
@@ -159,16 +159,16 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(button('Hint')).toBeNull()
   })
 
-  test('Hint stamps below enclosed strokes when strokes exist', async () => {
+  test('Hint stamps below enclosed strokes with size & line gap proportional to writing', async () => {
     const strokeId = 'stroke-test-1'
     inkyStore.strokes = [
       {
         id: strokeId,
         color: '#000000',
-        width: 2,
+        size: 2,
         points: [
-          { x: 100, y: 50, pressure: 0.5 },
-          { x: 180, y: 90, pressure: 0.5 },
+          [100, 50, 0.5],
+          [180, 90, 0.5],
         ],
         pathData: 'M 100 50 L 180 90',
         boundingBox: { minX: 100, maxX: 180, minY: 50, maxY: 90 },
@@ -190,11 +190,12 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(inkyStore.stamps).toHaveLength(1)
     expect(inkyStore.stamps[0].text).toBe('2x = 10')
     expect(inkyStore.stamps[0].worldX).toBe(100)
-    expect(inkyStore.stamps[0].worldY).toBe(135) // maxY (90) + 45
+    expect(inkyStore.stamps[0].fontSize).toBe(54) // 40px stroke height * 1.35 = 54
+    expect(inkyStore.stamps[0].worldY).toBe(120) // maxY (90) + round(54 * 0.55 = 30) = 120
     expect(inkyStore.stamps[0].color).toBe('#2563eb')
   })
 
-  test('Hint stamps below enclosed stamp chars when source is stamp', async () => {
+  test('Hint stamps below enclosed stamp chars preserving their exact fontSize when source is stamp', async () => {
     inkyStore.strokes = []
     const stamp = {
       id: 'stamp-prev-hint',
@@ -228,14 +229,15 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     hintBtn?.click()
     await flush()
 
-    // A second stamp was added with the next atomic step x^2 = 1
+    // A second stamp was added with the next atomic step x^2 = 1 preserving fontSize 24
     expect(inkyStore.stamps).toHaveLength(2)
     const nextStamp = inkyStore.stamps[1]
     expect(nextStamp.text).toBe('x^2 = 1')
     expect(nextStamp.color).toBe('#2563eb')
+    expect(nextStamp.fontSize).toBe(24)
     expect(nextStamp.worldX).toBe(100)
-    // maxY is 100 + 24 * 1.25 = 130; + 45 = 175
-    expect(nextStamp.worldY).toBe(175)
+    // maxY is 100 + 24 * 1.25 = 130; lineGap = max(14, round(24 * 0.55)) = 14 -> 144
+    expect(nextStamp.worldY).toBe(144)
   })
 
   test('Graph button appears when expression is graphable and opens graphSidebar', async () => {

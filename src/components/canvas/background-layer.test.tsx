@@ -117,12 +117,12 @@ describe('BackgroundLayer component behavior', () => {
     expect(canvas.getAttribute('data-paper-style')).toBe('blank')
 
     inkyStore.setPaperStyle('graph')
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 16))
 
     expect(canvas.getAttribute('data-paper-style')).toBe('graph')
 
     inkyStore.setPaperStyle('lined')
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 16))
 
     expect(canvas.getAttribute('data-paper-style')).toBe('lined')
   })

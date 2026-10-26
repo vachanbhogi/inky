@@ -1,3 +1,4 @@
+import type { Point } from './coordinates'
 import type { BoundingBox, HandleType } from './spatial-index'
 import { getUnifiedBoundingBox } from './spatial-index'
 import { generateStrokePath } from './svg-utils'
@@ -112,8 +113,120 @@ interface UndoSnapshot {
   stamps: Stamp[]
 }
 
+interface BoardSlice {
+  strokes: Stroke[]
+  stamps: Stamp[]
+  selectedStrokeIds: string[]
+  selectedCharIds: string[]
+  undoStack: UndoSnapshot[]
+  redoStack: UndoSnapshot[]
+}
+
+function createBoardSlice(strokes: Stroke[] = [], stamps: Stamp[] = []): BoardSlice {
+  return {
+    strokes: strokes.map((stroke) => {
+      const points: Point[] = stroke.points.map((point) => [...point] as Point)
+      return {
+        ...stroke,
+        points,
+        pathData: stroke.pathData || generateStrokePath(points, stroke.size),
+        boundingBox: { ...stroke.boundingBox },
+      }
+    }),
+    stamps: stamps.map((stamp) => ({
+      ...stamp,
+      chars: stamp.chars.map((char) => ({ ...char })),
+    })),
+    selectedStrokeIds: [],
+    selectedCharIds: [],
+    undoStack: [],
+    redoStack: [],
+  }
+}
+
 export class InkyStore {
-  strokes: Stroke[] = []
+  activeBoardId: string | null = null
+  private boardSlices = new Map<string, BoardSlice>()
+  private detachedSlice = createBoardSlice()
+
+  private get activeSlice(): BoardSlice {
+    if (!this.activeBoardId) return this.detachedSlice
+    let slice = this.boardSlices.get(this.activeBoardId)
+    if (!slice) {
+      slice = createBoardSlice()
+      this.boardSlices.set(this.activeBoardId, slice)
+    }
+    return slice
+  }
+
+  get strokes(): Stroke[] {
+    return this.activeSlice.strokes
+  }
+  set strokes(strokes: Stroke[]) {
+    this.activeSlice.strokes = strokes
+  }
+
+  get stamps(): Stamp[] {
+    return this.activeSlice.stamps
+  }
+  set stamps(stamps: Stamp[]) {
+    this.activeSlice.stamps = stamps
+  }
+
+  get selectedStrokeIds(): string[] {
+    return this.activeSlice.selectedStrokeIds
+  }
+  set selectedStrokeIds(ids: string[]) {
+    this.activeSlice.selectedStrokeIds = ids
+  }
+
+  get selectedCharIds(): string[] {
+    return this.activeSlice.selectedCharIds
+  }
+  set selectedCharIds(ids: string[]) {
+    this.activeSlice.selectedCharIds = ids
+  }
+
+  private get undoStack(): UndoSnapshot[] {
+    return this.activeSlice.undoStack
+  }
+  private set undoStack(stack: UndoSnapshot[]) {
+    this.activeSlice.undoStack = stack
+  }
+
+  private get redoStack(): UndoSnapshot[] {
+    return this.activeSlice.redoStack
+  }
+  private set redoStack(stack: UndoSnapshot[]) {
+    this.activeSlice.redoStack = stack
+  }
+
+  activateBoard(boardId: string, strokes: Stroke[] = [], stamps: Stamp[] = []) {
+    if (!this.boardSlices.has(boardId)) {
+      this.boardSlices.set(boardId, createBoardSlice(strokes, stamps))
+    }
+    this.activeBoardId = boardId
+    this.currentStroke = null
+    this.marquee = null
+    this.activeHandle = null
+    this.hoveredStrokeId = null
+    this.hoveredCharId = null
+    this.eraserPoint = null
+    this.transformInitialState = null
+    this.mathCapsule = null
+    this.gestureDissolve = null
+    this.recognizedPulse = null
+    this.stampedReveal = null
+    this.notify()
+  }
+
+  deleteBoardSlice(boardId: string) {
+    this.boardSlices.delete(boardId)
+    if (this.activeBoardId === boardId) {
+      this.activeBoardId = null
+    }
+  }
+
   currentStroke: Stroke | null = null
   camera = { x: 0, y: 0, z: 1 }
   activeTool: ToolType = 'draw'
@@ -122,9 +235,7 @@ export class InkyStore {
   strokeSize = 4
 
   // Selection & Transform state
-  selectedStrokeIds: string[] = []
   /** Selected stamp chars — parallel to strokes so glyphs are first-class. */
-  selectedCharIds: string[] = []
   hoveredStrokeId: string | null = null
   hoveredCharId: string | null = null
   marquee: Marquee | null = null
@@ -137,8 +248,6 @@ export class InkyStore {
   gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
     null
   recognizedPulse: { strokeIds: string[]; startedAt: number } | null = null
-  // Text stamps (stamped answers) rendered by StampLayer.
-  stamps: Stamp[] = []
   // Most recent stamp, revealed by the feathered wipe.
   stampedReveal: { stampId: string; startedAt: number } | null = null
   mathCapsule: {
@@ -169,8 +278,6 @@ export class InkyStore {
     selectionBox: { minX: number; minY: number; maxX: number; maxY: number }
   } | null = null
 
-  private undoStack: UndoSnapshot[] = []
-  private redoStack: UndoSnapshot[] = []
   private listeners: Set<Listener> = new Set()
 
   private snapshot(): UndoSnapshot {
@@ -338,6 +445,9 @@ export class InkyStore {
   addStroke(stroke: Stroke) {
     this.undoStack.push(this.snapshot())
     this.redoStack = []
+    if (!stroke.pathData && stroke.points.length > 0) {
+      stroke.pathData = generateStrokePath(stroke.points, stroke.size)
+    }
     this.strokes.push(stroke)
     this.notify()
   }
@@ -837,6 +947,6 @@ export const inkyStore = new InkyStore()
 
 // Dev-only E2E hook: lets agent-browser tests inspect/drive the store without
 // a React testing library. Never exposed in production builds.
-if (import.meta.env.DEV) {
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   ;(window as unknown as { inkyStore?: InkyStore }).inkyStore = inkyStore
 }

@@ -27,7 +27,92 @@ function renderFormula(latex: string): React.ReactNode {
     // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX generates and escapes this markup itself; throwOnError:true makes bad LaTeX throw here (caught below) instead of emitting error nodes.
     return <span className="inky-capsule-formula" dangerouslySetInnerHTML={{ __html: html }} />
   } catch {
-    return <span className="text-xs font-medium text-stone-200 tracking-wide">{source}</span>
+    return <span className="text-xs font-medium text-[#787774] tracking-wide">{source}</span>
+  }
+}
+
+/**
+ * Estimates handwritten glyph height and baseline metrics from the enclosed
+ * strokes or stamped characters so that stamped Hints and Solved answers
+ * match the student's actual handwriting scale and line spacing rather than
+ * exploding when multi-line or superscript strokes have a tall overall AABB.
+ */
+export function computeWritingMetrics(
+  strokeBoxes: { minX: number; minY: number; maxX: number; maxY: number }[],
+  charBoxes: { minX: number; minY: number; maxX: number; maxY: number }[],
+  charFontSizes: number[],
+  fallbackAnchor: { x: number; y: number },
+): {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+  fontSize: number
+  hintWorldX: number
+  hintWorldY: number
+  answerWorldX: number
+  answerWorldY: number
+} {
+  const allBoxes = [...strokeBoxes, ...charBoxes]
+  if (allBoxes.length === 0) {
+    const fontSize = 36
+    const lineGap = Math.round(Math.max(16, Math.min(48, fontSize * 0.6)))
+    return {
+      minX: fallbackAnchor.x,
+      maxX: fallbackAnchor.x + 100,
+      minY: fallbackAnchor.y,
+      maxY: fallbackAnchor.y,
+      fontSize,
+      hintWorldX: fallbackAnchor.x,
+      hintWorldY: fallbackAnchor.y + lineGap,
+      answerWorldX: fallbackAnchor.x + 130,
+      answerWorldY: fallbackAnchor.y - 18,
+    }
+  }
+
+  const minX = Math.min(...allBoxes.map((b) => b.minX))
+  const maxX = Math.max(...allBoxes.map((b) => b.maxX))
+  const minY = Math.min(...allBoxes.map((b) => b.minY))
+  const maxY = Math.max(...allBoxes.map((b) => b.maxY))
+  const overallH = Math.max(12, maxY - minY)
+
+  let fontSize = 36
+  if (charFontSizes.length > 0 && strokeBoxes.length === 0) {
+    // When acting on an existing stamp, preserve its exact handwriting font size!
+    const sum = charFontSizes.reduce((acc, s) => acc + s, 0)
+    fontSize = Math.round(Math.min(96, Math.max(16, sum / charFontSizes.length)))
+  } else {
+    // Filter out tiny dots/minus bars (< 28% of overall height) when computing median stroke height
+    const strokeHeights = strokeBoxes
+      .map((b) => b.maxY - b.minY)
+      .filter((h) => h >= Math.max(8, overallH * 0.28))
+      .sort((a, b) => a - b)
+
+    const representativeH =
+      strokeHeights.length > 0
+        ? strokeHeights[Math.floor(strokeHeights.length * 0.6)]
+        : overallH
+
+    // Blend representative glyph height with overall height (capped so fractions/tall loops don't explode)
+    const effectiveH = Math.min(overallH, representativeH * 1.15)
+    fontSize = Math.round(Math.min(96, Math.max(16, effectiveH * 1.35)))
+  }
+
+  // Line gap below writing scales naturally with the user's writing size
+  const lineGap = Math.round(Math.max(14, Math.min(48, fontSize * 0.55)))
+  const rightGap = Math.round(Math.max(18, Math.min(42, fontSize * 0.65)))
+  const centerY = (minY + maxY) / 2
+
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    fontSize,
+    hintWorldX: minX,
+    hintWorldY: Math.round(maxY + lineGap),
+    answerWorldX: Math.round(maxX + rightGap),
+    answerWorldY: Math.round(centerY - fontSize * 0.6),
   }
 }
 
@@ -180,24 +265,20 @@ export function MathActionCapsule() {
 
       const strokeBoxes = enclosedStrokes.map((s) => s.boundingBox)
       const charBoxes = enclosedChars.map(charBoundingBox)
-      const allBoxes = [...strokeBoxes, ...charBoxes]
-
-      const anchorX =
-        allBoxes.length > 0 ? Math.min(...allBoxes.map((b) => b.minX)) : display.worldPosition.x
-      const maxY =
-        allBoxes.length > 0 ? Math.max(...allBoxes.map((b) => b.maxY)) : display.worldPosition.y
-      let fontSize = 36
-      if (allBoxes.length > 0) {
-        const minY = Math.min(...allBoxes.map((b) => b.minY))
-        fontSize = Math.min(96, Math.max(16, (maxY - minY) * 1.6))
-      }
+      const charFontSizes = enclosedChars.map((c) => c.fontSize)
+      const metrics = computeWritingMetrics(
+        strokeBoxes,
+        charBoxes,
+        charFontSizes,
+        display.worldPosition,
+      )
 
       inkyStore.stampResult({
         text: socraticHint.expectedNextForm,
-        worldX: anchorX,
-        worldY: maxY + 45,
+        worldX: metrics.hintWorldX,
+        worldY: metrics.hintWorldY,
         color: '#2563eb',
-        fontSize,
+        fontSize: metrics.fontSize,
       })
       return
     }
@@ -207,7 +288,7 @@ export function MathActionCapsule() {
 
     // The enclosed strokes or chars anchor the stamp to the right of the formula and
     // define the hand it should match: the answer is sized from the height of
-    // the user's own glyphs (Caveat digits ≈ 0.6em tall).
+    // the user's own glyphs (maxY - minY) * 1.6 / Math.min(96, Math.max(16, ...)).
     const enclosedStrokes = inkyStore.strokes.filter((s) =>
       display.enclosedStrokeIds.includes(s.id),
     )
@@ -219,28 +300,22 @@ export function MathActionCapsule() {
 
     const strokeBoxes = enclosedStrokes.map((s) => s.boundingBox)
     const charBoxes = enclosedChars.map(charBoundingBox)
-    const allBoxes = [...strokeBoxes, ...charBoxes]
-
-    const maxX =
-      allBoxes.length > 0 ? Math.max(...allBoxes.map((b) => b.maxX)) : display.worldPosition.x + 100
-    let fontSize = 36
-    let stampY = display.worldPosition.y - 18
-    if (allBoxes.length > 0) {
-      const minY = Math.min(...allBoxes.map((b) => b.minY))
-      const maxY = Math.max(...allBoxes.map((b) => b.maxY))
-      const centerY = (minY + maxY) / 2
-      fontSize = Math.min(96, Math.max(16, (maxY - minY) * 1.6))
-      stampY = centerY - fontSize * 0.6
-    }
+    const charFontSizes = enclosedChars.map((c) => c.fontSize)
+    const metrics = computeWritingMetrics(
+      strokeBoxes,
+      charBoxes,
+      charFontSizes,
+      display.worldPosition,
+    )
 
     // The whole answer stamps as ONE undo step: appends the text stamp, arms
     // the reveal wipe, dismisses the capsule, and returns the user to the pen.
     inkyStore.stampResult({
       text: stampedTextFor(solution, action),
-      worldX: maxX + 30,
-      worldY: stampY,
+      worldX: metrics.answerWorldX,
+      worldY: metrics.answerWorldY,
       color: inkyStore.strokeColor,
-      fontSize,
+      fontSize: metrics.fontSize,
     })
   }
 
@@ -255,32 +330,32 @@ export function MathActionCapsule() {
   return (
     <fieldset
       aria-label="Formula actions"
-      className="inky-ui absolute z-40 origin-bottom pointer-events-auto"
+      className="inky-ui absolute z-40 origin-bottom pointer-events-auto border-none p-0 m-0"
       style={{
         left: `${screenX + edgeOffset.x}px`,
         top: `${screenY + edgeOffset.y}px`,
-        transform: 'translate(-50%, -120%)',
+        transform: 'translate(-50%, -115%)',
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div
         ref={pillRef}
         data-capsule-state={exiting ? 'exiting' : 'open'}
-        className={`${exiting ? 'inky-capsule-out' : 'inky-capsule-in'} bg-[#111111]/90 backdrop-blur-md text-white border border-white/10 shadow-2xl rounded-2xl px-3 py-2 flex items-center gap-3 max-w-[min(60vw,420px)]`}
+        className={`${exiting ? 'inky-capsule-out' : 'inky-capsule-in'} bg-white/95 backdrop-blur-xl text-[#111111] border border-black/8 shadow-[0_12px_36px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-1.5 pl-3.5 flex items-center gap-2 max-w-[min(88vw,520px)]`}
       >
         {/* Formula — shows "Loading math model…" or "Reading…" while ML is upgrading the rule latex,
             so the pill never displays a raw placeholder guess.
-            mlPending ? ( <span className="text-xs italic text-stone-300">Reading… */}
-        <span className="min-w-0 flex-1 truncate" aria-live="polite">
+            mlPending ? ( <span className="text-xs italic text-[#787774]">Reading… */}
+        <span className="min-w-0 flex-1 truncate py-0.5" aria-live="polite">
           {display.mlPending ? (
-            <span className="text-xs italic text-stone-300">
+            <span className="text-xs font-medium text-[#787774]">
               {modelStatus === 'loading' ? 'Loading math model…' : 'Reading…'}
             </span>
           ) : (
             <span
               key={display.latex}
               title={display.latex}
-              className="inky-capsule-swap inline-block max-w-full align-middle"
+              className="inky-capsule-swap inline-block max-w-full align-middle text-[#111111]"
             >
               {renderFormula(display.latex)}
             </span>
@@ -296,7 +371,7 @@ export function MathActionCapsule() {
           />
         )}
 
-        <div className="w-[1px] h-4 bg-white/20 shrink-0" />
+        <div className="w-[1px] h-4 bg-black/8 shrink-0 mx-0.5" />
 
         {/* Action buttons — rendered from the availability list; unavailable
             actions stay visible but inert (aria-disabled, dimmed). Solve stays
@@ -356,10 +431,12 @@ export function MathActionCapsule() {
             }[]
           ).map(({ action, label, primary, available, title }) => {
             const base =
-              'text-xs px-2 py-1 rounded-lg transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#111111]'
+              'text-xs px-2.5 py-1.5 rounded-xl transition-[transform,background-color,color,opacity] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1'
             const style = primary
-              ? 'font-semibold px-2.5 bg-white text-[#111111] hover:bg-stone-200 active:scale-[0.96] cursor-pointer'
-              : 'font-medium text-stone-300 hover:text-white hover:bg-white/10 active:scale-[0.96] cursor-pointer'
+              ? 'font-semibold bg-[#111111] text-white hover:bg-[#2a2a2a] active:scale-[0.96] cursor-pointer shadow-2xs'
+              : action === 'hint'
+                ? 'font-semibold text-[#2563eb] bg-blue-50/90 hover:bg-blue-100/90 active:scale-[0.96] cursor-pointer'
+                : 'font-medium text-[#111111] bg-black/[0.04] hover:bg-black/[0.08] active:scale-[0.96] cursor-pointer'
             const defaultTitle = available ? undefined : 'Not applicable to this formula'
             return (
               <button
@@ -368,7 +445,11 @@ export function MathActionCapsule() {
                 aria-disabled={!available}
                 title={title ?? defaultTitle}
                 onClick={available ? (e) => handleAction(e, action) : (e) => e.stopPropagation()}
-                className={available ? `${base} ${style}` : `${base} opacity-40 cursor-default`}
+                className={
+                  available
+                    ? `${base} ${style}`
+                    : `${base} text-[#787774] opacity-40 cursor-default`
+                }
               >
                 {label}
               </button>
@@ -380,11 +461,11 @@ export function MathActionCapsule() {
         <button
           type="button"
           onClick={handleDismiss}
-          className="text-stone-400 hover:text-white p-1 rounded-md transition-colors cursor-pointer shrink-0"
+          className="text-[#787774] hover:text-[#111111] hover:bg-black/5 p-1.5 rounded-xl transition-colors cursor-pointer shrink-0"
           title="Close"
           aria-label="Close formula capsule"
         >
-          <X size={14} />
+          <X size={14} strokeWidth={2} />
         </button>
       </div>
     </fieldset>

@@ -1,6 +1,9 @@
 import {
+  Download,
   Eraser,
+  FilePlus2,
   Hand,
+  Home,
   LineChart,
   Minus,
   MousePointer,
@@ -13,8 +16,14 @@ import {
 import { useEffect, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { PALETTE_COLORS, type ToolType } from '../../lib/canvas/types'
+import { boardCatalog } from '../../lib/document/boardCatalog'
+import { downloadBlob, exportToPdf } from '../../lib/pdf/pdfExporter'
 
-export function Toolbar() {
+interface ToolbarProps {
+  onGoHome?: () => void
+}
+
+export function Toolbar({ onGoHome }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState<ToolType>(inkyStore.activeTool)
   const [strokeColor, setStrokeColor] = useState(inkyStore.strokeColor)
   const [strokeSize, setStrokeSize] = useState(inkyStore.strokeSize)
@@ -23,9 +32,11 @@ export function Toolbar() {
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [isGraphOpen, setIsGraphOpen] = useState(inkyStore.graphSidebar.isOpen)
+  const [isExporting, setIsExporting] = useState(false)
+  const [activeBoard, setActiveBoard] = useState(() => boardCatalog.getActiveBoard())
 
   useEffect(() => {
-    const unsub = inkyStore.subscribe(() => {
+    const unsubStore = inkyStore.subscribe(() => {
       setActiveTool(inkyStore.activeTool)
       setStrokeColor(inkyStore.strokeColor)
       setStrokeSize(inkyStore.strokeSize)
@@ -35,7 +46,14 @@ export function Toolbar() {
       setCanRedo(inkyStore.canRedo)
       setIsGraphOpen(inkyStore.graphSidebar.isOpen)
     })
-    return unsub
+    const unsubCatalog = boardCatalog.subscribe(() => {
+      const b = boardCatalog.getActiveBoard()
+      setActiveBoard(b ? { ...b } : undefined)
+    })
+    return () => {
+      unsubStore()
+      unsubCatalog()
+    }
   }, [])
 
   const zoomIn = () => inkyStore.zoomAt(inkyStore.camera.z + 0.1)
@@ -47,11 +65,26 @@ export function Toolbar() {
       {/* Top Centered Unified Command Island */}
       <nav
         aria-label="Inky Command Bar"
-        className="inky-ui fixed top-4 inset-x-0 mx-auto w-fit z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-200"
+        className="inky-ui fixed top-4 inset-x-0 mx-auto w-fit max-w-[calc(100vw-24px)] overflow-x-auto z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-200"
         style={{
           animation: 'toolbarSlideDown 250ms cubic-bezier(0.16, 1, 0.3, 1) both',
         }}
       >
+        {/* Home Button */}
+        {onGoHome && (
+          <>
+            <button
+              type="button"
+              title="Home (All Boards)"
+              onClick={onGoHome}
+              className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+            >
+              <Home size={18} />
+            </button>
+            <div className="w-[1px] h-5 bg-black/10 mx-0.5" />
+          </>
+        )}
+
         {/* Core Tools */}
         <div className="flex items-center gap-1">
           <button
@@ -200,6 +233,51 @@ export function Toolbar() {
             )
           })}
         </div>
+        {/* Right Actions: Add Page (if worksheet) & Export PDF */}
+        <div className="w-[1px] h-5 bg-black/10 mx-1" />
+        {activeBoard?.type === 'worksheet' && (
+          <button
+            type="button"
+            title="Add Page"
+            aria-label="Add Page"
+            onClick={() => {
+              const newCount = boardCatalog.addPageToActiveBoard()
+              const pageGap = 40
+              const pageH = 1056
+              const newPageTopY = 80 + (newCount - 1) * (pageH + pageGap)
+              inkyStore.setCamera({
+                y: Math.round(100 - newPageTopY * inkyStore.camera.z),
+              })
+            }}
+            className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+          >
+            <FilePlus2 size={18} />
+          </button>
+        )}
+        <button
+          type="button"
+          title="Export PDF"
+          aria-label="Export PDF"
+          disabled={isExporting}
+          onClick={async () => {
+            try {
+              setIsExporting(true)
+              const currentBoard = boardCatalog.getActiveBoard() ?? activeBoard
+              const blob = await exportToPdf({
+                backgroundPages: currentBoard?.pdfPages,
+                pageCount: currentBoard?.pageCount,
+                paperStyle: inkyStore.paperStyle || currentBoard?.paperStyle,
+                title: currentBoard?.title,
+              })
+              downloadBlob(blob, `${currentBoard?.title || 'worksheet'}.pdf`)
+            } finally {
+              setIsExporting(false)
+            }
+          }}
+          className="relative min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#111111] hover:bg-black/5 transition-all duration-150 active:scale-95 cursor-pointer"
+        >
+          <Download size={18} className={isExporting ? 'animate-bounce' : ''} />
+        </button>
       </nav>
 
       {/* Bottom-Left Navigation & History Cluster */}

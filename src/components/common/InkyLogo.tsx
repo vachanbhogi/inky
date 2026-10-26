@@ -1,0 +1,75 @@
+interface InkyLogoProps {
+  className?: string
+  size?: number
+}
+
+/**
+ * Inky Squid Mascot (Concept A: Dumbo Squid)
+ * Playful Duolingo-style baby squid with floppy ear-fins, oversized expressive eyes,
+ * a cheerful grin, and bouncy curly tentacles (with a plump center tentacle).
+ * Built on a 256x256 grid with evenodd cutouts.
+ */
+export function InkyLogo({ className = '', size = 28 }: InkyLogoProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-label="Inky Logo"
+    >
+      <title>Inky</title>
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="
+          M128 24
+          C152 24 170 36 180 54
+          C198 50 216 60 218 76
+          C220 92 206 104 190 106
+          L190 144
+          C190 158 198 168 210 170
+          C218 172 224 178 222 186
+          C220 198 206 206 192 206
+          C176 206 164 196 158 184
+          L152 184
+          L152 212
+          C152 228 141.3 238 128 238
+          C114.7 238 104 228 104 212
+          L104 184
+          L98 184
+          C92 196 80 206 64 206
+          C50 206 36 198 34 186
+          C32 178 38 172 46 170
+          C58 168 66 158 66 144
+          L66 106
+          C50 104 36 92 38 76
+          C40 60 58 50 76 54
+          C86 36 104 24 128 24 Z
+
+          M98 88
+          C82.5 88 70 100.5 70 116
+          C70 131.5 82.5 144 98 144
+          C113.5 144 126 131.5 126 116
+          C126 100.5 113.5 88 98 88 Z
+
+          M158 88
+          C142.5 88 130 100.5 130 116
+          C130 131.5 142.5 144 158 144
+          C173.5 144 186 131.5 186 116
+          C186 100.5 173.5 88 158 88 Z
+
+          M116 152
+          C116 159.7 121.4 166 128 166
+          C134.6 166 140 159.7 140 152
+          L116 152 Z
+        "
+        fill="#111111"
+      />
+      <circle cx="102" cy="116" r="13" fill="#111111" />
+      <circle cx="154" cy="116" r="13" fill="#111111" />
+    </svg>
+  )
+}

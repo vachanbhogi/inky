@@ -1,7 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import { inkyStore } from './store'
+import { InkyStore, inkyStore } from './store'
+import type { Stamp } from './store'
+import type { Stroke } from './types'
 
 describe('inkyStore', () => {
+  it('keeps strokes, stamps, selection, and undo history isolated between boards', () => {
+    const store = new InkyStore()
+    const stroke = (id: string): Stroke => ({
+      id,
+      points: [[0, 0]],
+      color: '#111',
+      size: 4,
+      boundingBox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+    })
+    const stamp: Stamp = {
+      id: 'a-stamp',
+      text: 'A',
+      worldX: 0,
+      worldY: 0,
+      color: '#111',
+      fontSize: 24,
+      chars: [{ id: 'a-stamp-c0', char: 'A', worldX: 0, worldY: 0, fontSize: 24, angle: 0 }],
+    }
+
+    store.activateBoard('board-a', [stroke('a-stroke')], [stamp])
+    store.selectStroke('a-stroke')
+    store.activateBoard('board-b', [stroke('b-stroke')], [])
+    expect(store.selectedStrokeIds).toEqual([])
+    store.addStroke(stroke('b-added'))
+    store.undo()
+    expect(store.strokes.map((item) => item.id)).toEqual(['b-stroke'])
+
+    store.activateBoard('board-a')
+    expect(store.strokes.map((item) => item.id)).toEqual(['a-stroke'])
+    expect(store.stamps.map((item) => item.id)).toEqual(['a-stamp'])
+    expect(store.selectedStrokeIds).toEqual(['a-stroke'])
+    expect(store.canUndo).toBe(false)
+
+    store.activateBoard('board-b')
+    expect(store.strokes.map((item) => item.id)).toEqual(['b-stroke'])
+    expect(store.stamps).toEqual([])
+    expect(store.canRedo).toBe(true)
+  })
+
   it('manages camera position and zoom limits', () => {
     inkyStore.setCamera({ x: 100, y: 200, z: 2 })
     expect(inkyStore.camera).toEqual({ x: 100, y: 200, z: 2 })

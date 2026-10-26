@@ -24,6 +24,9 @@ import { MathActionCapsule } from './MathActionCapsule'
 import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
+import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
+import { boardCatalog, boardStorageKey } from '../../lib/document/boardCatalog'
+import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference
@@ -134,7 +137,11 @@ function openStampCapsule(
   })
 }
 
-export function InkyBoard() {
+interface InkyBoardProps {
+  onGoHome?: () => void
+}
+
+export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const workerRef = useRef<Worker | null>(null)
   const currentStrokeRef = useRef<{ id: string; points: Point[] } | null>(null)
@@ -149,6 +156,127 @@ export function InkyBoard() {
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [, setCamera] = useState(inkyStore.camera)
+  const [isDraggingPdf, setIsDraggingPdf] = useState(false)
+  const dragDepthRef = useRef(0)
+
+  const importDroppedPdfFile = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer()
+      const pages = await renderPdfToPages(buffer)
+      if (pages.length > 0) {
+        const title = file.name.replace(/\.pdf$/i, '') || 'Worksheet'
+        const active = boardCatalog.getActiveBoard()
+        // If the current board is empty and has no PDF yet, import directly into it;
+        // otherwise create and switch to a new worksheet board.
+        if (
+          active &&
+          inkyStore.strokes.length === 0 &&
+          inkyStore.stamps.length === 0 &&
+          (!active.pdfPages || active.pdfPages.length === 0)
+        ) {
+          boardCatalog.importPdfIntoBoard(active.id, pages, title)
+          inkyStore.setCamera({ x: Math.round(window.innerWidth / 2), y: 40, z: 1 })
+        } else {
+          boardCatalog.updateActiveBoardData(
+            inkyStore.strokes,
+            inkyStore.stamps,
+            inkyStore.camera,
+            inkyStore.paperStyle,
+          )
+          const nextBoard = boardCatalog.createBoard('worksheet', title, pages, 'blank')
+          inkyStore.activateBoard(nextBoard.id, nextBoard.strokes, nextBoard.stamps)
+          inkyStore.setPaperStyle('blank')
+          inkyStore.setCamera(
+            nextBoard.camera ?? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 },
+          )
+        }
+      }
+    } catch (err) {
+      console.error('Failed to import dropped PDF:', err)
+    }
+  }
+
+  const handleBoardPdfDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = 0
+    setIsDraggingPdf(false)
+    const file = extractDroppedPdfFile(e.dataTransfer)
+    if (file) {
+      await importDroppedPdfFile(file)
+    }
+  }
+
+  useEffect(() => {
+    const onWinDragEnter = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current += 1
+      setIsDraggingPdf(true)
+    }
+    const onWinDragOver = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy'
+      }
+      setIsDraggingPdf(true)
+    }
+    const onWinDragLeave = (e: DragEvent) => {
+      if (!hasDraggedFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+      if (dragDepthRef.current === 0 || (e.clientX <= 0 && e.clientY <= 0)) {
+        dragDepthRef.current = 0
+        setIsDraggingPdf(false)
+      }
+    }
+    const onWinDrop = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dragDepthRef.current = 0
+      setIsDraggingPdf(false)
+      const file = extractDroppedPdfFile(e.dataTransfer)
+      if (file) {
+        void importDroppedPdfFile(file)
+      }
+    }
+
+    window.addEventListener('dragenter', onWinDragEnter)
+    window.addEventListener('dragover', onWinDragOver)
+    window.addEventListener('dragleave', onWinDragLeave)
+    window.addEventListener('drop', onWinDrop)
+    return () => {
+      window.removeEventListener('dragenter', onWinDragEnter)
+      window.removeEventListener('dragover', onWinDragOver)
+      window.removeEventListener('dragleave', onWinDragLeave)
+      window.removeEventListener('drop', onWinDrop)
+    }
+  })
+
+  // Sync only if the catalog is still on the board this canvas represents.
+  useEffect(() => {
+    const board = boardCatalog.getActiveBoard()
+    if (board && inkyStore.activeBoardId !== board.id) {
+      inkyStore.activateBoard(board.id, board.strokes, board.stamps)
+      inkyStore.setPaperStyle(board.paperStyle ?? 'blank')
+      const defaultCam = { x: Math.round(window.innerWidth / 2), y: 40, z: 1 }
+      inkyStore.setCamera(board.camera ?? defaultCam)
+    }
+
+    const unsub = inkyStore.subscribe(() => {
+      const activeBoard = boardCatalog.getActiveBoard()
+      if (activeBoard && activeBoard.id === inkyStore.activeBoardId) {
+        boardCatalog.updateActiveBoardData(
+          inkyStore.strokes,
+          inkyStore.stamps,
+          inkyStore.camera,
+          inkyStore.paperStyle,
+        )
+      }
+    })
+    return unsub
+  }, [])
 
   useEffect(() => {
     let lastSelectionSig = `${inkyStore.selectedStrokeIds.join(',')}:${inkyStore.selectedCharIds.join(',')}`
@@ -335,10 +463,79 @@ export function InkyBoard() {
       }
     }
 
+    // Native non-passive wheel & Safari gesture listeners:
+    // React's synthetic onWheel is passive in modern browsers, so trackpad pinch
+    // (ctrlKey/metaKey wheel) or Cmd+Scroll otherwise triggers browser page zoom
+    // on the entire tab (scaling toolbars and UI). Intercepting with { passive: false }
+    // ensures zooming ONLY zooms the board camera!
+    const handleNativeWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('.inky-ui')) {
+        // Still block browser page-zoom if user pinches while cursor is over toolbar/UI
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault()
+          const rect = containerRef.current?.getBoundingClientRect()
+          const screenX = rect ? e.clientX - rect.left : e.clientX
+          const screenY = rect ? e.clientY - rect.top : e.clientY
+          const zoomDelta = Math.exp(-e.deltaY * 0.008)
+          inkyStore.zoomAt(inkyStore.camera.z * zoomDelta, screenX, screenY)
+        }
+        return
+      }
+
+      e.preventDefault()
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const screenX = e.clientX - rect.left
+      const screenY = e.clientY - rect.top
+
+      if (e.ctrlKey || e.metaKey) {
+        const zoomDelta = Math.exp(-e.deltaY * 0.008)
+        inkyStore.zoomAt(inkyStore.camera.z * zoomDelta, screenX, screenY)
+      } else {
+        inkyStore.setCamera({
+          x: inkyStore.camera.x - e.deltaX,
+          y: inkyStore.camera.y - e.deltaY,
+        })
+      }
+    }
+
+    let lastGestureScale = 1
+    const handleGestureStart = (e: Event) => {
+      e.preventDefault()
+      lastGestureScale = 1
+    }
+    const handleGestureChange = (e: Event) => {
+      e.preventDefault()
+      const ge = e as Event & { scale?: number; clientX?: number; clientY?: number }
+      const scale = typeof ge.scale === 'number' && ge.scale > 0 ? ge.scale : 1
+      const factor = scale / lastGestureScale
+      lastGestureScale = scale
+      const rect = containerRef.current?.getBoundingClientRect()
+      const screenX =
+        rect && typeof ge.clientX === 'number' ? ge.clientX - rect.left : window.innerWidth / 2
+      const screenY =
+        rect && typeof ge.clientY === 'number' ? ge.clientY - rect.top : window.innerHeight / 2
+      inkyStore.zoomAt(inkyStore.camera.z * factor, screenX, screenY)
+    }
+    const handleGestureEnd = (e: Event) => {
+      e.preventDefault()
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('wheel', handleNativeWheel, { passive: false })
+    window.addEventListener('gesturestart', handleGestureStart, { passive: false })
+    window.addEventListener('gesturechange', handleGestureChange, { passive: false })
+    window.addEventListener('gestureend', handleGestureEnd, { passive: false })
 
-    const autosave = initAutosave(inkyStore)
+    const activeBoard = boardCatalog.getActiveBoard()
+    const autosave = initAutosave(inkyStore, {
+      storageKey: activeBoard ? boardStorageKey(activeBoard.id) : undefined,
+      // When a board from boardCatalog is active, its strokes/stamps are already hydrated
+      // by boardCatalog. Never restore from the legacy global `inky:document:v1` key.
+      restoreOnStartup: !activeBoard,
+    })
 
     return () => {
       autosave.destroy()
@@ -346,6 +543,10 @@ export function InkyBoard() {
       worker.terminate()
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('wheel', handleNativeWheel)
+      window.removeEventListener('gesturestart', handleGestureStart)
+      window.removeEventListener('gesturechange', handleGestureChange)
+      window.removeEventListener('gestureend', handleGestureEnd)
     }
   }, [])
 
@@ -741,26 +942,6 @@ export function InkyBoard() {
     }
   }
 
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('.inky-ui')) return
-    e.preventDefault()
-
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const screenX = e.clientX - rect.left
-    const screenY = e.clientY - rect.top
-
-    if (e.ctrlKey || e.metaKey) {
-      const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95
-      inkyStore.zoomAt(inkyStore.camera.z * zoomFactor, screenX, screenY)
-    } else {
-      inkyStore.setCamera({
-        x: inkyStore.camera.x - e.deltaX,
-        y: inkyStore.camera.y - e.deltaY,
-      })
-    }
-  }
-
   return (
     <div
       ref={containerRef}
@@ -768,11 +949,28 @@ export function InkyBoard() {
       aria-label="Inky Math Canvas"
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
+      onDragEnter={(e) => {
+        if (!hasDraggedFiles(e.dataTransfer)) return
+        e.preventDefault()
+        setIsDraggingPdf(true)
+      }}
+      onDragOver={(e) => {
+        if (!hasDraggedFiles(e.dataTransfer)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setIsDraggingPdf(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          dragDepthRef.current = 0
+          setIsDraggingPdf(false)
+        }
+      }}
+      onDrop={handleBoardPdfDrop}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      onWheel={handleWheel}
       className={`inky-canvas-root relative w-full h-full touch-none select-none overflow-hidden ${
         activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
       }`}
@@ -780,12 +978,18 @@ export function InkyBoard() {
         backgroundColor: '#fbfbfa',
       }}
     >
+      {isDraggingPdf && (
+        <div className="inky-ui absolute inset-4 z-50 bg-white/95 border border-black/10 rounded-xl flex flex-col items-center justify-center pointer-events-none">
+          <p className="text-sm font-medium text-[#111111]">Drop PDF to import</p>
+        </div>
+      )}
       <BackgroundLayer />
+      <WorksheetBackgroundLayer />
       <CanvasLayer />
       <StampLayer />
       <MathActionCapsule />
       <GraphSidebar />
-      <Toolbar />
+      <Toolbar onGoHome={onGoHome} />
       <ShortcutsModal />
     </div>
   )
