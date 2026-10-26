@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { FileUp, Plus, Trash2, X } from 'lucide-react'
+import { FileUp, Plus, Trash2 } from 'lucide-react'
 import {
   boardCatalog,
   type BoardItem,
@@ -328,7 +328,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
         </div>
       )}
 
-      {/* Architectural Split-Pane Modal (GraphSidebar + ShortcutsModal DNA, Zero Nested Cards) */}
+      {/* Seamless Floating Island Setup Dialog */}
       {pendingTemplate && (
         <div
           role="dialog"
@@ -336,171 +336,142 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
           aria-label={`New ${pendingTemplate.title}`}
           className="inky-ui fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
         >
-          {/* Backdrop */}
+          {/* Calm Backdrop (clean dim without blur) */}
           <button
             type="button"
             aria-label="Close dialog"
             onClick={() => setPendingTemplate(null)}
-            className="fixed inset-0 bg-black/20 backdrop-blur-xs cursor-default w-full h-full border-none p-0 m-0"
+            className="fixed inset-0 bg-black/20 cursor-default w-full h-full border-none p-0 m-0"
           />
 
           <div
-            className="relative z-10 w-full max-w-lg bg-white border border-black/10 rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.08)] overflow-hidden"
+            className="relative z-10 w-full max-w-xl bg-white border border-black/8 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-8 overflow-hidden"
             style={{
               animation: 'modalSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
             }}
           >
-            {/* 1. Minimalist Editorial Header (matches GraphSidebar & ShortcutsModal) */}
-            <div className="flex items-center justify-between px-6 h-[48px] bg-white border-b border-black/8">
-              <div className="flex items-center gap-2 text-[13px] font-medium tracking-tight text-[#111111]">
-                <span>{pendingTemplate.title}</span>
-                {setupStep === 'name' && (
-                  <>
-                    <span className="text-[#787774]">/</span>
-                    <button
-                      type="button"
-                      onClick={() => setSetupStep('layout')}
-                      className="text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
-                    >
-                      {docLayout === 'page' ? 'Page' : 'Pageless'}
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <button
-                type="button"
-                title="Close (Esc)"
-                onClick={() => setPendingTemplate(null)}
-                className="p-1.5 rounded-md text-[#787774] hover:text-[#111111] hover:bg-black/5 transition-colors cursor-pointer"
-                style={{ outline: 'none' }}
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* 2. Body: One Question at a Time */}
+            {/* Step 1: Format (Page vs Pageless) */}
             {setupStep === 'layout' ? (
               <div className="flex flex-col">
-                <div className="grid grid-cols-2 divide-x divide-black/8 bg-white">
-                  {/* Left Pane: Page */}
+                <div className="grid grid-cols-2 gap-8 py-2">
+                  {/* Left: Page Option */}
                   <button
                     type="button"
                     onClick={() => handlePickLayout('page')}
-                    className={`group flex flex-col items-center justify-center px-8 py-10 transition-colors cursor-pointer ${
-                      docLayout === 'page' ? 'bg-[#fbfbfa]' : 'bg-white hover:bg-[#fbfbfa]/80'
+                    className={`group flex flex-col items-center p-4 rounded-xl transition-all cursor-pointer ${
+                      docLayout === 'page'
+                        ? 'ring-2 ring-[#111111] bg-[#fbfbfa]'
+                        : 'opacity-70 hover:opacity-100 hover:bg-[#fbfbfa]/60'
                     }`}
                     style={{ outline: 'none' }}
                   >
-                    {/* Desk frame holding an 8.5x11 sheet */}
-                    <div
-                      className={`w-24 h-32 bg-white rounded-[4px] transition-all relative overflow-hidden mb-4 ${
-                        docLayout === 'page'
-                          ? 'border-[1.5px] border-[#111111] shadow-[0_6px_20px_rgba(0,0,0,0.06)]'
-                          : 'border border-black/15 shadow-[0_2px_10px_rgba(0,0,0,0.03)] group-hover:border-black/40'
-                      }`}
-                    >
-                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                    {/* Realistic 8.5x11 Sheet on Desk */}
+                    <div className="w-full aspect-[4/5] bg-[#f2f1ed] rounded-lg flex items-center justify-center p-3 mb-3.5 overflow-hidden">
+                      <div className="h-full aspect-[8.5/11] bg-white rounded-[3px] shadow-[0_3px_12px_rgba(0,0,0,0.08)] border border-black/8 relative overflow-hidden transition-transform group-hover:scale-[1.02]">
+                        <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                      </div>
                     </div>
-                    <span
-                      className={`text-xs transition-colors ${
-                        docLayout === 'page'
-                          ? 'font-semibold text-[#111111]'
-                          : 'font-medium text-[#787774] group-hover:text-[#111111]'
-                      }`}
-                    >
-                      Page
-                    </span>
+                    <span className="text-sm font-semibold text-[#111111]">Page</span>
                   </button>
 
-                  {/* Right Pane: Pageless */}
+                  {/* Right: Pageless Option */}
                   <button
                     type="button"
                     onClick={() => handlePickLayout('pageless')}
-                    className={`group flex flex-col items-center justify-center px-8 py-10 transition-colors cursor-pointer ${
-                      docLayout === 'pageless' ? 'bg-[#fbfbfa]' : 'bg-white hover:bg-[#fbfbfa]/80'
+                    className={`group flex flex-col items-center p-4 rounded-xl transition-all cursor-pointer ${
+                      docLayout === 'pageless'
+                        ? 'ring-2 ring-[#111111] bg-[#fbfbfa]'
+                        : 'opacity-70 hover:opacity-100 hover:bg-[#fbfbfa]/60'
                     }`}
                     style={{ outline: 'none' }}
                   >
-                    {/* Open unframed surface */}
-                    <div
-                      className={`w-32 h-32 bg-white rounded-[4px] transition-all relative overflow-hidden mb-4 ${
-                        docLayout === 'pageless'
-                          ? 'border-[1.5px] border-dashed border-[#111111] shadow-[0_6px_20px_rgba(0,0,0,0.06)]'
-                          : 'border border-dashed border-black/20 group-hover:border-black/45'
-                      }`}
-                    >
+                    {/* Boundless Canvas Surface */}
+                    <div className="w-full aspect-[4/5] bg-white rounded-lg border border-black/10 relative overflow-hidden mb-3.5 transition-transform group-hover:scale-[1.02]">
                       <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                      <div className="absolute inset-0 bg-radial from-transparent to-black/[0.03] pointer-events-none" />
                     </div>
-                    <span
-                      className={`text-xs transition-colors ${
-                        docLayout === 'pageless'
-                          ? 'font-semibold text-[#111111]'
-                          : 'font-medium text-[#787774] group-hover:text-[#111111]'
-                      }`}
-                    >
-                      Pageless
-                    </span>
+                    <span className="text-sm font-semibold text-[#111111]">Pageless</span>
                   </button>
                 </div>
 
-                {/* Flush Bottom Bar */}
-                <div className="flex items-center justify-between px-6 h-[48px] bg-[#fbfbfa] border-t border-black/8">
-                  <button
-                    type="button"
-                    onClick={() => setPendingTemplate(null)}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
-                    style={{ outline: 'none' }}
-                  >
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-white border border-black/10 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-                      Esc
+                {/* Keyboard guidance bar */}
+                <div className="flex items-center justify-between pt-6 border-t border-black/6 text-xs text-[#787774]">
+                  <div className="flex items-center gap-1.5">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-[#fbfbfa] border border-black/10 rounded">
+                      ←
                     </kbd>
-                  </button>
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-[#fbfbfa] border border-black/10 rounded">
+                      →
+                    </kbd>
+                    <span>choose</span>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSetupStep('name')}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
-                    style={{ outline: 'none' }}
-                  >
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-white border border-black/10 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-                      Enter ↵
-                    </kbd>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-[#fbfbfa] border border-black/10 rounded">
+                        ↵
+                      </kbd>
+                      <span>select</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPendingTemplate(null)}
+                      className="flex items-center gap-1 hover:text-[#111111] cursor-pointer"
+                    >
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-[#fbfbfa] border border-black/10 rounded">
+                        Esc
+                      </kbd>
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleConfirmCreate} className="flex flex-col bg-white">
-                <div className="px-8 py-12 flex flex-col justify-center">
-                  <input
-                    ref={nameInputRef}
-                    type="text"
-                    value={docName}
-                    onChange={(e) => setDocName(e.target.value)}
-                    placeholder={pendingTemplate.defaultName}
-                    aria-label="Note name"
-                    style={{ outline: 'none', boxShadow: 'none' }}
-                    className="w-full text-2xl font-medium tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-0 p-0 m-0"
-                    spellCheck={false}
-                  />
+              /* Step 2: Name Input */
+              <form onSubmit={handleConfirmCreate} className="flex flex-col">
+                <div className="flex items-center gap-6 py-6">
+                  {/* Contextual Miniature of selected choice */}
+                  <div className="w-18 h-22 rounded-lg bg-[#f2f1ed] border border-black/10 flex items-center justify-center p-2 shrink-0">
+                    <div className="w-full h-full bg-white rounded-[2px] shadow-xs relative overflow-hidden border border-black/6">
+                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <label htmlFor="inky-title-input" className="block text-xs font-medium text-[#787774] mb-1">
+                      {pendingTemplate.title} · {docLayout === 'page' ? 'Page' : 'Pageless'}
+                    </label>
+                    <input
+                      id="inky-title-input"
+                      ref={nameInputRef}
+                      type="text"
+                      value={docName}
+                      onChange={(e) => setDocName(e.target.value)}
+                      placeholder={pendingTemplate.defaultName}
+                      aria-label="Note name"
+                      style={{ outline: 'none', boxShadow: 'none' }}
+                      className="w-full text-2xl font-semibold tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-b-2 border-black/10 focus:border-[#111111] pb-1 transition-colors"
+                      spellCheck={false}
+                    />
+                  </div>
                 </div>
 
-                {/* Flush Bottom Bar (matches GraphSidebar bottom dock) */}
-                <div className="flex items-center justify-between px-6 h-[52px] bg-[#fbfbfa] border-t border-black/8">
+                {/* Actions bottom bar */}
+                <div className="flex items-center justify-between pt-6 border-t border-black/6">
                   <button
                     type="button"
                     onClick={() => setSetupStep('layout')}
                     className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
                     style={{ outline: 'none' }}
                   >
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-white border border-black/10 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-[#fbfbfa] border border-black/10 rounded">
                       Esc
                     </kbd>
+                    <span>back</span>
                   </button>
 
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#111111] hover:bg-[#333333] text-white rounded-lg text-xs font-medium transition-all active:scale-95 cursor-pointer"
+                    className="inline-flex items-center gap-2 px-5 py-2 bg-[#111111] hover:bg-[#333333] text-white rounded-xl text-xs font-medium transition-all active:scale-95 cursor-pointer shadow-xs"
                     style={{ outline: 'none' }}
                   >
                     <span>Create</span>
