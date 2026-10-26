@@ -190,8 +190,8 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(inkyStore.stamps).toHaveLength(1)
     expect(inkyStore.stamps[0].text).toBe('2x = 10')
     expect(inkyStore.stamps[0].worldX).toBe(100)
-    expect(inkyStore.stamps[0].fontSize).toBe(54) // 40px stroke height * 1.35 = 54
-    expect(inkyStore.stamps[0].worldY).toBe(120) // maxY (90) + round(54 * 0.55 = 30) = 120
+    expect(inkyStore.stamps[0].fontSize).toBe(46)
+    expect(inkyStore.stamps[0].worldY).toBe(100)
     expect(inkyStore.stamps[0].color).toBe('#2563eb')
   })
 
@@ -236,8 +236,8 @@ describe('MathActionCapsule availability (emitted latex shapes)', () => {
     expect(nextStamp.color).toBe('#2563eb')
     expect(nextStamp.fontSize).toBe(24)
     expect(nextStamp.worldX).toBe(100)
-    // maxY is 100 + 24 * 1.25 = 130; lineGap = max(14, round(24 * 0.55)) = 14 -> 144
-    expect(nextStamp.worldY).toBe(144)
+    // maxY is 100 + 24 * 1.25 = 130; compact lineGap = max(6, round(24 * 0.22)) = 6 -> 136
+    expect(nextStamp.worldY).toBe(136)
   })
 
   test('Graph button appears when expression is graphable and opens graphSidebar', async () => {

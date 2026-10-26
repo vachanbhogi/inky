@@ -93,13 +93,14 @@ export function computeWritingMetrics(
       strokeHeights.length > 0 ? strokeHeights[Math.floor(strokeHeights.length * 0.6)] : overallH
 
     // Blend representative glyph height with overall height (capped so fractions/tall loops don't explode)
-    const effectiveH = Math.min(overallH, representativeH * 1.15)
-    fontSize = Math.round(Math.min(96, Math.max(16, effectiveH * 1.35)))
+    const effectiveH = Math.min(overallH, representativeH * 1.05)
+    fontSize = Math.round(Math.min(72, Math.max(16, effectiveH * 1.15)))
   }
 
-  // Line gap below writing scales naturally with the user's writing size
-  const lineGap = Math.round(Math.max(14, Math.min(48, fontSize * 0.55)))
-  const rightGap = Math.round(Math.max(18, Math.min(42, fontSize * 0.65)))
+  // Line gap below writing scales naturally with the user's writing size, kept compact
+  // so multi-step equations don't drift down the page into subsequent worksheet problems
+  const lineGap = Math.round(Math.max(6, Math.min(22, fontSize * 0.22)))
+  const rightGap = Math.round(Math.max(14, Math.min(36, fontSize * 0.5)))
   const centerY = (minY + maxY) / 2
 
   return {

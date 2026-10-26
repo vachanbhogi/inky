@@ -224,6 +224,19 @@ class BoardCatalogStore {
                 this.savePdfPagesSafely(rawBoard.id, pdfPages)
               }
 
+              // Retroactively extract curriculum if board has PDF pages but no detected method yet
+              if (
+                (!worksheetMethod || worksheetMethod === 'auto') &&
+                pdfPages &&
+                pdfPages.length > 0
+              ) {
+                const cur = extractCurriculumFromPages(pdfPages, rawBoard.title)
+                if (cur.method !== 'auto') {
+                  worksheetMethod = cur.method
+                  worksheetTopic = cur.topicLabel
+                }
+              }
+
               const hydratedItem: BoardItem = {
                 ...rawBoard,
                 pageCount:
@@ -247,6 +260,14 @@ class BoardCatalogStore {
                     if (target && (!target.pdfPages || target.pdfPages.length === 0)) {
                       target.pdfPages = idbPages
                       target.pageCount = Math.max(target.pageCount ?? 1, idbPages.length)
+                      if (!target.worksheetMethod || target.worksheetMethod === 'auto') {
+                        const cur = extractCurriculumFromPages(idbPages, target.title)
+                        if (cur.method !== 'auto') {
+                          target.worksheetMethod = cur.method
+                          target.worksheetTopic = cur.topicLabel
+                          this.saveBoardDocument(target, false)
+                        }
+                      }
                       for (const fn of this.listeners) fn()
                     }
                   }
