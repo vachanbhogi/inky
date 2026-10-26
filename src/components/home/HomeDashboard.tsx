@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { FileUp, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, FileUp, Plus, Trash2 } from 'lucide-react'
 import {
   boardCatalog,
   type BoardItem,
@@ -353,18 +353,19 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
             {/* Step 1: Format (Page vs Pageless) */}
             {setupStep === 'layout' ? (
               <div className="flex flex-col">
-                <div className="flex items-center justify-between pb-3">
+                <div className="flex items-center justify-between pb-2">
                   <button
                     type="button"
+                    aria-label="Back"
                     onClick={() => setPendingTemplate(null)}
-                    className="text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                    className="p-1 -ml-1 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+                    style={{ outline: 'none' }}
                   >
-                    Cancel
+                    <ArrowLeft size={16} strokeWidth={2} />
                   </button>
-                  <span className="text-xs font-medium text-[#787774]">{pendingTemplate.title} format</span>
                 </div>
 
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-4">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-2">
                   {/* Left: Page Option (Physical sheet with crisp page geometry) */}
                   <button
                     type="button"
@@ -427,17 +428,16 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
             ) : (
               /* Step 2: Name Input */
               <form onSubmit={handleConfirmCreate} className="flex flex-col">
-                <div className="flex items-center justify-between pb-3">
+                <div className="flex items-center justify-between pb-2">
                   <button
                     type="button"
+                    aria-label="Back"
                     onClick={() => setSetupStep('layout')}
-                    className="text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                    className="p-1 -ml-1 text-[#787774] hover:text-[#111111] hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+                    style={{ outline: 'none' }}
                   >
-                    Cancel
+                    <ArrowLeft size={16} strokeWidth={2} />
                   </button>
-                  <span className="text-xs font-medium text-[#787774]">
-                    {pendingTemplate.title} · {docLayout === 'page' ? 'Page' : 'Pageless'}
-                  </span>
                 </div>
 
                 <div className="flex items-center gap-6 py-6">
@@ -492,10 +492,11 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 <div className="flex items-center justify-end pt-4">
                   <button
                     type="submit"
-                    className="inline-flex items-center px-5 py-2 bg-[#111111] hover:bg-[#333333] text-white rounded-xl text-xs font-medium transition-all active:scale-95 cursor-pointer shadow-xs"
+                    aria-label="Confirm"
+                    className="p-2.5 bg-[#111111] hover:bg-[#333333] text-white rounded-xl transition-all active:scale-95 cursor-pointer shadow-xs flex items-center justify-center"
                     style={{ outline: 'none' }}
                   >
-                    <span>Create note</span>
+                    <ArrowRight size={16} strokeWidth={2.2} />
                   </button>
                 </div>
               </form>
