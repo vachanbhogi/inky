@@ -28,6 +28,11 @@ export function App() {
         ...st,
         chars: st.chars.map((c) => ({ ...c })),
       }))
+      if (nextBoard.paperStyle) {
+        inkyStore.setPaperStyle(nextBoard.paperStyle)
+      } else {
+        inkyStore.setPaperStyle('blank')
+      }
       inkyStore.clearSelection()
       inkyStore.setCamera({ x: window.innerWidth / 2, y: 40, z: 1 })
     }

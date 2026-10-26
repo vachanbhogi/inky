@@ -2,6 +2,7 @@ import type { Stroke } from '../canvas/types'
 import type { Stamp } from '../canvas/store'
 
 export type DocumentType = 'infinite' | 'worksheet'
+export type PaperStyle = 'blank' | 'dot-grid' | 'graph' | 'lined'
 
 export interface WorksheetPage {
   pageNumber: number
@@ -14,6 +15,7 @@ export interface BoardItem {
   id: string
   title: string
   type: DocumentType
+  paperStyle?: PaperStyle
   createdAt: number
   updatedAt: number
   thumbnailUrl?: string
@@ -98,13 +100,19 @@ class BoardCatalogStore {
     }
   }
 
-  createBoard(type: DocumentType = 'infinite', title?: string, pdfPages?: WorksheetPage[]): BoardItem {
+  createBoard(
+    type: DocumentType = 'infinite',
+    title?: string,
+    pdfPages?: WorksheetPage[],
+    paperStyle: PaperStyle = 'blank',
+  ): BoardItem {
     const id = `board-${Date.now()}`
     const name = title ?? (type === 'worksheet' ? 'Homework Worksheet' : 'New Board')
     const newBoard: BoardItem = {
       id,
       title: name,
       type,
+      paperStyle,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       strokes: [],
