@@ -287,7 +287,7 @@ export function WorksheetBackgroundLayer() {
           onClick={handleCycleMethod}
           aria-label={`Worksheet method: ${currentMethodItem.label}. Click to cycle coaching method`}
           title="Cycle worksheet coaching method"
-          className="min-h-[40px] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#111111] border border-black/8 hover:border-black/20 shadow-[0_4px_14px_rgba(0,0,0,0.05)] text-xs font-medium transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+          className="min-h-[40px] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#111111] border border-black/8 hover:border-black/20 shadow-[0_4px_14px_rgba(0,0,0,0.05)] text-xs font-medium whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
         >
           <span className="text-[#787774]">Method:</span>
           <span className="font-semibold text-[#111111]">{currentMethodItem.label}</span>
