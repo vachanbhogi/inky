@@ -111,8 +111,8 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
 
   if (board.pdfPages && board.pdfPages[0]) {
     return (
-      <div className="w-full h-full bg-[#f4f3ef] flex items-center justify-center p-3 overflow-hidden">
-        <div className="relative h-full aspect-[8.5/11] bg-white rounded-[6px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/[0.08] overflow-hidden">
+      <div className="w-full h-full bg-[#f3f2ee] flex items-center justify-center p-4 overflow-hidden">
+        <div className="relative h-full aspect-[8.5/11] bg-white rounded-[4px] border border-[#eaeaea] overflow-hidden">
           <img
             src={board.pdfPages[0].dataUrl}
             alt=""
@@ -161,8 +161,8 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
 
   if (board.type === 'worksheet') {
     return (
-      <div className="w-full h-full bg-[#f3f2ee] flex items-center justify-center p-3 overflow-hidden">
-        <div className="relative h-full aspect-[8.5/11] bg-white rounded-[6px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/[0.08] overflow-hidden">
+      <div className="w-full h-full bg-[#f3f2ee] flex items-center justify-center p-4 overflow-hidden">
+        <div className="relative h-full aspect-[8.5/11] bg-white rounded-[4px] border border-[#eaeaea] overflow-hidden">
           <PaperPatternSurface style={style} />
           {inkOverlay}
         </div>
@@ -205,7 +205,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
     }
   }, [pendingTemplate, setupStep])
 
-  // Keyboard shortcuts for integrated bar (Esc, Enter, ArrowLeft/Right, 1/2)
+  // Keyboard shortcuts for spacious modal (Esc, Enter, ArrowLeft/Right, 1/2)
   useEffect(() => {
     if (!pendingTemplate) return
 
@@ -323,15 +323,149 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
 
       {/* Drag drop curtain */}
       {isDragging && (
-        <div className="absolute inset-4 z-50 bg-white/95 border border-black/10 rounded-2xl flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-sm font-medium text-neutral-800">Drop PDF</p>
+        <div className="absolute inset-4 z-50 bg-white/95 border border-[#eaeaea] rounded-[12px] flex flex-col items-center justify-center pointer-events-none">
+          <p className="text-sm font-medium text-[#111111]">Drop PDF</p>
+        </div>
+      )}
+
+      {/* Spacious, High-Whitespace One-Question-at-a-Time Modal (Zero Pills) */}
+      {pendingTemplate && (
+        <div
+          onClick={() => setPendingTemplate(null)}
+          className="fixed inset-0 z-50 bg-black/15 flex items-center justify-center p-6"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl bg-white border border-[#eaeaea] rounded-[12px] shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-12 flex flex-col justify-between min-h-[360px]"
+          >
+            {setupStep === 'layout' ? (
+              <>
+                <div className="grid grid-cols-2 gap-10 my-auto py-4">
+                  {/* Option 1: Page (Direct visual preview, no inner card) */}
+                  <button
+                    type="button"
+                    onClick={() => handlePickLayout('page')}
+                    className="group flex flex-col items-center justify-center transition-transform cursor-pointer active:scale-[0.98]"
+                  >
+                    <div
+                      className={`w-28 h-36 bg-white rounded-[6px] relative overflow-hidden mb-4 transition-all ${
+                        docLayout === 'page'
+                          ? 'border-2 border-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.06)]'
+                          : 'border border-[#eaeaea] group-hover:border-[#111111]/50'
+                      }`}
+                    >
+                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                    </div>
+                    <span
+                      className={`text-sm transition-colors ${
+                        docLayout === 'page'
+                          ? 'font-semibold text-[#111111]'
+                          : 'font-medium text-[#787774] group-hover:text-[#111111]'
+                      }`}
+                    >
+                      Page
+                    </span>
+                  </button>
+
+                  {/* Option 2: Pageless (Direct visual preview, no inner card) */}
+                  <button
+                    type="button"
+                    onClick={() => handlePickLayout('pageless')}
+                    className="group flex flex-col items-center justify-center transition-transform cursor-pointer active:scale-[0.98]"
+                  >
+                    <div
+                      className={`w-36 h-36 bg-white rounded-[6px] relative overflow-hidden mb-4 transition-all ${
+                        docLayout === 'pageless'
+                          ? 'border-2 border-dashed border-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.06)]'
+                          : 'border border-dashed border-black/25 group-hover:border-[#111111]/60'
+                      }`}
+                    >
+                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
+                    </div>
+                    <span
+                      className={`text-sm transition-colors ${
+                        docLayout === 'pageless'
+                          ? 'font-semibold text-[#111111]'
+                          : 'font-medium text-[#787774] group-hover:text-[#111111]'
+                      }`}
+                    >
+                      Pageless
+                    </span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-8">
+                  <button
+                    type="button"
+                    onClick={() => setPendingTemplate(null)}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] cursor-pointer"
+                  >
+                    <kbd className="px-1.5 py-0.5 text-[11px] font-mono bg-[#f7f6f3] border border-[#eaeaea] rounded-[4px]">
+                      Esc
+                    </kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSetupStep('name')}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] cursor-pointer"
+                  >
+                    <kbd className="px-1.5 py-0.5 text-[11px] font-mono bg-[#f7f6f3] border border-[#eaeaea] rounded-[4px]">
+                      Enter ↵
+                    </kbd>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <form
+                onSubmit={handleConfirmCreate}
+                className="flex flex-col justify-between flex-1 min-h-[244px]"
+              >
+                <div className="my-auto py-8">
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={docName}
+                    onChange={(e) => setDocName(e.target.value)}
+                    placeholder={pendingTemplate.defaultName}
+                    aria-label="Note name"
+                    style={{ outline: 'none', boxShadow: 'none' }}
+                    className="w-full text-3xl font-medium tracking-[-0.02em] bg-transparent text-[#111111] placeholder:text-[#787774]/40 pb-4 border-b border-[#eaeaea] focus:border-[#111111] transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setSetupStep('layout')}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] cursor-pointer"
+                  >
+                    <kbd className="px-1.5 py-0.5 text-[11px] font-mono bg-[#f7f6f3] border border-[#eaeaea] rounded-[4px]">
+                      Esc
+                    </kbd>
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111111] text-white hover:bg-[#333333] rounded-[6px] text-xs font-medium transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <span>Create</span>
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-white/80 bg-white/15 rounded-[4px]">
+                      ↵
+                    </kbd>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
 
       {/* Main container */}
-      <div className="w-full max-w-5xl px-8 py-10 flex flex-col">
+      <div className="w-full max-w-5xl px-8 py-14 flex flex-col">
         {/* Header with Playful Squid Mark & Rounded Wordmark */}
-        <header className="flex items-center justify-between mb-8 pb-3.5 border-b border-black/[0.06]">
+        <header className="flex items-center justify-between mb-12 pb-5 border-b border-[#eaeaea]">
           <div className="flex items-center gap-2.5">
             <InkyLogo size={28} />
             <span
@@ -348,142 +482,63 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
           <button
             type="button"
             onClick={() => handleSelectTemplate(TEMPLATES[0])}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#111111] text-white hover:bg-neutral-800 text-xs font-medium transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[6px] bg-[#111111] text-white hover:bg-[#333333] text-xs font-medium transition-all active:scale-[0.98] cursor-pointer"
           >
             <Plus size={14} />
             <span>New</span>
           </button>
         </header>
 
-        {/* Template Gallery + Integrated Toolbar-Style Setup */}
-        <section className="mb-10 flex flex-col">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
-            {TEMPLATES.map((tmpl) => {
-              const isSelected = pendingTemplate?.id === tmpl.id
-              return (
-                <button
-                  key={tmpl.id}
-                  type="button"
-                  onClick={() => handleSelectTemplate(tmpl)}
-                  className="group flex flex-col items-start text-left transition-all active:scale-[0.98] cursor-pointer"
-                >
-                  {/* Large, toolbar-styled 8.5x11 Sheet Preview */}
-                  <div
-                    className={`w-full aspect-[8.5/11] bg-white rounded-2xl relative overflow-hidden transition-all duration-150 mb-2.5 ${
-                      isSelected
-                        ? 'border-2 border-[#111111] shadow-[0_8px_30px_rgb(0,0,0,0.08)]'
-                        : 'border border-black/8 group-hover:border-black/25 shadow-[0_8px_30px_rgb(0,0,0,0.04)] group-hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)]'
-                    }`}
-                  >
-                    {!tmpl.isPdfUpload ? (
-                      <PaperPatternSurface style={tmpl.paperStyle} />
-                    ) : (
-                      <div className="w-full h-full bg-[#fafaf9] flex flex-col items-center justify-center p-4 text-center">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-black/8 shadow-[0_4px_12px_rgb(0,0,0,0.04)] flex items-center justify-center text-[#111111] mb-2 group-hover:scale-105 transition-transform">
-                          <FileUp size={18} />
-                        </div>
-                        <span className="text-xs font-medium text-[#111111]">PDF</span>
+        {/* Template Gallery */}
+        <section className="mb-14 flex flex-col">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+            {TEMPLATES.map((tmpl) => (
+              <button
+                key={tmpl.id}
+                type="button"
+                onClick={() => handleSelectTemplate(tmpl)}
+                className="group flex flex-col items-start text-left transition-all active:scale-[0.98] cursor-pointer"
+              >
+                {/* Crisp 8.5x11 Sheet Preview */}
+                <div className="w-full aspect-[8.5/11] bg-white border border-[#eaeaea] group-hover:border-[#111111]/40 rounded-[8px] relative overflow-hidden transition-all duration-200 group-hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] mb-3">
+                  {!tmpl.isPdfUpload ? (
+                    <PaperPatternSurface style={tmpl.paperStyle} />
+                  ) : (
+                    <div className="w-full h-full bg-[#f9f9f8] flex flex-col items-center justify-center p-4 text-center">
+                      <div className="w-10 h-10 rounded-[6px] bg-white border border-[#eaeaea] flex items-center justify-center text-[#111111] mb-2">
+                        <FileUp size={18} />
                       </div>
-                    )}
-                  </div>
-
-                  {/* Caption */}
-                  <span className="text-xs font-medium text-[#111111] pl-1">{tmpl.title}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Integrated One-Question-at-a-Time Command Pill (Toolbar Aesthetic) */}
-          {pendingTemplate && (
-            <div className="mt-6 flex justify-center">
-              {setupStep === 'layout' ? (
-                <div
-                  role="region"
-                  aria-label="Choose format"
-                  className="inline-flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
-                >
-                  <button
-                    type="button"
-                    onClick={() => handlePickLayout('page')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 cursor-pointer ${
-                      docLayout === 'page'
-                        ? 'bg-[#111111] text-white shadow-xs'
-                        : 'text-[#111111] hover:bg-black/5'
-                    }`}
-                  >
-                    Page
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePickLayout('pageless')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 cursor-pointer ${
-                      docLayout === 'pageless'
-                        ? 'bg-[#111111] text-white shadow-xs'
-                        : 'text-[#111111] hover:bg-black/5'
-                    }`}
-                  >
-                    Pageless
-                  </button>
-                  <div className="w-[1px] h-4 bg-black/8 mx-1" />
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#787774] bg-[#f7f6f3] border border-[#eaeaea] rounded">
-                    Esc
-                  </kbd>
+                      <span className="text-xs font-medium text-[#111111]">PDF</span>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <form
-                  onSubmit={handleConfirmCreate}
-                  className="inline-flex items-center gap-2 p-1.5 pl-3.5 bg-white/95 backdrop-blur-xl border border-black/8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
-                >
-                  <input
-                    ref={nameInputRef}
-                    type="text"
-                    value={docName}
-                    onChange={(e) => setDocName(e.target.value)}
-                    placeholder={pendingTemplate.defaultName}
-                    aria-label="Note name"
-                    className="w-48 text-xs font-medium bg-transparent text-[#111111] placeholder:text-[#787774]/60 outline-none focus:outline-none focus-visible:outline-none border-none"
-                  />
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111111] text-white hover:bg-neutral-800 text-xs font-medium transition-all active:scale-95 cursor-pointer"
-                  >
-                    <span>Create</span>
-                    <kbd className="px-1 py-0.2 text-[10px] font-mono text-white/80 bg-white/15 rounded">
-                      ↵
-                    </kbd>
-                  </button>
-                  <kbd
-                    onClick={() => setPendingTemplate(null)}
-                    className="px-1.5 py-0.5 text-[10px] font-mono text-[#787774] bg-[#f7f6f3] border border-[#eaeaea] rounded cursor-pointer hover:text-[#111111]"
-                  >
-                    Esc
-                  </kbd>
-                </form>
-              )}
-            </div>
-          )}
+
+                {/* Caption */}
+                <span className="text-xs font-medium text-[#111111]">{tmpl.title}</span>
+              </button>
+            ))}
+          </div>
         </section>
 
         {/* Recent documents */}
         {boards.length > 0 && (
           <section>
-            <h2 className="text-xs font-medium text-[#787774] mb-3.5">Recent</h2>
+            <h2 className="text-xs font-medium text-[#787774] mb-4">Recent</h2>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
               {boards.map((b) => (
                 <div
                   key={b.id}
                   onClick={() => onOpenBoard(b.id)}
-                  className="group relative flex flex-col bg-white border border-black/8 hover:border-black/25 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] transition-all duration-150 cursor-pointer active:scale-[0.99]"
+                  className="group relative flex flex-col bg-white border border-[#eaeaea] hover:border-[#111111]/40 rounded-[8px] overflow-hidden transition-all duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] cursor-pointer active:scale-[0.98]"
                 >
                   {/* Authentic Paper + Live Ink Thumbnail */}
-                  <div className="w-full aspect-[4/3] border-b border-black/[0.05] relative overflow-hidden">
+                  <div className="w-full aspect-[4/3] border-b border-[#eaeaea] relative overflow-hidden">
                     <BoardThumbnailPreview board={b} />
                   </div>
 
                   {/* Minimal Info row */}
-                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-white">
+                  <div className="px-3.5 py-3 flex items-center justify-between bg-white">
                     <span className="text-xs font-medium text-[#111111] truncate pr-2">
                       {b.title || 'Untitled'}
                     </span>
@@ -495,7 +550,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                         e.stopPropagation()
                         boardCatalog.deleteBoard(b.id)
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-black/5 text-[#787774] hover:text-red-600 transition-all cursor-pointer shrink-0"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-[4px] hover:bg-[#f7f6f3] text-[#787774] hover:text-[#9f2f2d] transition-all cursor-pointer shrink-0"
                     >
                       <Trash2 size={13} />
                     </button>
