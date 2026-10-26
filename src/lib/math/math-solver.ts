@@ -328,7 +328,7 @@ function solveSingleEquation(
   leftRaw: string,
   rightRaw: string,
   clean: string,
-  action: 'solve' | 'factor' | 'simplify' | 'graph',
+  action: 'solve' | 'factor' | 'simplify' | 'expand' | 'graph',
 ): MathSolution | null {
   const leftStr = cleanEquationForMathjs(leftRaw)
   const rightStr = cleanEquationForMathjs(rightRaw)
