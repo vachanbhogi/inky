@@ -110,14 +110,31 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
   const style = board.paperStyle ?? 'blank'
 
   if (board.pdfPages && board.pdfPages[0]) {
+    const firstPage = board.pdfPages[0]
+    const pageW = firstPage.width || 816
+    const pageH = firstPage.height || 1056
+    const hasStrokesOnPdf = board.strokes && board.strokes.length > 0
     return (
       <div className="w-full h-full bg-[#f4f3ef] flex items-center justify-center p-4 overflow-hidden">
         <div className="relative h-full aspect-[8.5/11] bg-white rounded-md shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/8 overflow-hidden">
           <img
-            src={board.pdfPages[0].dataUrl}
+            src={firstPage.dataUrl}
             alt=""
             className="w-full h-full object-cover object-top"
           />
+          {hasStrokesOnPdf && (
+            <svg
+              viewBox={`${-pageW / 2} 80 ${pageW} ${pageH}`}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              preserveAspectRatio="none"
+            >
+              {board.strokes.slice(0, 60).map((s) => {
+                const d = s.pathData ?? generateStrokePath(s.points, s.size)
+                if (!d) return null
+                return <path key={s.id} d={d} fill={s.color || '#111111'} />
+              })}
+            </svg>
+          )}
         </div>
       </div>
     )
@@ -185,6 +202,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
   const [setupStep, setSetupStep] = useState<'layout' | 'name'>('layout')
   const [docLayout, setDocLayout] = useState<'page' | 'pageless'>('page')
   const [docName, setDocName] = useState('')
+  const [isImportingPdf, setIsImportingPdf] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -272,17 +290,22 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
   }
 
   const handleProcessPdfFile = async (file: File) => {
-    if (!file || file.type !== 'application/pdf') return
+    const isPdf =
+      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    if (!file || !isPdf) return
     try {
+      setIsImportingPdf(true)
       const buffer = await file.arrayBuffer()
       const pages = await renderPdfToPages(buffer)
       if (pages.length > 0) {
-        const title = file.name.replace(/\.pdf$/i, '')
+        const title = file.name.replace(/\.pdf$/i, '') || 'Worksheet'
         const board = boardCatalog.createBoard('worksheet', title, pages, 'blank')
         onOpenBoard(board.id)
       }
     } catch (err) {
-      console.error(err)
+      console.error('Failed to import PDF:', err)
+    } finally {
+      setIsImportingPdf(false)
     }
   }
 
@@ -316,8 +339,8 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/pdf"
-        className="hidden"
+        accept=".pdf,application/pdf"
+        className="sr-only"
         onChange={handleFileSelect}
       />
 
@@ -507,9 +530,11 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   ) : (
                     <div className="w-full h-full bg-[#fafaf9] flex flex-col items-center justify-center p-4 text-center">
                       <div className="w-10 h-10 rounded-lg bg-white border border-black/8 shadow-2xs flex items-center justify-center text-[#111111] mb-2">
-                        <FileUp size={18} />
+                        <FileUp size={18} className={isImportingPdf ? 'animate-bounce' : ''} />
                       </div>
-                      <span className="text-xs font-medium text-[#111111]">PDF</span>
+                      <span className="text-xs font-medium text-[#111111]">
+                        {isImportingPdf ? 'Importing…' : 'PDF'}
+                      </span>
                     </div>
                   )}
                 </div>

@@ -26,6 +26,7 @@ import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
 import { boardCatalog, boardStorageKey } from '../../lib/document/boardCatalog'
+import { renderPdfToPages } from '../../lib/pdf/pdfImporter'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference
@@ -155,6 +156,48 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
 
   const [activeTool, setActiveTool] = useState(inkyStore.activeTool)
   const [, setCamera] = useState(inkyStore.camera)
+  const [isDraggingPdf, setIsDraggingPdf] = useState(false)
+
+  const handleBoardPdfDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDraggingPdf(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) return
+    try {
+      const buffer = await file.arrayBuffer()
+      const pages = await renderPdfToPages(buffer)
+      if (pages.length > 0) {
+        const title = file.name.replace(/\.pdf$/i, '') || 'Worksheet'
+        const active = boardCatalog.getActiveBoard()
+        // If the current board is empty and has no PDF yet, import directly into it;
+        // otherwise create and switch to a new worksheet board.
+        if (
+          active &&
+          inkyStore.strokes.length === 0 &&
+          inkyStore.stamps.length === 0 &&
+          (!active.pdfPages || active.pdfPages.length === 0)
+        ) {
+          boardCatalog.importPdfIntoBoard(active.id, pages, title)
+          inkyStore.setCamera({ x: Math.round(window.innerWidth / 2), y: 40, z: 1 })
+        } else {
+          boardCatalog.updateActiveBoardData(
+            inkyStore.strokes,
+            inkyStore.stamps,
+            inkyStore.camera,
+            inkyStore.paperStyle,
+          )
+          const nextBoard = boardCatalog.createBoard('worksheet', title, pages, 'blank')
+          inkyStore.activateBoard(nextBoard.id, nextBoard.strokes, nextBoard.stamps)
+          inkyStore.setPaperStyle('blank')
+          inkyStore.setCamera(nextBoard.camera ?? { x: Math.round(window.innerWidth / 2), y: 40, z: 1 })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to import dropped PDF:', err)
+    }
+  }
 
   // Sync only if the catalog is still on the board this canvas represents.
   useEffect(() => {
@@ -851,6 +894,14 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
       aria-label="Inky Math Canvas"
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          setIsDraggingPdf(true)
+        }
+      }}
+      onDragLeave={() => setIsDraggingPdf(false)}
+      onDrop={handleBoardPdfDrop}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -862,6 +913,11 @@ export function InkyBoard({ onGoHome }: InkyBoardProps = {}) {
         backgroundColor: '#fbfbfa',
       }}
     >
+      {isDraggingPdf && (
+        <div className="inky-ui absolute inset-4 z-50 bg-white/95 border border-black/10 rounded-xl flex flex-col items-center justify-center pointer-events-none">
+          <p className="text-sm font-medium text-[#111111]">Drop PDF to import</p>
+        </div>
+      )}
       <BackgroundLayer />
       <WorksheetBackgroundLayer />
       <CanvasLayer />

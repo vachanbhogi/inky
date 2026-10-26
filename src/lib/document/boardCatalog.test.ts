@@ -133,4 +133,27 @@ describe('boardCatalog per-board localStorage isolation', () => {
 
     expect(boardCatalog.getActiveBoard()?.pageCount).toBe(3)
   })
+
+  test('importPdfIntoBoard converts an empty board to a worksheet with PDF pages and persists it', () => {
+    const board = boardCatalog.createBoard('infinite', 'Untitled', undefined, 'blank')
+    const pdfPages = [
+      { pageNumber: 1, width: 816, height: 1056, dataUrl: 'data:image/jpeg;base64,page1' },
+      { pageNumber: 2, width: 816, height: 1056, dataUrl: 'data:image/jpeg;base64,page2' },
+    ]
+    const updated = boardCatalog.importPdfIntoBoard(board.id, pdfPages, 'Calculus Midterm')
+    expect(updated?.type).toBe('worksheet')
+    expect(updated?.title).toBe('Calculus Midterm')
+    expect(updated?.pageCount).toBe(2)
+    expect(updated?.pdfPages).toHaveLength(2)
+
+    boardCatalog.boards = []
+    boardCatalog.activeBoardId = null
+    boardCatalog.load()
+
+    const reloaded = boardCatalog.getActiveBoard()
+    expect(reloaded?.title).toBe('Calculus Midterm')
+    expect(reloaded?.type).toBe('worksheet')
+    expect(reloaded?.pageCount).toBe(2)
+    expect(reloaded?.pdfPages).toHaveLength(2)
+  })
 })

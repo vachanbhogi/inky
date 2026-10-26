@@ -9,6 +9,11 @@ import {
   serializeDocument,
 } from '../canvas/persistence'
 import { InkyStore, inkyStore } from '../canvas/store'
+import {
+  deletePdfPagesFromIdb,
+  loadPdfPagesFromIdb,
+  savePdfPagesToIdb,
+} from '../pdf/pdfStorage'
 
 export type DocumentType = 'infinite' | 'worksheet'
 export type PaperStyle = 'blank' | 'dot-grid' | 'graph' | 'lined'
@@ -67,7 +72,7 @@ class BoardCatalogStore {
     for (const fn of this.listeners) fn()
   }
 
-  private saveBoardDocument(board: BoardItem) {
+  private saveBoardDocument(board: BoardItem, skipPdf = false) {
     try {
       if (typeof window === 'undefined' || !window.localStorage) return
       const tempStore = new InkyStore()
@@ -86,10 +91,29 @@ class BoardCatalogStore {
         pageCount: board.pageCount,
       })
       saveDocumentToStorage(doc, window.localStorage, boardStorageKey(board.id))
-      if (board.pdfPages && board.pdfPages.length > 0) {
-        window.localStorage.setItem(boardPdfStorageKey(board.id), JSON.stringify(board.pdfPages))
+      if (!skipPdf && board.pdfPages && board.pdfPages.length > 0) {
+        this.savePdfPagesSafely(board.id, board.pdfPages)
       }
     } catch {}
+  }
+
+  private savePdfPagesSafely(boardId: string, pdfPages: WorksheetPage[]) {
+    void savePdfPagesToIdb(boardId, pdfPages)
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return
+      window.localStorage.setItem(boardPdfStorageKey(boardId), JSON.stringify(pdfPages))
+    } catch {
+      // If localStorage quota is exceeded by older PDF boards, evict other PDF keys from localStorage
+      // (their full pages remain safely in IndexedDB) so the active PDF board can also be cached synchronously.
+      try {
+        for (const b of this.boards) {
+          if (b.id !== boardId) {
+            window.localStorage.removeItem(boardPdfStorageKey(b.id))
+          }
+        }
+        window.localStorage.setItem(boardPdfStorageKey(boardId), JSON.stringify(pdfPages))
+      } catch {}
+    }
   }
 
   private save() {
@@ -184,15 +208,10 @@ class BoardCatalogStore {
                   }
                 } catch {}
               } else if (pdfPages && pdfPages.length > 0) {
-                try {
-                  window.localStorage.setItem(
-                    boardPdfStorageKey(rawBoard.id),
-                    JSON.stringify(pdfPages),
-                  )
-                } catch {}
+                this.savePdfPagesSafely(rawBoard.id, pdfPages)
               }
 
-              hydrated.push({
+              const hydratedItem: BoardItem = {
                 ...rawBoard,
                 pageCount:
                   pageCount ??
@@ -203,7 +222,23 @@ class BoardCatalogStore {
                 stamps,
                 camera,
                 pdfPages,
-              })
+              }
+              hydrated.push(hydratedItem)
+
+              // If PDF pages were not cached in localStorage (e.g., multi-page PDF stored in IndexedDB),
+              // hydrate asynchronously from IndexedDB and notify listeners once ready.
+              if (!pdfPages || pdfPages.length === 0) {
+                void loadPdfPagesFromIdb(rawBoard.id).then((idbPages) => {
+                  if (idbPages && idbPages.length > 0) {
+                    const target = this.boards.find((b) => b.id === rawBoard.id)
+                    if (target && (!target.pdfPages || target.pdfPages.length === 0)) {
+                      target.pdfPages = idbPages
+                      target.pageCount = Math.max(target.pageCount ?? 1, idbPages.length)
+                      for (const fn of this.listeners) fn()
+                    }
+                  }
+                })
+              }
             }
             this.boards = hydrated
           }
@@ -270,9 +305,7 @@ class BoardCatalogStore {
       blankDoc.camera = { ...defaultCam }
       saveDocumentToStorage(blankDoc, window.localStorage, boardStorageKey(newBoard.id))
       if (pdfPages && pdfPages.length > 0) {
-        try {
-          window.localStorage.setItem(boardPdfStorageKey(newBoard.id), JSON.stringify(pdfPages))
-        } catch {}
+        this.savePdfPagesSafely(newBoard.id, pdfPages)
       }
     }
 
@@ -299,7 +332,8 @@ class BoardCatalogStore {
       active.paperStyle = paperStyle
     }
     active.updatedAt = Date.now()
-    this.saveBoardDocument(active)
+    // PDF pages are immutable once imported — skip re-writing megabytes of base64 JPEGs on every stroke!
+    this.saveBoardDocument(active, true)
     this.notify()
   }
 
@@ -314,14 +348,30 @@ class BoardCatalogStore {
       active.pageCount = currentCount + 1
     }
     active.updatedAt = Date.now()
-    this.saveBoardDocument(active)
+    this.saveBoardDocument(active, true)
     this.notify()
     return active.pageCount ?? 1
+  }
+
+  importPdfIntoBoard(boardId: string, pdfPages: WorksheetPage[], title?: string): BoardItem | undefined {
+    const board = this.boards.find((b) => b.id === boardId)
+    if (!board || pdfPages.length === 0) return board
+    board.type = 'worksheet'
+    board.pdfPages = pdfPages
+    board.pageCount = Math.max(board.pageCount ?? 1, pdfPages.length)
+    if (title && (board.title === 'Untitled' || board.title === 'Homework' || board.title === 'Blank Note')) {
+      board.title = title
+    }
+    board.updatedAt = Date.now()
+    this.saveBoardDocument(board, false)
+    this.notify()
+    return board
   }
 
   deleteBoard(id: string) {
     this.boards = this.boards.filter((b) => b.id !== id)
     inkyStore.deleteBoardSlice(id)
+    void deletePdfPagesFromIdb(id)
     if (typeof window !== 'undefined' && window.localStorage) {
       clearDocumentFromStorage(window.localStorage, boardStorageKey(id))
       try {
