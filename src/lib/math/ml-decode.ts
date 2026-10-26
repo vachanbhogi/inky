@@ -174,6 +174,11 @@ export function disambiguateMathTokens(latex: string): string {
   // 10. Letter 'o' or 'O' immediately after digits: e.g. '1o' -> '10'
   s = s.replace(/(\d+)[oO]\b/g, (_m, d) => `${d}0`)
 
+  // 11. Spurious superscript minus from hyphen/minus at baseline:
+  // e.g. x^2 + 6x^- 7 -> x^2 + 6x - 7, or x^{-} 7 -> x - 7
+  s = s.replace(/([a-zA-Z0-9])\s*\^\s*\{\s*[-–—]\s*\}\s*/g, '$1 - ')
+  s = s.replace(/([a-zA-Z0-9])\s*\^\s*[-–—]\s*/g, '$1 - ')
+
   return s
 }
 

@@ -399,6 +399,43 @@ export function checkEquationEquivalence(eq1: string, eq2: string): StepCheckRes
     }
   }
 
+  // Detect sign transposition error on constant term: e.g. x^2 + 6x - 7 = 0 -> x^2 + 6x = -7
+  if (clean1.includes('=') && clean2.includes('=')) {
+    const parts1 = clean1.split('=')
+    const parts2 = clean2.split('=')
+    if (parts1.length === 2 && parts2.length === 2) {
+      try {
+        const l1 = cleanEquationForMathjs(parts1[0])
+        const r1 = cleanEquationForMathjs(parts1[1])
+        const l2 = cleanEquationForMathjs(parts2[0])
+        const r2 = cleanEquationForMathjs(parts2[1])
+        const r1Rat = rationalize(`${l1} - (${r1})`, {}, true)
+        const r2Rat = rationalize(`${l2} - (${r2})`, {}, true)
+        if (
+          r1Rat.coefficients &&
+          r2Rat.coefficients &&
+          r1Rat.coefficients.length === 3 &&
+          r2Rat.coefficients.length === 3
+        ) {
+          const c1 = Number(r1Rat.coefficients[0])
+          const b1 = Number(r1Rat.coefficients[1])
+          const a1 = Number(r1Rat.coefficients[2])
+          const c2 = Number(r2Rat.coefficients[0])
+          const b2 = Number(r2Rat.coefficients[1])
+          const a2 = Number(r2Rat.coefficients[2])
+          if (a1 === a2 && b1 === b2 && Math.abs(c1 + c2) < 1e-6 && Math.abs(c1) > 1e-6) {
+            return {
+              isValid: false,
+              confidence: 0.95,
+              reason: 'sign_error',
+              hint: `Sign error: When moving ${c1 < 0 ? -c1 : c1} to the other side, invert its sign.`,
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
   // Case 4: Factored form to linear root step (e.g. (x - 2)^2 = 0 -> x - 2 = 0)
   if (factoredQuadratic1 && p2) {
     const root2 = (p2.c - p2.b) / p2.a
