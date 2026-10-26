@@ -487,12 +487,12 @@ export class InkyStore {
           )
           const allMaxY = Math.max(
             ...enclosedStrokes.map((s) => s.boundingBox.maxY),
-            ...enclosedChars.map((c) => c.worldY),
+            ...enclosedChars.map((c) => c.worldY + c.fontSize * CHAR_HEIGHT_EM),
             worldY,
           )
-          // Place cleanly on the next line below the writing
+          // Place cleanly on the next line below the writing with comfortable vertical breathing room
           worldX = allMinX
-          worldY = allMaxY + Math.round(Math.max(16, stamp.fontSize * 0.4))
+          worldY = allMaxY + Math.round(Math.max(28, stamp.fontSize * 0.7))
         } else {
           worldX = Math.max((8 - this.camera.x) / z, (maxRight - estWidth - this.camera.x) / z)
         }
