@@ -275,28 +275,30 @@ export function WorksheetBackgroundLayer() {
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none select-none z-0"
       />
-      <div
-        className="inky-ui absolute z-20 pointer-events-auto"
-        style={{
-          left: `${pillScreenX}px`,
-          top: `${pillScreenY}px`,
-          transform: 'translate(-100%, -50%)',
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={handleCycleMethod}
-          data-testid="worksheet-method-pill"
-          data-method={worksheetMethod}
-          aria-label={`Curriculum: ${activeTopicLabel}`}
-          title="Click to cycle Socratic coaching method"
-          className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+      {isPagedDoc && pages.some((p) => p.dataUrl || p.textContent) && (
+        <div
+          className="inky-ui absolute z-20 pointer-events-auto"
+          style={{
+            left: `${pillScreenX}px`,
+            top: `${pillScreenY}px`,
+            transform: 'translate(-100%, -50%)',
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          <span className="text-[#787774]">Curriculum:</span>
-          <span className="font-semibold">{activeTopicLabel}</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleCycleMethod}
+            data-testid="worksheet-method-pill"
+            data-method={worksheetMethod}
+            aria-label={`Curriculum: ${activeTopicLabel}`}
+            title="Click to cycle Socratic coaching method"
+            className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+          >
+            <span className="text-[#787774]">Curriculum:</span>
+            <span className="font-semibold">{activeTopicLabel}</span>
+          </button>
+        </div>
+      )}
       <div
         className="inky-ui absolute z-20 pointer-events-auto"
         style={{

@@ -11,6 +11,60 @@ function comb(n: number, r: number): number {
   return val
 }
 
+/** Factor binomial power: e.g. x^8 - 16x^7 + ... + 256 -> (x - 2)^8 */
+export function factorBinomialPower(clean: string): string | null {
+  const squash = (s: string) => s.replace(/\s+/g, '')
+  const squashed = squash(clean)
+
+  // Match leading term: e.g. x^8 or 16x^4
+  const leadMatch = squashed.match(/^([+-]?\d*)?([a-zA-Z])\^\{?(\d+)\}?/)
+  if (!leadMatch) return null
+  const leadCoeffStr = leadMatch[1]
+  const varName = leadMatch[2]
+  const n = Number.parseInt(leadMatch[3], 10)
+  if (n < 2 || n > 10) return null
+
+  const leadCoeff =
+    !leadCoeffStr || leadCoeffStr === '+'
+      ? 1
+      : leadCoeffStr === '-'
+        ? -1
+        : Number.parseFloat(leadCoeffStr)
+  if (leadCoeff <= 0) return null
+  const a = Math.round(Math.pow(leadCoeff, 1 / n))
+  if (Math.pow(a, n) !== leadCoeff) return null
+
+  // Match constant term at the end: e.g. + 256 or - 256
+  const constMatch = squashed.match(/([+\-])(\d+(?:\.\d+)?)$/)
+  if (!constMatch) return null
+  const sign = constMatch[1]
+  const constVal = Number.parseFloat(constMatch[2])
+  const signedConst = sign === '-' ? -constVal : constVal
+
+  if (n % 2 === 0 && signedConst < 0) return null
+
+  const absB = Math.round(Math.pow(constVal, 1 / n))
+  const candidates: number[] = []
+  if (n % 2 === 1) {
+    const b = signedConst < 0 ? -absB : absB
+    candidates.push(b)
+  } else {
+    candidates.push(absB, -absB)
+  }
+
+  for (const b of candidates) {
+    if (Math.pow(Math.abs(b), n) !== constVal) continue
+    const axStr = a === 1 ? varName : `${a}${varName}`
+    const bStr = b >= 0 ? `+ ${b}` : `- ${Math.abs(b)}`
+    const candidateExpr = `(${axStr} ${bStr})^${n}`
+    const expanded = expandBinomialPower(candidateExpr)
+    if (expanded && squash(expanded) === squashed) {
+      return candidateExpr
+    }
+  }
+  return null
+}
+
 /** Expand binomial power: (ax + b)^n for n in [1, 10] */
 export function expandBinomialPower(clean: string): string | null {
   let targetClean = clean.replace(/\s+/g, '')
@@ -176,7 +230,12 @@ export function getAvailableActions(latex: string): MathAction[] {
   if (clean.includes('=') && transformsInput(clean, 'solve')) actions.push('solve')
   if (!clean.includes('=') && transformsInput(clean, 'expand')) actions.push('expand')
   if (!clean.includes('=') && transformsInput(clean, 'simplify')) actions.push('simplify')
-  if (clean.includes('^2') && transformsInput(clean, 'factor')) actions.push('factor')
+  if (
+    (clean.includes('^2') || clean.includes('^') || factorBinomialPower(clean) !== null) &&
+    transformsInput(clean, 'factor')
+  ) {
+    actions.push('factor')
+  }
   return actions
 }
 
@@ -540,8 +599,19 @@ export function solveMath(
     }
   }
 
-  // Factor a quadratic expression (no '=' needed): x^2+2x+1 -> (x + 1)^2
+  // Factor a quadratic or higher-degree binomial power expression:
+  // e.g. x^2+2x+1 -> (x + 1)^2 or x^8 - 16x^7 + ... + 256 -> (x - 2)^8
   if (action === 'factor') {
+    const binomialFactored = factorBinomialPower(clean)
+    if (binomialFactored && squash(binomialFactored) !== squash(clean)) {
+      return {
+        latex: clean,
+        action,
+        resultLatex: binomialFactored,
+        plainText: binomialFactored,
+      }
+    }
+
     try {
       const rat = rationalize(expr, {}, true)
       if (rat?.variables?.length === 1) {

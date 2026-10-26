@@ -193,4 +193,17 @@ describe('real homework solver coverage', () => {
     const resDist = solveMath('3x(x - 5)', 'expand')
     expect(resDist.plainText).toBe('3x^2 - 15x')
   })
+
+  test('factors higher-degree expanded binomial powers (n >= 2)', () => {
+    const poly8 =
+      'x^8 - 16x^7 + 112x^6 - 448x^5 + 1120x^4 - 1792x^3 + 1792x^2 - 1024x + 256'
+    expect(getAvailableActions(poly8)).toContain('factor')
+    const resFactored8 = solveMath(poly8, 'factor')
+    expect(resFactored8.plainText).toBe('(x - 2)^8')
+
+    const poly3 = 'x^3 - 15x^2 + 75x - 125'
+    expect(getAvailableActions(poly3)).toContain('factor')
+    const resFactored3 = solveMath(poly3, 'factor')
+    expect(resFactored3.plainText).toBe('(x - 5)^3')
+  })
 })

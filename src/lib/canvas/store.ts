@@ -460,13 +460,42 @@ export class InkyStore {
   stampResult(stamp: Omit<Stamp, 'id' | 'chars'>) {
     if (!stamp.text.trim()) return
     let worldX = stamp.worldX
+    let worldY = stamp.worldY
     if (typeof window !== 'undefined') {
       const z = this.camera.z
       const estWidth = stamp.text.length * stamp.fontSize * 0.5 * z
       const screenX = worldX * z + this.camera.x
       const maxRight = window.innerWidth - 16
+      // If the answer is too wide to fit to the right, or if it would clamp
+      // all the way back over the original expression, place it below the expression.
       if (screenX + estWidth > maxRight) {
-        worldX = Math.max((8 - this.camera.x) / z, (maxRight - estWidth - this.camera.x) / z)
+        // Check if there is an enclosed bounding box to clear
+        const capsule = this.mathCapsule
+        if (capsule) {
+          const enclosedStrokes = this.strokes.filter((s) =>
+            capsule.enclosedStrokeIds.includes(s.id),
+          )
+          const enclosedChars = capsule.enclosedCharIds
+            ? this.stamps
+                .flatMap((s) => s.chars)
+                .filter((c) => capsule.enclosedCharIds?.includes(c.id))
+            : []
+          const allMinX = Math.min(
+            ...enclosedStrokes.map((s) => s.boundingBox.minX),
+            ...enclosedChars.map((c) => c.worldX),
+            worldX,
+          )
+          const allMaxY = Math.max(
+            ...enclosedStrokes.map((s) => s.boundingBox.maxY),
+            ...enclosedChars.map((c) => c.worldY),
+            worldY,
+          )
+          // Place cleanly on the next line below the writing
+          worldX = allMinX
+          worldY = allMaxY + Math.round(Math.max(16, stamp.fontSize * 0.4))
+        } else {
+          worldX = Math.max((8 - this.camera.x) / z, (maxRight - estWidth - this.camera.x) / z)
+        }
       }
     }
     const id = `stamp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -476,7 +505,8 @@ export class InkyStore {
       ...stamp,
       id,
       worldX,
-      chars: stampCharsFor(stamp.text, worldX, stamp.worldY, stamp.fontSize, id),
+      worldY,
+      chars: stampCharsFor(stamp.text, worldX, worldY, stamp.fontSize, id),
     })
     this.stampedReveal = { stampId: id, startedAt: performance.now() }
     this.mathCapsule = null
