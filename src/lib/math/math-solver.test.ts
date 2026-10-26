@@ -164,4 +164,33 @@ describe('real homework solver coverage', () => {
     expect(resCases.resultLatex).toBe('x = 3, y = 2')
     expect(resCases.plainText).toBe('x = 3, y = 2')
   })
+
+  test('expands powers of binomials via Binomial Theorem for n >= 1', () => {
+    // n = 5
+    expect(getAvailableActions('(x - 4)^5')).toContain('expand')
+    const resPow5 = solveMath('(x - 4)^5', 'expand')
+    expect(resPow5.plainText).toBe('x^5 - 20x^4 + 160x^3 - 640x^2 + 1280x - 1024')
+
+    // n = 1
+    expect(getAvailableActions('(x - 4)^1')).toContain('expand')
+    const resPow1 = solveMath('(x - 4)^1', 'expand')
+    expect(resPow1.plainText).toBe('x - 4')
+
+    // n = 2 with leading coefficient
+    expect(getAvailableActions('(2x + 3)^2')).toContain('expand')
+    const resPow2 = solveMath('(2x + 3)^2', 'expand')
+    expect(resPow2.plainText).toBe('4x^2 + 12x + 9')
+  })
+
+  test('expands products of binomials and monomial distributions', () => {
+    // Product of binomials
+    expect(getAvailableActions('(x - 3)(x + 2)')).toContain('expand')
+    const resProd = solveMath('(x - 3)(x + 2)', 'expand')
+    expect(resProd.plainText).toBe('x^2 - x - 6')
+
+    // Monomial distribution
+    expect(getAvailableActions('3x(x - 5)')).toContain('expand')
+    const resDist = solveMath('3x(x - 5)', 'expand')
+    expect(resDist.plainText).toBe('3x^2 - 15x')
+  })
 })

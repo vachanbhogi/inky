@@ -1,6 +1,137 @@
 import { evaluate, isSymbolNode, type MathNode, parse, rationalize, simplify } from 'mathjs'
 
-export type MathAction = 'solve' | 'factor' | 'simplify'
+export type MathAction = 'solve' | 'factor' | 'simplify' | 'expand'
+
+/** Combinations nCr */
+function comb(n: number, r: number): number {
+  let val = 1
+  for (let i = 1; i <= r; i++) {
+    val = (val * (n - i + 1)) / i
+  }
+  return val
+}
+
+/** Expand binomial power: (ax + b)^n for n in [1, 10] */
+export function expandBinomialPower(clean: string): string | null {
+  const m = clean
+    .replace(/\s+/g, '')
+    .match(
+      /^\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)\^\{?(\d+)\}?$/,
+    )
+  if (!m) return null
+  const aStr = m[1]
+  const a = !aStr || aStr === '+' ? 1 : aStr === '-' ? -1 : Number.parseFloat(aStr)
+  const v = m[2]
+  const b = Number.parseFloat(m[3])
+  const n = Number.parseInt(m[4], 10)
+  if (n < 1 || n > 10) return null
+
+  if (n === 1) {
+    const aCoeff = a === 1 ? '' : a === -1 ? '-' : `${a}`
+    const bSign = b >= 0 ? '+ ' : '- '
+    return `${aCoeff}${v} ${bSign}${Math.abs(b)}`
+  }
+
+  const terms: { coeff: number; powerV: number }[] = []
+  for (let k = 0; k <= n; k++) {
+    const powerV = n - k
+    const coeff = comb(n, k) * Math.pow(a, powerV) * Math.pow(b, k)
+    if (Math.abs(coeff) < 1e-9) continue
+    terms.push({ coeff, powerV })
+  }
+
+  let out = ''
+  for (let i = 0; i < terms.length; i++) {
+    const { coeff, powerV } = terms[i]
+    const sign = coeff < 0 ? '-' : '+'
+    const absCoeff = Math.abs(coeff)
+    const coeffStr = absCoeff === 1 && powerV > 0 ? '' : absCoeff.toString()
+    const varPart = powerV === 0 ? '' : powerV === 1 ? v : `${v}^${powerV}`
+    const termStr = `${coeffStr}${varPart}`
+
+    if (i === 0) {
+      out += (coeff < 0 ? '-' : '') + termStr
+    } else {
+      out += ` ${sign} ${termStr}`
+    }
+  }
+  return out
+}
+
+/** Expand binomial product: (a1*x + b1)(a2*x + b2) */
+export function expandBinomialProduct(clean: string): string | null {
+  const m = clean
+    .replace(/\s+/g, '')
+    .match(
+      /^\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)\*?\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])([+-]\d+(?:\.\d+)?)\)$/,
+    )
+  if (!m) return null
+  const a1 = !m[1] || m[1] === '+' ? 1 : m[1] === '-' ? -1 : Number.parseFloat(m[1])
+  const v1 = m[2]
+  const b1 = Number.parseFloat(m[3])
+  const a2 = !m[4] || m[4] === '+' ? 1 : m[4] === '-' ? -1 : Number.parseFloat(m[4])
+  const v2 = m[5]
+  const b2 = Number.parseFloat(m[6])
+  if (v1 !== v2) return null
+
+  const a = a1 * a2
+  const b = a1 * b2 + a2 * b1
+  const c = b1 * b2
+
+  const aStr = a === 1 ? '' : a === -1 ? '-' : `${a}`
+  const bSign = b > 0 ? '+ ' : '- '
+  const bAbs = Math.abs(b)
+  const bStr = bAbs === 1 ? '' : `${bAbs}`
+  const bPart = b !== 0 ? ` ${bSign}${bStr}${v1}` : ''
+  const cSign = c > 0 ? '+ ' : '- '
+  const cPart = c !== 0 ? ` ${cSign}${Math.abs(c)}` : ''
+
+  return `${aStr}${v1}^2${bPart}${cPart}`
+}
+
+/** Expand monomial distribution: a*x^p1(b*x^p2 + c) */
+export function expandMonomialDistribution(clean: string): string | null {
+  const m = clean
+    .replace(/\s+/g, '')
+    .match(
+      /^([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])(?:\^\{?(\d+)\}?)?\*?\(([+-]?\d*(?:\.\d+)?)?\*?([a-zA-Z])(?:\^\{?(\d+)\}?)?([+-]\d+(?:\.\d+)?)\)$/,
+    )
+  if (!m) return null
+  const a1 = !m[1] || m[1] === '+' ? 1 : m[1] === '-' ? -1 : Number.parseFloat(m[1])
+  const v1 = m[2]
+  const p1 = m[3] ? Number.parseInt(m[3], 10) : 1
+  const a2 = !m[4] || m[4] === '+' ? 1 : m[4] === '-' ? -1 : Number.parseFloat(m[4])
+  const v2 = m[5]
+  const p2 = m[6] ? Number.parseInt(m[6], 10) : 1
+  const c = Number.parseFloat(m[7])
+  if (v1 !== v2) return null
+
+  const coeff1 = a1 * a2
+  const pow1 = p1 + p2
+  const coeff2 = a1 * c
+  const pow2 = p1
+
+  const fmtTerm = (coeff: number, pow: number) => {
+    if (coeff === 0) return ''
+    const cStr = Math.abs(coeff) === 1 && pow > 0 ? '' : `${Math.abs(coeff)}`
+    const vStr = pow === 0 ? '' : pow === 1 ? v1 : `${v1}^${pow}`
+    return `${cStr}${vStr}`
+  }
+
+  const t1 = (coeff1 < 0 ? '-' : '') + fmtTerm(coeff1, pow1)
+  const sign2 = coeff2 >= 0 ? '+ ' : '- '
+  const t2 = fmtTerm(coeff2, pow2)
+  return `${t1} ${sign2}${t2}`
+}
+
+/** Expand algebraic expressions: power of binomial, product of binomials, distribution */
+export function expandExpression(clean: string): string | null {
+  return (
+    expandBinomialPower(clean) ??
+    expandBinomialProduct(clean) ??
+    expandMonomialDistribution(clean)
+  )
+}
 
 /** Canonicalize `^{ ... }` superscripts to bare form at the math boundary
  * only: the recognizer emits LaTeX braces (`x^{ 2 }`), which the parse regexes
@@ -24,6 +155,7 @@ export function getAvailableActions(latex: string): MathAction[] {
   if (!clean) return []
   const actions: MathAction[] = []
   if (clean.includes('=') && transformsInput(clean, 'solve')) actions.push('solve')
+  if (!clean.includes('=') && transformsInput(clean, 'expand')) actions.push('expand')
   if (!clean.includes('=') && transformsInput(clean, 'simplify')) actions.push('simplify')
   if (clean.includes('^2') && transformsInput(clean, 'factor')) actions.push('factor')
   return actions
@@ -46,7 +178,7 @@ function transformsInput(latex: string, action: MathAction): boolean {
 
 export interface MathSolution {
   latex: string
-  action: 'solve' | 'factor' | 'simplify' | 'graph'
+  action: 'solve' | 'factor' | 'simplify' | 'expand' | 'graph'
   resultLatex: string
   plainText: string
 }
@@ -196,7 +328,7 @@ function solveSingleEquation(
   leftRaw: string,
   rightRaw: string,
   clean: string,
-  action: 'solve' | 'factor' | 'simplify' | 'graph',
+  action: 'solve' | 'factor' | 'simplify' | 'expand' | 'graph',
 ): MathSolution | null {
   const leftStr = cleanEquationForMathjs(leftRaw)
   const rightStr = cleanEquationForMathjs(rightRaw)
@@ -312,7 +444,7 @@ function solveSingleEquation(
 
 export function solveMath(
   rawLatex: string,
-  action: 'solve' | 'factor' | 'simplify' | 'graph',
+  action: 'solve' | 'factor' | 'simplify' | 'expand' | 'graph',
 ): MathSolution {
   const clean = canonicalizeSuperscripts(rawLatex.replace(/\$/g, '')).trim()
   if (!clean) {
@@ -348,6 +480,16 @@ export function solveMath(
     }
   }
 
+  const squash = (s: string) => s.replace(/\s+/g, '')
+
+  // Case 1b: Expand algebraic expression (powers of binomials, products of binomials, distribution)
+  if (action === 'expand') {
+    const expanded = expandExpression(clean)
+    if (expanded && squash(expanded) !== squash(clean)) {
+      return { latex: clean, action, resultLatex: expanded, plainText: expanded }
+    }
+  }
+
   // Case 2: Expression to evaluate or simplify
   const expr = cleanEquationForMathjs(clean)
   try {
@@ -364,8 +506,6 @@ export function solveMath(
   } catch {
     // Not numeric — try symbolic transforms below.
   }
-
-  const squash = (s: string) => s.replace(/\s+/g, '')
 
   // Symbolic simplify (mathjs): x + x -> 2x. Only when it changes the expression.
   if (action === 'simplify') {

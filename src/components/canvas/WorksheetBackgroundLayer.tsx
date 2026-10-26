@@ -3,11 +3,20 @@ import { useEffect, useRef, useState } from 'react'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { inkyStore } from '../../lib/canvas/store'
 import { boardCatalog, type PaperStyle, type WorksheetPage } from '../../lib/document/boardCatalog'
+import type { WorksheetMethod } from '../../lib/pdf/pdfCurriculum'
 
 const PAGE_W = 816
 const PAGE_H = 1056
 const PAGE_START_Y = 80
 const PAGE_GAP = 40
+
+const METHOD_CYCLE: Array<{ method: WorksheetMethod; topicLabel: string }> = [
+  { method: 'completing-the-square', topicLabel: 'Completing the Square' },
+  { method: 'factoring', topicLabel: 'Factoring Quadratics' },
+  { method: 'quadratic-formula', topicLabel: 'Quadratic Formula' },
+  { method: 'linear-balancing', topicLabel: 'Linear Equations' },
+  { method: 'auto', topicLabel: 'Auto Method' },
+]
 
 export function drawPaperPattern(
   ctx: CanvasRenderingContext2D,
@@ -88,6 +97,8 @@ export function WorksheetBackgroundLayer() {
   const [isPagedDoc, setIsPagedDoc] = useState(false)
   const [paperStyle, setPaperStyle] = useState<PaperStyle>('blank')
   const [pageCount, setPageCount] = useState(1)
+  const [worksheetMethod, setWorksheetMethod] = useState<WorksheetMethod>('auto')
+  const [worksheetTopic, setWorksheetTopic] = useState<string | undefined>(undefined)
   const [camera, setCamera] = useState(inkyStore.camera)
 
   useEffect(() => {
@@ -98,6 +109,8 @@ export function WorksheetBackgroundLayer() {
       setIsPagedDoc(b?.type === 'worksheet')
       setPaperStyle(b?.paperStyle ?? 'blank')
       setPageCount(Math.max(1, b?.pageCount ?? 1, pdfs.length))
+      setWorksheetMethod(b?.worksheetMethod ?? 'auto')
+      setWorksheetTopic(b?.worksheetTopic)
     }
     syncBoard()
 
@@ -231,6 +244,19 @@ export function WorksheetBackgroundLayer() {
     bottomWorldY += h + (i < totalSheets - 1 ? PAGE_GAP : 0)
   }
   const [btnScreenX, btnScreenY] = toScreen(0, bottomWorldY + 28, camera)
+  const [pillScreenX, pillScreenY] = toScreen(408, 64, camera)
+
+  const handleCycleMethod = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const currentIdx = METHOD_CYCLE.findIndex((item) => item.method === worksheetMethod)
+    const nextItem = METHOD_CYCLE[(currentIdx + 1) % METHOD_CYCLE.length]
+    boardCatalog.setActiveBoardMethod(nextItem.method, nextItem.topicLabel)
+  }
+
+  const activeTopicLabel =
+    worksheetTopic ||
+    METHOD_CYCLE.find((item) => item.method === worksheetMethod)?.topicLabel ||
+    'Auto Method'
 
   const handleAddPage = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -249,6 +275,28 @@ export function WorksheetBackgroundLayer() {
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none select-none z-0"
       />
+      <div
+        className="inky-ui absolute z-20 pointer-events-auto"
+        style={{
+          left: `${pillScreenX}px`,
+          top: `${pillScreenY}px`,
+          transform: 'translate(-100%, -50%)',
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={handleCycleMethod}
+          data-testid="worksheet-method-pill"
+          data-method={worksheetMethod}
+          aria-label={`Curriculum: ${activeTopicLabel}`}
+          title="Click to cycle Socratic coaching method"
+          className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+        >
+          <span className="text-[#787774]">Curriculum:</span>
+          <span className="font-semibold">{activeTopicLabel}</span>
+        </button>
+      </div>
       <div
         className="inky-ui absolute z-20 pointer-events-auto"
         style={{
