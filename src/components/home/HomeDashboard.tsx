@@ -345,14 +345,14 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
           />
 
           <div
-            className="relative z-10 w-full max-w-xl bg-white border border-black/8 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-8 overflow-hidden"
+            className="relative z-10 w-full max-w-xl min-h-[340px] bg-white border border-black/8 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-8 overflow-hidden flex flex-col justify-between"
             style={{
               animation: 'modalSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
             }}
           >
             {/* Step 1: Format (Page vs Pageless) */}
             {setupStep === 'layout' ? (
-              <div className="flex flex-col">
+              <div className="flex flex-col h-full justify-between">
                 <div className="flex items-center justify-between pb-2">
                   <button
                     type="button"
@@ -365,7 +365,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-2">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 py-2 my-auto">
                   {/* Left: Page Option (Physical sheet with crisp page geometry) */}
                   <button
                     type="button"
@@ -426,8 +426,8 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 </div>
               </div>
             ) : (
-              /* Step 2: Name Input */
-              <form onSubmit={handleConfirmCreate} className="flex flex-col">
+              /* Step 2: Name Input (Inline Arrow, No Icons, Fixed Same Size) */
+              <form onSubmit={handleConfirmCreate} className="flex flex-col h-full justify-between">
                 <div className="flex items-center justify-between pb-2">
                   <button
                     type="button"
@@ -440,36 +440,8 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-6 py-6">
-                  {/* Contextual Miniature of selected choice */}
-                  {docLayout === 'page' ? (
-                    <div className="w-18 h-22 rounded-lg bg-[#f2f1ed] border border-black/10 flex items-center justify-center p-2 shrink-0">
-                      <div className="h-full aspect-[8.5/11] bg-white rounded-[2px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-black/10 relative overflow-hidden flex flex-col justify-between">
-                        <PaperPatternSurface style={pendingTemplate.paperStyle} />
-                        {pendingTemplate.paperStyle === 'blank' && (
-                          <div className="absolute inset-0 p-1.5 pointer-events-none flex flex-col justify-between opacity-30">
-                            <div className="w-1/3 h-[1px] bg-black/25 rounded-full" />
-                            <div className="space-y-1 w-full">
-                              <div className="w-full h-[1px] bg-black/10 rounded-full" />
-                              <div className="w-4/5 h-[1px] bg-black/10 rounded-full" />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-18 h-22 rounded-lg bg-white border border-black/10 relative overflow-hidden shrink-0">
-                      <PaperPatternSurface style={pendingTemplate.paperStyle} />
-                      <div className="absolute inset-1.5 pointer-events-none opacity-25">
-                        <div className="absolute top-0 left-0 w-1.5 h-[1px] bg-black" />
-                        <div className="absolute top-0 left-0 w-[1px] h-1.5 bg-black" />
-                        <div className="absolute bottom-0 right-0 w-1.5 h-[1px] bg-black" />
-                        <div className="absolute bottom-0 right-0 w-[1px] h-1.5 bg-black" />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex-1 min-w-0">
+                <div className="my-auto py-10 w-full px-2">
+                  <div className="flex items-center gap-3 border-b-2 border-black/10 focus-within:border-[#111111] pb-2 transition-colors">
                     <label htmlFor="inky-title-input" className="sr-only">
                       Note title
                     </label>
@@ -482,22 +454,18 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                       placeholder={pendingTemplate.defaultName}
                       aria-label="Note name"
                       style={{ outline: 'none', boxShadow: 'none' }}
-                      className="w-full text-2xl font-semibold tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-b-2 border-black/10 focus:border-[#111111] pb-1 transition-colors"
+                      className="flex-1 min-w-0 text-3xl font-semibold tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-none p-0"
                       spellCheck={false}
                     />
+                    <button
+                      type="submit"
+                      aria-label="Confirm"
+                      className="p-2.5 bg-[#111111] hover:bg-[#333333] text-white rounded-xl transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 flex items-center justify-center"
+                      style={{ outline: 'none' }}
+                    >
+                      <ArrowRight size={18} strokeWidth={2.2} />
+                    </button>
                   </div>
-                </div>
-
-                {/* Actions bottom bar */}
-                <div className="flex items-center justify-end pt-4">
-                  <button
-                    type="submit"
-                    aria-label="Confirm"
-                    className="p-2.5 bg-[#111111] hover:bg-[#333333] text-white rounded-xl transition-all active:scale-95 cursor-pointer shadow-xs flex items-center justify-center"
-                    style={{ outline: 'none' }}
-                  >
-                    <ArrowRight size={16} strokeWidth={2.2} />
-                  </button>
                 </div>
               </form>
             )}
