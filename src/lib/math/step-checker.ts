@@ -845,8 +845,18 @@ export function verifyDerivation(steps: string[]): DerivationReport {
   let allValid = true
   let firstErrorIndex: number | undefined
 
-  for (let i = 0; i < steps.length - 1; i++) {
-    const res = checkEquationEquivalence(steps[i], steps[i + 1])
+  // Pre-normalize steps: if an expression starts without '=', but subsequent steps contain '=',
+  // infer standard '= 0' representation so algebra verification checks line equivalence properly.
+  const normalizedSteps = steps.map((s, idx) => {
+    const trimmed = s.trim()
+    if (!trimmed.includes('=') && steps.some((other, oIdx) => oIdx > idx && other.includes('='))) {
+      return `${trimmed} = 0`
+    }
+    return trimmed
+  })
+
+  for (let i = 0; i < normalizedSteps.length - 1; i++) {
+    const res = checkEquationEquivalence(normalizedSteps[i], normalizedSteps[i + 1])
     stepResults.push(res)
     if (!res.isValid && firstErrorIndex === undefined) {
       allValid = false
