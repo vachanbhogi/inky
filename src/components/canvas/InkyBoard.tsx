@@ -12,10 +12,12 @@ import { charBoundingBox, inkyStore, type StampChar } from '../../lib/canvas/sto
 import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { computeTouchGesture, type TouchPoint } from '../../lib/canvas/touch-gesture'
 import type { Stroke } from '../../lib/canvas/types'
+import { boardCatalog, boardStorageKey } from '../../lib/document/boardCatalog'
 import { findEnclosedStampChars, findEnclosedStrokes } from '../../lib/math/enclosure'
 import { isClosedLoop } from '../../lib/math/loop-detection'
 import { recognizeInkML } from '../../lib/math/ml-recognizer'
 import { recognizeFormulaStrokes } from '../../lib/math/stroke-recognizer'
+import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 import PerfectFreehandWorker from '../../workers/perfect-freehand.worker?worker'
 import { BackgroundLayer } from './BackgroundLayer'
 import { CanvasLayer } from './CanvasLayer'
@@ -25,8 +27,6 @@ import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
-import { boardCatalog, boardStorageKey } from '../../lib/document/boardCatalog'
-import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
  * latex instantly (marked ML-pending), then upgrade in place when inference

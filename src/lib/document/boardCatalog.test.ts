@@ -156,4 +156,51 @@ describe('boardCatalog per-board localStorage isolation', () => {
     expect(reloaded?.pageCount).toBe(2)
     expect(reloaded?.pdfPages).toHaveLength(2)
   })
+
+  test('automatically detects PDF curriculum on createBoard and importPdfIntoBoard and persists setActiveBoardMethod', () => {
+    const pdfPages = [
+      {
+        pageNumber: 1,
+        width: 816,
+        height: 1056,
+        dataUrl: 'data:image/jpeg;base64,page1',
+        textContent: 'Name: ___ Solve each equation by completing the square. 1) x^2 + 6x - 7 = 0',
+      },
+    ]
+    const board = boardCatalog.createBoard('worksheet', 'Unit 5 Homework', pdfPages, 'blank')
+    expect(board.worksheetMethod).toBe('completing-the-square')
+    expect(board.worksheetTopic).toBe('Completing the Square')
+
+    // Switch method explicitly via setActiveBoardMethod
+    boardCatalog.setActiveBoardMethod('quadratic-formula', 'Quadratic Formula')
+    expect(boardCatalog.getActiveBoard()?.worksheetMethod).toBe('quadratic-formula')
+    expect(boardCatalog.getActiveBoard()?.worksheetTopic).toBe('Quadratic Formula')
+
+    // Reload from localStorage and verify persistence
+    boardCatalog.boards = []
+    boardCatalog.activeBoardId = null
+    boardCatalog.load()
+
+    const reloaded = boardCatalog.getActiveBoard()
+    expect(reloaded?.worksheetMethod).toBe('quadratic-formula')
+    expect(reloaded?.worksheetTopic).toBe('Quadratic Formula')
+
+    // Also test importPdfIntoBoard curriculum detection
+    const emptyBoard = boardCatalog.createBoard('infinite', 'Blank Board', undefined, 'blank')
+    const imported = boardCatalog.importPdfIntoBoard(
+      emptyBoard.id,
+      [
+        {
+          pageNumber: 1,
+          width: 816,
+          height: 1056,
+          dataUrl: 'data:image/jpeg;base64,page2',
+          textContent: 'Solve each equation by completing the square. 1) x^2 + 6x - 7 = 0',
+        },
+      ],
+      'Imported Worksheet',
+    )
+    expect(imported?.worksheetMethod).toBe('completing-the-square')
+    expect(imported?.worksheetTopic).toBe('Completing the Square')
+  })
 })

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { InkyBoard } from './components/canvas/InkyBoard'
 import { HomeDashboard } from './components/home/HomeDashboard'
-import { boardCatalog } from './lib/document/boardCatalog'
 import { inkyStore } from './lib/canvas/store'
+import { boardCatalog } from './lib/document/boardCatalog'
 
 export function App() {
   const [view, setView] = useState<'home' | 'board'>(() =>
@@ -56,4 +56,3 @@ export function App() {
 }
 
 export default App
-

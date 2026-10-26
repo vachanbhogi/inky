@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect } from 'react'
 import { ArrowLeft, ArrowRight, FileUp, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import {
-  boardCatalog,
   type BoardItem,
+  boardCatalog,
   type DocumentType,
   type PaperStyle,
 } from '../../lib/document/boardCatalog'
-import { generateStrokePath } from '../../lib/canvas/svg-utils'
 import { extractDroppedPdfFile, hasDraggedFiles, renderPdfToPages } from '../../lib/pdf/pdfImporter'
 import { InkyLogo } from '../common/InkyLogo'
 
@@ -117,11 +117,7 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
     return (
       <div className="w-full h-full bg-[#f4f3ef] flex items-center justify-center p-4 overflow-hidden">
         <div className="relative h-full aspect-[8.5/11] bg-white rounded-md shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/8 overflow-hidden">
-          <img
-            src={firstPage.dataUrl}
-            alt=""
-            className="w-full h-full object-cover object-top"
-          />
+          <img src={firstPage.dataUrl} alt="" className="w-full h-full object-cover object-top" />
           {hasStrokesOnPdf && (
             <svg
               viewBox={`${-pageW / 2} 80 ${pageW} ${pageH}`}

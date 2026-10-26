@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { InkyStore, inkyStore } from './store'
 import type { Stamp } from './store'
+import { InkyStore, inkyStore } from './store'
 import type { Stroke } from './types'
 
 describe('inkyStore', () => {

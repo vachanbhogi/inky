@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { inkyStore } from '../../lib/canvas/store'
 import { boardCatalog, type PaperStyle, type WorksheetPage } from '../../lib/document/boardCatalog'

@@ -89,9 +89,7 @@ export function computeWritingMetrics(
       .sort((a, b) => a - b)
 
     const representativeH =
-      strokeHeights.length > 0
-        ? strokeHeights[Math.floor(strokeHeights.length * 0.6)]
-        : overallH
+      strokeHeights.length > 0 ? strokeHeights[Math.floor(strokeHeights.length * 0.6)] : overallH
 
     // Blend representative glyph height with overall height (capped so fractions/tall loops don't explode)
     const effectiveH = Math.min(overallH, representativeH * 1.15)
