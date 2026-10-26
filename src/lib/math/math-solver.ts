@@ -231,7 +231,7 @@ export function getAvailableActions(latex: string): MathAction[] {
   if (!clean.includes('=') && transformsInput(clean, 'expand')) actions.push('expand')
   if (!clean.includes('=') && transformsInput(clean, 'simplify')) actions.push('simplify')
   if (
-    (clean.includes('^2') || clean.includes('^') || factorBinomialPower(clean) !== null) &&
+    (clean.includes('^2') || factorBinomialPower(clean) !== null) &&
     transformsInput(clean, 'factor')
   ) {
     actions.push('factor')
@@ -612,37 +612,41 @@ export function solveMath(
       }
     }
 
-    try {
-      const rat = rationalize(expr, {}, true)
-      if (rat?.variables?.length === 1) {
-        const varName = rat.variables[0]
-        const rawCoeffs = rat.coefficients
-        if (rawCoeffs && rawCoeffs.length === 3) {
-          const coeffs: number[] = rawCoeffs.map((x) => Number(x))
-          const c = coeffs[0]
-          const b = coeffs[1]
-          const a = coeffs[2]
-          if (a === 1) {
-            const disc = b * b - 4 * a * c
-            if (disc >= 0) {
-              const rLo = (-b + Math.sqrt(disc)) / (2 * a)
-              const rHi = (-b - Math.sqrt(disc)) / (2 * a)
-              const r1 = Math.min(rLo, rHi)
-              const r2 = Math.max(rLo, rHi)
-              const fmt = (r: number) => (r >= 0 ? `- ${r}` : `+ ${Math.abs(r)}`)
-              const text =
-                r1 === r2
-                  ? `(${varName} ${fmt(r1)})^2`
-                  : `(${varName} ${fmt(r1)})(${varName} ${fmt(r2)})`
-              if (squash(text) !== squash(clean)) {
-                return { latex: clean, action, resultLatex: text, plainText: text }
+    // Only run mathjs rationalize if the expression is a quadratic (has ^2 or second degree)
+    // to prevent catastrophic exponential backtracking on high degree powers like (2x-3)^5
+    if (clean.includes('^2')) {
+      try {
+        const rat = rationalize(expr, {}, true)
+        if (rat?.variables?.length === 1) {
+          const varName = rat.variables[0]
+          const rawCoeffs = rat.coefficients
+          if (rawCoeffs && rawCoeffs.length === 3) {
+            const coeffs: number[] = rawCoeffs.map((x) => Number(x))
+            const c = coeffs[0]
+            const b = coeffs[1]
+            const a = coeffs[2]
+            if (a === 1) {
+              const disc = b * b - 4 * a * c
+              if (disc >= 0) {
+                const rLo = (-b + Math.sqrt(disc)) / (2 * a)
+                const rHi = (-b - Math.sqrt(disc)) / (2 * a)
+                const r1 = Math.min(rLo, rHi)
+                const r2 = Math.max(rLo, rHi)
+                const fmt = (r: number) => (r >= 0 ? `- ${r}` : `+ ${Math.abs(r)}`)
+                const text =
+                  r1 === r2
+                    ? `(${varName} ${fmt(r1)})^2`
+                    : `(${varName} ${fmt(r1)})(${varName} ${fmt(r2)})`
+                if (squash(text) !== squash(clean)) {
+                  return { latex: clean, action, resultLatex: text, plainText: text }
+                }
               }
             }
           }
         }
+      } catch {
+        // Fall through
       }
-    } catch {
-      // Fall through
     }
   }
 
