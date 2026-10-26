@@ -5,7 +5,9 @@ import { boardCatalog } from './lib/document/boardCatalog'
 import { inkyStore } from './lib/canvas/store'
 
 export function App() {
-  const [view, setView] = useState<'home' | 'board'>('board')
+  const [view, setView] = useState<'home' | 'board'>(() =>
+    boardCatalog.boards.length === 0 ? 'home' : 'board',
+  )
 
   const handleOpenBoard = (boardId: string) => {
     // 1. Flush any existing strokes & stamps to current board before switching
