@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { FileUp, Plus, Trash2 } from 'lucide-react'
+import { FileUp, Plus, Trash2, X } from 'lucide-react'
 import {
   boardCatalog,
   type BoardItem,
@@ -111,8 +111,8 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
 
   if (board.pdfPages && board.pdfPages[0]) {
     return (
-      <div className="w-full h-full bg-[#f3f2ee] flex items-center justify-center p-4 overflow-hidden">
-        <div className="relative h-full aspect-[8.5/11] bg-white rounded-[4px] border border-[#eaeaea] overflow-hidden">
+      <div className="w-full h-full bg-[#f4f3ef] flex items-center justify-center p-4 overflow-hidden">
+        <div className="relative h-full aspect-[8.5/11] bg-white rounded-md shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/8 overflow-hidden">
           <img
             src={board.pdfPages[0].dataUrl}
             alt=""
@@ -162,7 +162,7 @@ function BoardThumbnailPreview({ board }: { board: BoardItem }) {
   if (board.type === 'worksheet') {
     return (
       <div className="w-full h-full bg-[#f3f2ee] flex items-center justify-center p-4 overflow-hidden">
-        <div className="relative h-full aspect-[8.5/11] bg-white rounded-[4px] border border-[#eaeaea] overflow-hidden">
+        <div className="relative h-full aspect-[8.5/11] bg-white rounded-md shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-black/8 overflow-hidden">
           <PaperPatternSurface style={style} />
           {inkOverlay}
         </div>
@@ -205,7 +205,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
     }
   }, [pendingTemplate, setupStep])
 
-  // Keyboard shortcuts for spacious modal (Esc, Enter, ArrowLeft/Right, 1/2)
+  // Keyboard shortcuts for dialog (Esc, Enter, ArrowLeft/Right, 1/2)
   useEffect(() => {
     if (!pendingTemplate) return
 
@@ -323,43 +323,87 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
 
       {/* Drag drop curtain */}
       {isDragging && (
-        <div className="absolute inset-4 z-50 bg-white/95 border border-[#eaeaea] rounded-[12px] flex flex-col items-center justify-center pointer-events-none">
+        <div className="absolute inset-4 z-50 bg-white/95 border border-black/10 rounded-xl flex flex-col items-center justify-center pointer-events-none">
           <p className="text-sm font-medium text-[#111111]">Drop PDF</p>
         </div>
       )}
 
-      {/* Spacious, High-Whitespace One-Question-at-a-Time Modal (Zero Pills) */}
+      {/* Architectural Split-Pane Modal (GraphSidebar + ShortcutsModal DNA, Zero Nested Cards) */}
       {pendingTemplate && (
         <div
-          onClick={() => setPendingTemplate(null)}
-          className="fixed inset-0 z-50 bg-black/15 flex items-center justify-center p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`New ${pendingTemplate.title}`}
+          className="inky-ui fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
         >
+          {/* Backdrop */}
+          <button
+            type="button"
+            aria-label="Close dialog"
+            onClick={() => setPendingTemplate(null)}
+            className="fixed inset-0 bg-black/20 backdrop-blur-xs cursor-default w-full h-full border-none p-0 m-0"
+          />
+
           <div
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl bg-white border border-[#eaeaea] rounded-[12px] shadow-[0_24px_64px_rgba(0,0,0,0.08)] p-12 flex flex-col justify-between min-h-[360px]"
+            className="relative z-10 w-full max-w-lg bg-white border border-black/10 rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.08)] overflow-hidden"
+            style={{
+              animation: 'modalSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
+            }}
           >
+            {/* 1. Minimalist Editorial Header (matches GraphSidebar & ShortcutsModal) */}
+            <div className="flex items-center justify-between px-6 h-[48px] bg-white border-b border-black/8">
+              <div className="flex items-center gap-2 text-[13px] font-medium tracking-tight text-[#111111]">
+                <span>{pendingTemplate.title}</span>
+                {setupStep === 'name' && (
+                  <>
+                    <span className="text-[#787774]">/</span>
+                    <button
+                      type="button"
+                      onClick={() => setSetupStep('layout')}
+                      className="text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                    >
+                      {docLayout === 'page' ? 'Page' : 'Pageless'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                title="Close (Esc)"
+                onClick={() => setPendingTemplate(null)}
+                className="p-1.5 rounded-md text-[#787774] hover:text-[#111111] hover:bg-black/5 transition-colors cursor-pointer"
+                style={{ outline: 'none' }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* 2. Body: One Question at a Time */}
             {setupStep === 'layout' ? (
-              <>
-                <div className="grid grid-cols-2 gap-10 my-auto py-4">
-                  {/* Option 1: Page (Direct visual preview, no inner card) */}
+              <div className="flex flex-col">
+                <div className="grid grid-cols-2 divide-x divide-black/8 bg-white">
+                  {/* Left Pane: Page */}
                   <button
                     type="button"
                     onClick={() => handlePickLayout('page')}
-                    className="group flex flex-col items-center justify-center transition-transform cursor-pointer active:scale-[0.98]"
+                    className={`group flex flex-col items-center justify-center px-8 py-10 transition-colors cursor-pointer ${
+                      docLayout === 'page' ? 'bg-[#fbfbfa]' : 'bg-white hover:bg-[#fbfbfa]/80'
+                    }`}
+                    style={{ outline: 'none' }}
                   >
+                    {/* Desk frame holding an 8.5x11 sheet */}
                     <div
-                      className={`w-28 h-36 bg-white rounded-[6px] relative overflow-hidden mb-4 transition-all ${
+                      className={`w-24 h-32 bg-white rounded-[4px] transition-all relative overflow-hidden mb-4 ${
                         docLayout === 'page'
-                          ? 'border-2 border-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.06)]'
-                          : 'border border-[#eaeaea] group-hover:border-[#111111]/50'
+                          ? 'border-[1.5px] border-[#111111] shadow-[0_6px_20px_rgba(0,0,0,0.06)]'
+                          : 'border border-black/15 shadow-[0_2px_10px_rgba(0,0,0,0.03)] group-hover:border-black/40'
                       }`}
                     >
                       <PaperPatternSurface style={pendingTemplate.paperStyle} />
                     </div>
                     <span
-                      className={`text-sm transition-colors ${
+                      className={`text-xs transition-colors ${
                         docLayout === 'page'
                           ? 'font-semibold text-[#111111]'
                           : 'font-medium text-[#787774] group-hover:text-[#111111]'
@@ -369,23 +413,27 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                     </span>
                   </button>
 
-                  {/* Option 2: Pageless (Direct visual preview, no inner card) */}
+                  {/* Right Pane: Pageless */}
                   <button
                     type="button"
                     onClick={() => handlePickLayout('pageless')}
-                    className="group flex flex-col items-center justify-center transition-transform cursor-pointer active:scale-[0.98]"
+                    className={`group flex flex-col items-center justify-center px-8 py-10 transition-colors cursor-pointer ${
+                      docLayout === 'pageless' ? 'bg-[#fbfbfa]' : 'bg-white hover:bg-[#fbfbfa]/80'
+                    }`}
+                    style={{ outline: 'none' }}
                   >
+                    {/* Open unframed surface */}
                     <div
-                      className={`w-36 h-36 bg-white rounded-[6px] relative overflow-hidden mb-4 transition-all ${
+                      className={`w-32 h-32 bg-white rounded-[4px] transition-all relative overflow-hidden mb-4 ${
                         docLayout === 'pageless'
-                          ? 'border-2 border-dashed border-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.06)]'
-                          : 'border border-dashed border-black/25 group-hover:border-[#111111]/60'
+                          ? 'border-[1.5px] border-dashed border-[#111111] shadow-[0_6px_20px_rgba(0,0,0,0.06)]'
+                          : 'border border-dashed border-black/20 group-hover:border-black/45'
                       }`}
                     >
                       <PaperPatternSurface style={pendingTemplate.paperStyle} />
                     </div>
                     <span
-                      className={`text-sm transition-colors ${
+                      className={`text-xs transition-colors ${
                         docLayout === 'pageless'
                           ? 'font-semibold text-[#111111]'
                           : 'font-medium text-[#787774] group-hover:text-[#111111]'
@@ -396,33 +444,34 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-8">
+                {/* Flush Bottom Bar */}
+                <div className="flex items-center justify-between px-6 h-[48px] bg-[#fbfbfa] border-t border-black/8">
                   <button
                     type="button"
                     onClick={() => setPendingTemplate(null)}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                    style={{ outline: 'none' }}
                   >
-                    <kbd className="px-1.5 py-0.5 text-[11px] font-mono bg-[#f7f6f3] border border-[#eaeaea] rounded-[4px]">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-white border border-black/10 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
                       Esc
                     </kbd>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setSetupStep('name')}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                    style={{ outline: 'none' }}
                   >
-                    <kbd className="px-1.5 py-0.5 text-[11px] font-mono bg-[#f7f6f3] border border-[#eaeaea] rounded-[4px]">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-white border border-black/10 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
                       Enter ↵
                     </kbd>
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
-              <form
-                onSubmit={handleConfirmCreate}
-                className="flex flex-col justify-between flex-1 min-h-[244px]"
-              >
-                <div className="my-auto py-8">
+              <form onSubmit={handleConfirmCreate} className="flex flex-col bg-white">
+                <div className="px-8 py-12 flex flex-col justify-center">
                   <input
                     ref={nameInputRef}
                     type="text"
@@ -431,27 +480,31 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                     placeholder={pendingTemplate.defaultName}
                     aria-label="Note name"
                     style={{ outline: 'none', boxShadow: 'none' }}
-                    className="w-full text-3xl font-medium tracking-[-0.02em] bg-transparent text-[#111111] placeholder:text-[#787774]/40 pb-4 border-b border-[#eaeaea] focus:border-[#111111] transition-colors"
+                    className="w-full text-2xl font-medium tracking-tight bg-transparent text-[#111111] placeholder:text-stone-300 border-0 p-0 m-0"
+                    spellCheck={false}
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-6">
+                {/* Flush Bottom Bar (matches GraphSidebar bottom dock) */}
+                <div className="flex items-center justify-between px-6 h-[52px] bg-[#fbfbfa] border-t border-black/8">
                   <button
                     type="button"
                     onClick={() => setSetupStep('layout')}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#787774] hover:text-[#111111] transition-colors cursor-pointer"
+                    style={{ outline: 'none' }}
                   >
-                    <kbd className="px-1.5 py-0.5 text-[11px] font-mono bg-[#f7f6f3] border border-[#eaeaea] rounded-[4px]">
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#111111] bg-white border border-black/10 rounded shadow-[0_1px_0_rgba(0,0,0,0.06)]">
                       Esc
                     </kbd>
                   </button>
 
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111111] text-white hover:bg-[#333333] rounded-[6px] text-xs font-medium transition-all active:scale-[0.98] cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#111111] hover:bg-[#333333] text-white rounded-lg text-xs font-medium transition-all active:scale-95 cursor-pointer"
+                    style={{ outline: 'none' }}
                   >
                     <span>Create</span>
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-white/80 bg-white/15 rounded-[4px]">
+                    <kbd className="px-1 py-0.2 text-[10px] font-mono text-white/80 bg-white/15 rounded">
                       ↵
                     </kbd>
                   </button>
@@ -463,9 +516,9 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
       )}
 
       {/* Main container */}
-      <div className="w-full max-w-5xl px-8 py-14 flex flex-col">
+      <div className="w-full max-w-5xl px-8 py-12 flex flex-col">
         {/* Header with Playful Squid Mark & Rounded Wordmark */}
-        <header className="flex items-center justify-between mb-12 pb-5 border-b border-[#eaeaea]">
+        <header className="flex items-center justify-between mb-10 pb-4 border-b border-black/8">
           <div className="flex items-center gap-2.5">
             <InkyLogo size={28} />
             <span
@@ -482,7 +535,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
           <button
             type="button"
             onClick={() => handleSelectTemplate(TEMPLATES[0])}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[6px] bg-[#111111] text-white hover:bg-[#333333] text-xs font-medium transition-all active:scale-[0.98] cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#111111] text-white hover:bg-[#333333] text-xs font-medium transition-all active:scale-95 cursor-pointer"
           >
             <Plus size={14} />
             <span>New</span>
@@ -490,8 +543,8 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
         </header>
 
         {/* Template Gallery */}
-        <section className="mb-14 flex flex-col">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+        <section className="mb-12 flex flex-col">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5">
             {TEMPLATES.map((tmpl) => (
               <button
                 key={tmpl.id}
@@ -499,13 +552,13 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 onClick={() => handleSelectTemplate(tmpl)}
                 className="group flex flex-col items-start text-left transition-all active:scale-[0.98] cursor-pointer"
               >
-                {/* Crisp 8.5x11 Sheet Preview */}
-                <div className="w-full aspect-[8.5/11] bg-white border border-[#eaeaea] group-hover:border-[#111111]/40 rounded-[8px] relative overflow-hidden transition-all duration-200 group-hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] mb-3">
+                {/* 8.5x11 Sheet Preview */}
+                <div className="w-full aspect-[8.5/11] bg-white border border-black/8 group-hover:border-black/25 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] relative overflow-hidden transition-all duration-150 mb-2.5">
                   {!tmpl.isPdfUpload ? (
                     <PaperPatternSurface style={tmpl.paperStyle} />
                   ) : (
-                    <div className="w-full h-full bg-[#f9f9f8] flex flex-col items-center justify-center p-4 text-center">
-                      <div className="w-10 h-10 rounded-[6px] bg-white border border-[#eaeaea] flex items-center justify-center text-[#111111] mb-2">
+                    <div className="w-full h-full bg-[#fafaf9] flex flex-col items-center justify-center p-4 text-center">
+                      <div className="w-10 h-10 rounded-lg bg-white border border-black/8 shadow-2xs flex items-center justify-center text-[#111111] mb-2">
                         <FileUp size={18} />
                       </div>
                       <span className="text-xs font-medium text-[#111111]">PDF</span>
@@ -514,7 +567,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                 </div>
 
                 {/* Caption */}
-                <span className="text-xs font-medium text-[#111111]">{tmpl.title}</span>
+                <span className="text-xs font-medium text-[#111111] pl-0.5">{tmpl.title}</span>
               </button>
             ))}
           </div>
@@ -523,22 +576,22 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
         {/* Recent documents */}
         {boards.length > 0 && (
           <section>
-            <h2 className="text-xs font-medium text-[#787774] mb-4">Recent</h2>
+            <h2 className="text-xs font-medium text-[#787774] mb-3.5">Recent</h2>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
               {boards.map((b) => (
                 <div
                   key={b.id}
                   onClick={() => onOpenBoard(b.id)}
-                  className="group relative flex flex-col bg-white border border-[#eaeaea] hover:border-[#111111]/40 rounded-[8px] overflow-hidden transition-all duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] cursor-pointer active:scale-[0.98]"
+                  className="group relative flex flex-col bg-white border border-black/8 hover:border-black/25 rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-all duration-150 cursor-pointer active:scale-[0.99]"
                 >
                   {/* Authentic Paper + Live Ink Thumbnail */}
-                  <div className="w-full aspect-[4/3] border-b border-[#eaeaea] relative overflow-hidden">
+                  <div className="w-full aspect-[4/3] border-b border-black/6 relative overflow-hidden">
                     <BoardThumbnailPreview board={b} />
                   </div>
 
                   {/* Minimal Info row */}
-                  <div className="px-3.5 py-3 flex items-center justify-between bg-white">
+                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-white">
                     <span className="text-xs font-medium text-[#111111] truncate pr-2">
                       {b.title || 'Untitled'}
                     </span>
@@ -550,7 +603,7 @@ export function HomeDashboard({ onOpenBoard }: HomeDashboardProps) {
                         e.stopPropagation()
                         boardCatalog.deleteBoard(b.id)
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-[4px] hover:bg-[#f7f6f3] text-[#787774] hover:text-[#9f2f2d] transition-all cursor-pointer shrink-0"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-black/5 text-[#787774] hover:text-red-600 transition-all cursor-pointer shrink-0"
                     >
                       <Trash2 size={13} />
                     </button>
