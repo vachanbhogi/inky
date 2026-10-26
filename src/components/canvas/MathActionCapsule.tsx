@@ -498,7 +498,27 @@ export function MathActionCapsule() {
           </button>
         </div>
 
-        {socraticHint && !display.mlPending && (
+        {display.multiLineDiagnostic && !display.mlPending ? (
+          <div
+            data-testid="multiline-diagnostic-tray"
+            className="border-t border-black/6 pt-2 mt-1.5 pr-2 pb-0.5 flex items-center justify-between gap-3 text-xs"
+          >
+            {display.multiLineDiagnostic.allValid ? (
+              <span className="text-emerald-700 font-medium">
+                All {display.multiLineDiagnostic.linesCount} derivation steps are algebraically equivalent.
+              </span>
+            ) : (
+              <>
+                <span className="text-amber-800 font-medium leading-snug">
+                  Step {(display.multiLineDiagnostic.errorLineIndex ?? 0) + 1}: {display.multiLineDiagnostic.diagnosticMessage}
+                </span>
+                {socraticHint && (
+                  <span className="font-semibold text-[#2563eb] shrink-0">{socraticHint.operation}</span>
+                )}
+              </>
+            )}
+          </div>
+        ) : socraticHint && !display.mlPending ? (
           <div
             data-testid="socratic-coach-tray"
             className="border-t border-black/6 pt-2 mt-1.5 pr-2 pb-0.5 flex items-center justify-between gap-3 text-xs"
@@ -506,7 +526,7 @@ export function MathActionCapsule() {
             <span className="text-[#4b5563] leading-snug">{socraticHint.socraticPrompt}</span>
             <span className="font-medium text-[#2563eb] shrink-0">{socraticHint.operation}</span>
           </div>
-        )}
+        ) : null}
       </div>
     </fieldset>
   )

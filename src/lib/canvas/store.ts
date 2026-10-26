@@ -259,6 +259,13 @@ export class InkyStore {
     source: 'rule' | 'ml' | 'stamp'
     /** True while ML inference is still upgrading the instant rule latex. */
     mlPending?: boolean
+    /** Multi-line derivation diagnostic status (if user circled multiple lines of steps) */
+    multiLineDiagnostic?: {
+      allValid: boolean
+      errorLineIndex?: number
+      diagnosticMessage?: string
+      linesCount: number
+    }
   } | null = null
   transformInitialState: {
     strokes: {
@@ -345,16 +352,7 @@ export class InkyStore {
     this.notify()
   }
 
-  setMathCapsule(
-    capsule: {
-      latex: string
-      worldPosition: { x: number; y: number }
-      enclosedStrokeIds: string[]
-      enclosedCharIds?: string[]
-      source: 'rule' | 'ml' | 'stamp'
-      mlPending?: boolean
-    } | null,
-  ) {
+  setMathCapsule(capsule: InkyStore['mathCapsule']) {
     this.mathCapsule = capsule
     this.notify()
   }

@@ -13,7 +13,7 @@ describe('InkyBoard mlPending lifecycle', () => {
   })
 
   it('clears mlPending on the ML upgrade path', () => {
-    const upgradeIdx = inkyBoardSrc.indexOf("source: 'ml'")
+    const upgradeIdx = inkyBoardSrc.lastIndexOf("source: 'ml'")
     expect(upgradeIdx).toBeGreaterThan(-1)
     const upgradeCall = inkyBoardSrc.slice(upgradeIdx - 200, upgradeIdx + 30)
     expect(upgradeCall).toMatch(/mlPending:\s*false/)

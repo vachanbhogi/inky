@@ -27,6 +27,7 @@ import { ShortcutsModal } from './ShortcutsModal'
 import { StampLayer } from './StampLayer'
 import { Toolbar } from './Toolbar'
 import { WorksheetBackgroundLayer } from './WorksheetBackgroundLayer'
+import { groupIntoHorizontalLines, checkMultiLineWork } from '../../lib/math/line-grouper'
 import { PedagogySheet } from './PedagogySheet'
 
 /** Open the math capsule for a set of strokes: select them, arm the rule
@@ -66,6 +67,9 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
   }
 
   // Rule latex shows instantly, marked pending; ML upgrades it in place.
+  const lineGroups = groupIntoHorizontalLines(enclosedStrokes)
+  const isMultiLine = lineGroups.length >= 2
+
   inkyStore.setMathCapsule({
     latex: recognizeFormulaStrokes(enclosedStrokes),
     worldPosition: anchor,
@@ -73,6 +77,57 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
     source: 'rule',
     mlPending: true,
   })
+
+  if (isMultiLine) {
+    // Process each line in parallel through the ML recognizer
+    const linePromises = lineGroups.map((g) => {
+      const lineStrokes = enclosedStrokes.filter((s) => g.strokeIds.includes(s.id))
+      return recognizeInkML(lineStrokes).then(
+        (latex) => latex || recognizeFormulaStrokes(lineStrokes),
+      )
+    })
+
+    Promise.all(linePromises).then((recognizedLines) => {
+      const capsule = inkyStore.mathCapsule
+      if (!capsule) return
+      const sameSet =
+        capsule.enclosedStrokeIds.length === ids.length &&
+        ids.every((id) => capsule.enclosedStrokeIds.includes(id))
+      if (!sameSet) return
+
+      const cleanLines = recognizedLines.filter((l) => l && l.trim().length > 0)
+      if (cleanLines.length >= 2) {
+        const diagnostics = checkMultiLineWork(cleanLines)
+        const primaryLatex = cleanLines[diagnostics.errorLineIndex ?? 0] || cleanLines[0]
+        inkyStore.setMathCapsule({
+          ...capsule,
+          latex: primaryLatex,
+          source: 'ml',
+          mlPending: false,
+          multiLineDiagnostic: {
+            allValid: diagnostics.allValid,
+            errorLineIndex: diagnostics.errorLineIndex,
+            diagnosticMessage: diagnostics.diagnosticMessage,
+            linesCount: cleanLines.length,
+          },
+        })
+        return
+      }
+
+      // Fallback to single equation if lines failed to separate
+      recognizeInkML(enclosedStrokes).then((singleLatex) => {
+        if (!inkyStore.mathCapsule) return
+        inkyStore.setMathCapsule({
+          ...capsule,
+          latex: singleLatex || capsule.latex,
+          source: 'ml',
+          mlPending: false,
+        })
+      })
+    })
+    return
+  }
+
   recognizeInkML(enclosedStrokes).then((mlLatex) => {
     const capsule = inkyStore.mathCapsule
     if (!capsule) return
