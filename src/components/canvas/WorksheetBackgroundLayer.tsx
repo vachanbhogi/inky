@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { BookOpen, ChevronRight, Plus, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toScreen } from '../../lib/canvas/coordinates'
 import { inkyStore } from '../../lib/canvas/store'
@@ -277,7 +277,7 @@ export function WorksheetBackgroundLayer() {
       />
       {isPagedDoc && pages.some((p) => p.dataUrl || p.textContent) && (
         <div
-          className="inky-ui absolute z-20 pointer-events-auto flex items-center gap-2"
+          className="inky-ui absolute z-20 pointer-events-auto flex items-center bg-white/95 backdrop-blur-md border border-black/10 shadow-[0_4px_16px_rgba(0,0,0,0.06)] rounded-full p-1 transition-all"
           style={{
             left: `${pillScreenX}px`,
             top: `${pillScreenY}px`,
@@ -292,11 +292,12 @@ export function WorksheetBackgroundLayer() {
             data-method={worksheetMethod}
             aria-label={`Curriculum: ${activeTopicLabel}`}
             title="Click to cycle Socratic coaching method"
-            className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+            className="h-8 px-3 rounded-full hover:bg-black/5 text-xs font-medium text-[#111111] flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-95 cursor-pointer"
           >
-            <span className="text-[#787774]">Curriculum:</span>
-            <span className="font-semibold">{activeTopicLabel}</span>
+            <span className="text-[#787774] font-normal">Method:</span>
+            <span className="font-semibold text-[#111111]">{activeTopicLabel}</span>
           </button>
+          <div className="w-[1px] h-4 bg-black/10 mx-0.5" />
           <button
             type="button"
             onClick={(e) => {
@@ -306,14 +307,16 @@ export function WorksheetBackgroundLayer() {
             data-testid="teach-method-pill"
             aria-label="Learn method"
             title="Open method reference lesson"
-            className="min-h-[40px] px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white border border-black/10 hover:border-black/20 text-xs font-medium text-[#111111] shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-[transform,background-color,border-color] duration-150 active:scale-95 cursor-pointer"
+            className="h-8 px-3 rounded-full hover:bg-black/5 text-xs font-medium text-[#2563eb] flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-95 cursor-pointer"
           >
+            <BookOpen size={13} strokeWidth={2} />
             <span>Learn method</span>
+            <ChevronRight size={12} strokeWidth={2} className="opacity-50 -ml-0.5" />
           </button>
         </div>
       )}
       <div
-        className="inky-ui absolute z-20 pointer-events-auto flex items-center gap-2"
+        className="inky-ui absolute z-20 pointer-events-auto flex items-center bg-white/95 backdrop-blur-md border border-black/10 shadow-[0_4px_16px_rgba(0,0,0,0.06)] rounded-full p-1 transition-all"
         style={{
           left: `${btnScreenX}px`,
           top: `${btnScreenY}px`,
@@ -326,25 +329,29 @@ export function WorksheetBackgroundLayer() {
           onClick={handleAddPage}
           aria-label="Add page"
           title="Add a new page below"
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#111111] border border-black/10 hover:border-black/20 shadow-[0_4px_14px_rgba(0,0,0,0.06)] text-xs font-medium transition-all active:scale-95 cursor-pointer"
+          className="h-8 px-3 rounded-full hover:bg-black/5 text-[#111111] text-xs font-medium flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-95 cursor-pointer"
         >
-          <Plus size={14} strokeWidth={2.2} />
+          <Plus size={13} strokeWidth={2.2} />
           <span>Add page</span>
         </button>
         {isPagedDoc && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              inkyStore.openPedagogySheet('review')
-            }}
-            data-testid="review-session-pill"
-            aria-label="Review session"
-            title="Review your worksheet derivation steps"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white text-[#111111] border border-black/10 hover:border-black/20 shadow-[0_4px_14px_rgba(0,0,0,0.06)] text-xs font-medium transition-all active:scale-95 cursor-pointer"
-          >
-            <span>Review session</span>
-          </button>
+          <>
+            <div className="w-[1px] h-4 bg-black/10 mx-0.5" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                inkyStore.openPedagogySheet('review')
+              }}
+              data-testid="review-session-pill"
+              aria-label="Review session"
+              title="Review your worksheet derivation steps"
+              className="h-8 px-3 rounded-full hover:bg-black/5 text-[#787774] hover:text-[#111111] text-xs font-medium flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-95 cursor-pointer"
+            >
+              <Sparkles size={13} strokeWidth={2} />
+              <span>Review session</span>
+            </button>
+          </>
         )}
       </div>
     </>
