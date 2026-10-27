@@ -92,50 +92,51 @@ export function PedagogySheet() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-sm">
+      {/* Content — Flat Editorial Layout (No cards or SaaS boxes) */}
+      <div className="flex-1 overflow-y-auto divide-y divide-black/[0.06] text-sm">
         {isTeach ? (
           <>
-            <p className="text-xs text-[#555555] leading-relaxed">{lesson.summary}</p>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#787774]">
-                Steps
-              </h3>
-              {lesson.steps.map((step) => (
-                <div
-                  key={step.number}
-                  className="p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] space-y-1"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-black/5 text-[#111111] text-[11px] font-semibold flex items-center justify-center">
-                      {step.number}
-                    </span>
-                    <span className="font-medium text-xs text-[#111111]">{step.title}</span>
-                  </div>
-                  <p className="text-xs text-[#666666] pl-7 leading-normal">{step.detail}</p>
-                  {step.latex && (
-                    <div className="pl-7 pt-1 font-mono text-[11px] text-[#222222]">
-                      <code>{step.latex}</code>
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div className="p-5">
+              <p className="text-xs text-[#555555] leading-relaxed">{lesson.summary}</p>
             </div>
 
-            <div className="space-y-2 pt-1 border-t border-black/[0.06]">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#787774]">
+            <div className="p-5 space-y-4">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#787774]">
+                Steps
+              </h3>
+              <ol className="space-y-4 list-none m-0 p-0">
+                {lesson.steps.map((step) => (
+                  <li key={step.number} className="flex gap-3 text-xs">
+                    <span className="font-mono text-[11px] font-semibold text-[#787774] shrink-0 pt-0.5">
+                      {String(step.number).padStart(2, '0')}.
+                    </span>
+                    <div className="space-y-1">
+                      <div className="font-medium text-[#111111]">{step.title}</div>
+                      <p className="text-[#666666] leading-relaxed">{step.detail}</p>
+                      {step.latex && (
+                        <div className="pt-0.5 font-mono text-[11px] text-[#111111]">
+                          <code>{step.latex}</code>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#787774]">
                 Worked Example
               </h3>
-              <div className="p-3 rounded-xl bg-[#fbfbfa] border border-black/[0.06] space-y-2">
-                <div className="text-xs font-semibold text-[#111111]">
-                  Problem: <code className="font-mono text-xs">{lesson.workedExample.problem}</code>
+              <div className="space-y-2 text-xs">
+                <div className="font-medium text-[#111111]">
+                  Problem: <code className="font-mono">{lesson.workedExample.problem}</code>
                 </div>
-                <div className="space-y-1.5 pt-1">
+                <div className="space-y-1.5 pt-1 pl-3 border-l-2 border-black/10">
                   {lesson.workedExample.solutionSteps.map((s, idx) => (
-                    <div key={idx} className="text-xs flex items-baseline justify-between gap-2">
+                    <div key={idx} className="flex items-baseline justify-between gap-3 text-xs">
                       <span className="text-[#666666] text-[11px]">{s.description}</span>
-                      <code className="font-mono text-[11px] text-[#111111] font-medium">
+                      <code className="font-mono text-[11px] text-[#111111] font-medium shrink-0">
                         {s.latex}
                       </code>
                     </div>
@@ -146,59 +147,56 @@ export function PedagogySheet() {
           </>
         ) : (
           <>
-            {/* Review Metrics */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] text-center">
-                <span className="text-lg font-semibold text-[#111111] block">
+            {/* Flat Inline Metrics (Hairline Columns, No Cards) */}
+            <div className="grid grid-cols-3 divide-x divide-black/[0.06] bg-[#fbfbfa]/60 py-4 px-2">
+              <div className="text-center px-2">
+                <span className="text-xl font-medium tracking-tight text-[#111111] block">
                   {review.metrics.stampedSteps}
                 </span>
-                <span className="text-[10px] text-[#787774] font-medium uppercase tracking-wide">
+                <span className="text-[10px] text-[#787774] uppercase tracking-wider mt-0.5 block">
                   Steps Logged
                 </span>
               </div>
-              <div className="p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] text-center">
-                <span className="text-lg font-semibold text-[#111111] block">
+              <div className="text-center px-2">
+                <span className="text-xl font-medium tracking-tight text-[#111111] block">
                   {review.metrics.hintsRequested}
                 </span>
-                <span className="text-[10px] text-[#787774] font-medium uppercase tracking-wide">
+                <span className="text-[10px] text-[#787774] uppercase tracking-wider mt-0.5 block">
                   Hints Used
                 </span>
               </div>
-              <div className="p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] text-center">
-                <span className="text-lg font-semibold text-[#111111] block">
+              <div className="text-center px-2">
+                <span className={`text-xl font-medium tracking-tight block ${review.metrics.correctionsFlagged > 0 ? 'text-[#c74440]' : 'text-[#111111]'}`}>
                   {review.metrics.correctionsFlagged}
                 </span>
-                <span className="text-[10px] text-[#787774] font-medium uppercase tracking-wide">
+                <span className="text-[10px] text-[#787774] uppercase tracking-wider mt-0.5 block">
                   Errors
                 </span>
               </div>
             </div>
 
-            {/* Observations */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#787774]">
-                Derivation Observations
+            {/* Observations (Clean editorial list, no card borders) */}
+            <div className="p-5 space-y-3">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#787774]">
+                Derivation Notes
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {review.observations.map((obs, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-black/[0.02] border border-black/[0.04] text-xs text-[#444444] leading-relaxed"
-                  >
+                  <p key={idx} className="text-xs text-[#333333] leading-relaxed">
                     {obs}
-                  </div>
+                  </p>
                 ))}
               </div>
             </div>
 
-            {/* Rule of thumb */}
-            <div className="space-y-2 pt-1 border-t border-black/[0.06]">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#787774]">
-                Key Rule of Thumb
+            {/* Rule of thumb (Clean pull-quote style, no rounded box) */}
+            <div className="p-5 space-y-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#787774]">
+                Rule of Thumb
               </h3>
-              <div className="p-3.5 rounded-xl bg-[#fbfbfa] border border-black/[0.06] text-xs text-[#222222] font-medium leading-relaxed">
-                {review.ruleOfThumb}
-              </div>
+              <p className="text-xs text-[#111111] leading-relaxed pl-3 border-l-2 border-[#111111]/30 font-medium italic">
+                "{review.ruleOfThumb}"
+              </p>
             </div>
           </>
         )}
