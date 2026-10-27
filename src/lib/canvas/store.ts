@@ -244,6 +244,8 @@ export class InkyStore {
   showShortcuts = false
   graphSidebar: { isOpen: boolean; equation: string } = { isOpen: false, equation: '' }
   pedagogySheet: { isOpen: boolean; mode: 'teach' | 'review' } = { isOpen: false, mode: 'teach' }
+  /** Active session error log to populate Review Session metrics accurately */
+  sessionErrors: Array<'sign_error' | 'arithmetic_error' | 'division_error' | 'factor_error' | 'syntax_error' | 'unknown'> = []
   // Transient gesture-handoff animations (circle → capsule). Cleared by
   // CanvasLayer when their progress reports done.
   gestureDissolve: { stroke: Stroke; anchor: { x: number; y: number }; startedAt: number } | null =
@@ -374,6 +376,11 @@ export class InkyStore {
 
   openPedagogySheet(mode: 'teach' | 'review') {
     this.pedagogySheet = { isOpen: true, mode }
+    this.notify()
+  }
+
+  recordSessionError(errorType: 'sign_error' | 'arithmetic_error' | 'division_error' | 'factor_error' | 'syntax_error' | 'unknown') {
+    this.sessionErrors.push(errorType)
     this.notify()
   }
 

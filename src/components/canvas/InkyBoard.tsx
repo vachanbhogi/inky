@@ -108,6 +108,9 @@ function openMathCapsule(enclosedStrokes: Stroke[], gestureStroke?: Stroke) {
           return line
         })
         const diagnostics = checkMultiLineWork(processedLines)
+        if (!diagnostics.allValid && diagnostics.reason) {
+          inkyStore.recordSessionError(diagnostics.reason)
+        }
         // For multi-line work, show the problematic step in the formula display if there is an error,
         // or show line 1 / line 0 cleanly.
         const primaryLatex =

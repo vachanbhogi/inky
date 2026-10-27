@@ -48,42 +48,48 @@ export function PedagogySheet() {
     return generateSessionReview({
       topic,
       hintsUsed,
-      stepErrors: [],
+      stepErrors: inkyStore.sessionErrors,
       totalStamps: stamps.length,
     })
-  }, [activeBoard, lesson.title])
+  }, [activeBoard, lesson.title, sheetState])
 
   if (!sheetState.isOpen) return null
 
   const isTeach = sheetState.mode === 'teach'
 
   return (
-    <div
+    <aside
       data-testid="pedagogy-sheet"
       role="dialog"
       aria-modal="true"
       aria-label={isTeach ? 'Lesson Reference' : 'Session Review'}
-      className="inky-ui absolute top-4 bottom-4 right-4 z-40 w-[380px] max-w-[calc(100vw-32px)] bg-white/95 backdrop-blur-md rounded-2xl border border-black/10 shadow-[0_12px_36px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden text-[#111111] animate-in fade-in slide-in-from-right-4 duration-200"
+      className="inky-ui fixed top-0 right-0 h-full w-[400px] max-w-[95vw] bg-white border-l border-black/8 shadow-2xl flex flex-col z-40 select-none overflow-hidden text-[#111111] animate-in fade-in slide-in-from-right duration-200"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06]">
-        <div>
-          <span className="text-[11px] font-semibold tracking-wider uppercase text-[#787774]">
-            {isTeach ? 'Method Reference' : 'Session Review'}
-          </span>
-          <h2 className="text-base font-semibold text-[#111111] leading-tight mt-0.5">
-            {isTeach ? lesson.title : review.headline}
-          </h2>
-        </div>
+      {/* 1. Apple-style clean header matching GraphSidebar */}
+      <div className="flex items-center justify-between px-4 h-[44px] bg-white/95 backdrop-blur-md border-b border-black/6 shrink-0">
+        <h2 className="text-[13px] font-medium text-[#111111] tracking-tight">
+          {isTeach ? 'Method Reference' : 'Session Review'}
+        </h2>
         <button
           type="button"
           onClick={() => inkyStore.closePedagogySheet()}
-          aria-label="Close sheet"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
+          aria-label="Close panel"
+          title="Close (Esc)"
+          className="w-7 h-7 rounded-md flex items-center justify-center text-[#787774] hover:text-[#111111] hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
         >
-          <X size={16} strokeWidth={2} />
+          <X size={15} strokeWidth={2} />
         </button>
+      </div>
+
+      {/* Subheader Title */}
+      <div className="px-5 py-3.5 bg-[#fbfbfa] border-b border-black/[0.04]">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-[#787774]">
+          {isTeach ? activeBoard?.worksheetTopic || 'Curriculum Focus' : 'Worksheet Derivation'}
+        </div>
+        <div className="text-sm font-semibold text-[#111111] mt-0.5">
+          {isTeach ? lesson.title : review.headline}
+        </div>
       </div>
 
       {/* Content */}
@@ -208,6 +214,6 @@ export function PedagogySheet() {
           Dismiss
         </button>
       </div>
-    </div>
+    </aside>
   )
 }
