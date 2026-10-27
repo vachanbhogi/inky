@@ -257,16 +257,19 @@ export function generateSessionReview(input: SessionReviewInput): SessionReview 
   const observations: string[] = []
 
   if (input.stepErrors.includes('sign_error')) {
-    observations.push('Sign discrepancy detected: Check operations when moving terms across the equality.')
+    observations.push('Sign error: Remember to invert the sign when moving a constant term across the equals sign (e.g., -7 becomes +7).')
   }
   if (input.stepErrors.includes('arithmetic_error')) {
-    observations.push('Arithmetic calculation: Double-check arithmetic when combining constant terms.')
+    observations.push('Balance check: Remember to add (b/2)² to both sides of the equation to preserve equality.')
   }
   if (input.stepErrors.includes('division_error')) {
-    observations.push('Coefficient division: Ensure both numerator terms are divided by the leading coefficient.')
+    observations.push('Coefficient division: Ensure all terms are divided equally when reducing the leading coefficient.')
   }
   if (input.stepErrors.includes('factor_error')) {
-    observations.push('Factor pair check: Ensure inner and outer binomial terms sum to the exact linear coefficient.')
+    observations.push('Factor verification: Ensure the product of the constant terms equals c and their sum equals b.')
+  }
+  if (input.stepErrors.includes('syntax_error')) {
+    observations.push('Syntax alert: An incomplete equation or stray stroke interrupted derivation parsing.')
   }
 
   if (observations.length === 0) {

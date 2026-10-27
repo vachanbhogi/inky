@@ -1,8 +1,22 @@
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import { X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { inkyStore } from '../../lib/canvas/store'
 import { boardCatalog } from '../../lib/document/boardCatalog'
 import { generatePedagogyLesson, generateSessionReview } from '../../lib/pedagogy/pedagogy-engine'
+
+function renderMathText(latex: string): React.ReactNode {
+  if (!latex) return null
+  const clean = latex.replace(/\$/g, '').trim()
+  try {
+    const html = katex.renderToString(clean, { throwOnError: true, displayMode: false })
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX output
+    return <span dangerouslySetInnerHTML={{ __html: html }} />
+  } catch {
+    return <span className="font-mono text-xs">{clean}</span>
+  }
+}
 
 export function PedagogySheet() {
   const [sheetState, setSheetState] = useState(inkyStore.pedagogySheet)
@@ -114,8 +128,8 @@ export function PedagogySheet() {
                       <div className="font-medium text-[#111111]">{step.title}</div>
                       <p className="text-[#666666] leading-relaxed">{step.detail}</p>
                       {step.latex && (
-                        <div className="pt-0.5 font-mono text-[11px] text-[#111111]">
-                          <code>{step.latex}</code>
+                        <div className="pt-1 text-[#111111]">
+                          {renderMathText(step.latex)}
                         </div>
                       )}
                     </div>
@@ -128,17 +142,18 @@ export function PedagogySheet() {
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#787774]">
                 Worked Example
               </h3>
-              <div className="space-y-2 text-xs">
-                <div className="font-medium text-[#111111]">
-                  Problem: <code className="font-mono">{lesson.workedExample.problem}</code>
+              <div className="space-y-3 text-xs">
+                <div className="font-medium text-[#111111] flex items-center gap-2">
+                  <span className="text-[#787774]">Problem:</span>
+                  <span className="text-sm font-semibold">{renderMathText(lesson.workedExample.problem)}</span>
                 </div>
-                <div className="space-y-1.5 pt-1 pl-3 border-l-2 border-black/10">
+                <div className="space-y-2 pt-1 pl-3 border-l-2 border-black/10">
                   {lesson.workedExample.solutionSteps.map((s, idx) => (
                     <div key={idx} className="flex items-baseline justify-between gap-3 text-xs">
                       <span className="text-[#666666] text-[11px]">{s.description}</span>
-                      <code className="font-mono text-[11px] text-[#111111] font-medium shrink-0">
-                        {s.latex}
-                      </code>
+                      <div className="text-right text-[#111111] font-medium shrink-0">
+                        {renderMathText(s.latex)}
+                      </div>
                     </div>
                   ))}
                 </div>
